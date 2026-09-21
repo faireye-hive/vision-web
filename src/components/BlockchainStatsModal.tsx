@@ -9,7 +9,10 @@ import {
   Play, 
   RefreshCw, 
   Check, 
-  Layers 
+  Layers,
+  Zap,
+  Trash2,
+  Database
 } from 'lucide-react';
 import { 
   HiveGlobalProps, 
@@ -18,7 +21,8 @@ import {
   getActiveNode, 
   setActiveNode, 
   pingNode, 
-  hiveRpcCall 
+  hiveRpcCall,
+  apiCache
 } from '../services/hiveApi';
 
 interface BlockchainStatsModalProps {
@@ -37,6 +41,23 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   const [rpcResult, setRpcResult] = useState<string>('');
   const [rpcLoading, setRpcLoading] = useState(false);
   const [rpcError, setRpcError] = useState<string | null>(null);
+
+  // Client-Side Cache Stats
+  const [cacheStats, setCacheStats] = useState(apiCache.getStats());
+  const [cacheClearedMsg, setCacheClearedMsg] = useState(false);
+
+  useEffect(() => {
+    return apiCache.subscribe((stats) => {
+      setCacheStats(stats);
+    });
+  }, []);
+
+  const handleClearCache = () => {
+    apiCache.clear();
+    setCacheStats(apiCache.getStats());
+    setCacheClearedMsg(true);
+    setTimeout(() => setCacheClearedMsg(false), 2500);
+  };
 
   const fetchStats = () => {
     setLoading(true);
@@ -215,6 +236,75 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Client-Side RPC Caching Engine */}
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-slate-200">Client-Side Cache Engine</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {cacheClearedMsg && (
+                  <span className="text-[10px] text-emerald-400 font-semibold animate-pulse">Cache Cleared!</span>
+                )}
+                <button
+                  onClick={handleClearCache}
+                  className="px-2.5 py-1 bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-700/60 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Clear all stored feed & discussion caches"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Purge Cache</span>
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Protects public Hive nodes from rate limits and enables instant tab switching. Feeds, communities, and profiles are cached locally, while the <strong className="text-emerald-400">"New" feed always bypasses cache to stream newly created posts live</strong>.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Cache Hits</p>
+                <p className="text-base font-bold text-emerald-400 font-mono mt-0.5">{cacheStats.hits}</p>
+                <p className="text-[9px] text-slate-500">Saved RPC roundtrips</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Cache Misses</p>
+                <p className="text-base font-bold text-blue-400 font-mono mt-0.5">{cacheStats.misses}</p>
+                <p className="text-[9px] text-slate-500">Live network calls</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Hit Ratio</p>
+                <p className="text-base font-bold text-amber-400 font-mono mt-0.5">{cacheStats.hitRatio}%</p>
+                <p className="text-[9px] text-slate-500">Efficiency</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Cached Items</p>
+                <p className="text-base font-bold text-slate-200 font-mono mt-0.5">{cacheStats.entries}</p>
+                <p className="text-[9px] text-slate-500">Active entries</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-slate-400">
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Feeds (Hot/Trending): 3m
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-emerald-900/40 text-emerald-300 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                "New" Feed: Live (0s / Bypassed)
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                Discussions: 2m
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                Accounts: 5m
+              </span>
             </div>
           </div>
 

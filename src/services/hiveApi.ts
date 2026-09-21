@@ -2,6 +2,9 @@
  * Pure client-side Hive Blockchain API client using native fetch and public JSON-RPC 2.0.
  * Zero heavy backend, zero database, zero ENV secrets.
  */
+import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
+
+export { apiCache, CACHE_TTL };
 
 export interface HivePost {
   post_id: number;
@@ -212,7 +215,9 @@ export async function pingNode(url: string): Promise<number> {
 }
 
 /**
- * Fetch ranked posts (trending, hot, created, payout, muted, promoted)
+ * Fetch ranked posts (trending, hot, created, payout, muted, promoted).
+ * Automatically caches results except for 'created' (the "new" tab),
+ * ensuring newly minted blockchain posts are always fetched live as requested.
  */
 export async function getRankedPosts(
   sort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted' = 'trending',
@@ -220,19 +225,27 @@ export async function getRankedPosts(
   limit: number = 20,
   startAuthor?: string,
   startPermlink?: string,
-  observer: string = ''
+  observer: string = '',
+  forceRefresh: boolean = false
 ): Promise<HivePost[]> {
   const cleanTag = tag.trim().toLowerCase();
   const cleanObserver = observer.trim();
 
-  // Constrói o objeto de parâmetros garantindo que 'observer' sempre esteja presente se fornecido
+  // Specifically respect user rule: "new" tab ('created' sort) bypasses cache to show live posts!
+  const isNewTab = sort === 'created';
+  const cacheKey = `ranked_posts:${sort}:${cleanTag}:${cleanObserver}:${limit}:${startAuthor || ''}:${startPermlink || ''}`;
+
+  if (!isNewTab && !forceRefresh) {
+    const cached = apiCache.get<HivePost[]>(cacheKey);
+    if (cached) return cached;
+  }
+
   const params: Record<string, any> = {
     sort,
     tag: cleanTag,
     limit
   };
 
-  // Se houver observer (ex: "sm-silva"), ele DEVE ser incluído no payload
   if (cleanObserver) {
     params.observer = cleanObserver;
   }
@@ -243,39 +256,103 @@ export async function getRankedPosts(
   }
 
   const result = await hiveRpcCall<HivePost[]>('bridge.get_ranked_posts', params);
-  return result || [];
+  const posts = result || [];
+
+  // Cache only non-new feeds
+  if (!isNewTab && posts.length > 0) {
+    apiCache.set(cacheKey, posts, startAuthor ? CACHE_TTL.FEED_PAGE : CACHE_TTL.FEED);
+  }
+
+  return posts;
+}
+
+/**
+ * Check if ranked posts exist in cache synchronously (for instant UI transitions)
+ */
+export function getCachedRankedPosts(
+  sort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted' = 'trending',
+  tag: string = '',
+  limit: number = 20,
+  startAuthor?: string,
+  startPermlink?: string,
+  observer: string = ''
+): HivePost[] | null {
+  if (sort === 'created') return null; // Never return cached for 'created' (new tab)
+  const cleanTag = tag.trim().toLowerCase();
+  const cleanObserver = observer.trim();
+  const cacheKey = `ranked_posts:${sort}:${cleanTag}:${cleanObserver}:${limit}:${startAuthor || ''}:${startPermlink || ''}`;
+  return apiCache.get<HivePost[]>(cacheKey);
 }
 
 /**
  * Fetch full discussion (main post + comment tree)
  */
-export async function getDiscussion(author: string, permlink: string): Promise<Record<string, HivePost>> {
-  const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
-    author,
-    permlink
-  });
-  return result || {};
+export async function getDiscussion(
+  author: string,
+  permlink: string,
+  forceRefresh: boolean = false
+): Promise<Record<string, HivePost>> {
+  const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
+  const cleanPermlink = permlink.trim();
+  const cacheKey = `discussion:${cleanAuthor}:${cleanPermlink}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
+        author: cleanAuthor,
+        permlink: cleanPermlink
+      });
+      return result || {};
+    },
+    { ttl: CACHE_TTL.DISCUSSION, forceRefresh }
+  );
+}
+
+/**
+ * Invalidate a post's discussion cache (e.g. after commenting or voting)
+ */
+export function invalidateDiscussionCache(author: string, permlink: string): void {
+  const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
+  const cleanPermlink = permlink.trim();
+  apiCache.invalidate(`discussion:${cleanAuthor}:${cleanPermlink}`);
 }
 
 /**
  * Fetch detailed account info
  */
-export async function getAccount(username: string): Promise<HiveAccount | null> {
+export async function getAccount(username: string, forceRefresh: boolean = false): Promise<HiveAccount | null> {
   const cleaned = username.replace(/^@/, '').trim().toLowerCase();
-  const result = await hiveRpcCall<HiveAccount[]>('condenser_api.get_accounts', [[cleaned]]);
-  return result && result.length > 0 ? result[0] : null;
+  const cacheKey = `account:${cleaned}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      const result = await hiveRpcCall<HiveAccount[]>('condenser_api.get_accounts', [[cleaned]]);
+      return result && result.length > 0 ? result[0] : null;
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
 
 /**
  * Fetch bridge profile info (reputation, stats, bio, metadata)
  */
-export async function getProfile(username: string): Promise<any> {
+export async function getProfile(username: string, forceRefresh: boolean = false): Promise<any> {
   const cleaned = username.replace(/^@/, '').trim().toLowerCase();
-  try {
-    return await hiveRpcCall('bridge.get_profile', { account: cleaned });
-  } catch {
-    return null;
-  }
+  const cacheKey = `profile:${cleaned}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        return await hiveRpcCall('bridge.get_profile', { account: cleaned });
+      } catch {
+        return null;
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
 
 /**
@@ -284,26 +361,41 @@ export async function getProfile(username: string): Promise<any> {
 export async function getAccountPosts(
   sort: 'posts' | 'blog' | 'comments' | 'replies' = 'posts',
   account: string,
-  limit: number = 20
+  limit: number = 20,
+  forceRefresh: boolean = false
 ): Promise<HivePost[]> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
-  try {
-    const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', {
-      sort,
-      account: cleaned,
-      limit
-    });
-    return result || [];
-  } catch {
-    return [];
-  }
+  const cacheKey = `account_posts:${sort}:${cleaned}:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', {
+          sort,
+          account: cleaned,
+          limit
+        });
+        return result || [];
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.FEED, forceRefresh }
+  );
 }
 
 /**
  * Fetch Dynamic Global Properties (for block stats, Hive Power calculation, supply)
  */
-export async function getDynamicGlobalProperties(): Promise<HiveGlobalProps> {
-  return await hiveRpcCall<HiveGlobalProps>('condenser_api.get_dynamic_global_properties', []);
+export async function getDynamicGlobalProperties(forceRefresh: boolean = false): Promise<HiveGlobalProps> {
+  return fetchWithCache(
+    'dynamic_global_props',
+    async () => {
+      return await hiveRpcCall<HiveGlobalProps>('condenser_api.get_dynamic_global_properties', []);
+    },
+    { ttl: CACHE_TTL.FAST, forceRefresh }
+  );
 }
 
 /**
@@ -311,104 +403,154 @@ export async function getDynamicGlobalProperties(): Promise<HiveGlobalProps> {
  */
 export async function listCommunities(
   sort: 'rank' | 'subs' | 'new' = 'rank',
-  limit: number = 25
+  limit: number = 25,
+  forceRefresh: boolean = false
 ): Promise<HiveCommunity[]> {
-  try {
-    const result = await hiveRpcCall<HiveCommunity[]>('bridge.list_communities', {
-      sort,
-      limit,
-      observer: ''
-    });
-    return result || [];
-  } catch {
-    return [];
-  }
+  const cacheKey = `communities:${sort}:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<HiveCommunity[]>('bridge.list_communities', {
+          sort,
+          limit,
+          observer: ''
+        });
+        return result || [];
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.COMMUNITY, forceRefresh }
+  );
 }
 
 /**
  * Fetch recent account history
  */
-export async function getAccountHistory(username: string, limit: number = 20): Promise<any[]> {
+export async function getAccountHistory(username: string, limit: number = 20, forceRefresh: boolean = false): Promise<any[]> {
   const cleaned = username.replace(/^@/, '').trim().toLowerCase();
-  try {
-    const result = await hiveRpcCall<any[]>('condenser_api.get_account_history', [cleaned, -1, limit]);
-    return result || [];
-  } catch {
-    return [];
-  }
+  const cacheKey = `account_history:${cleaned}:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<any[]>('condenser_api.get_account_history', [cleaned, -1, limit]);
+        return result || [];
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
 
 /**
  * Fetch accounts followed by a user
  */
-export async function getFollowing(account: string, start: string = '', limit: number = 50): Promise<string[]> {
+export async function getFollowing(account: string, start: string = '', limit: number = 50, forceRefresh: boolean = false): Promise<string[]> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
-  try {
-    const result = await hiveRpcCall<Array<{ following: string }>>(
-      'condenser_api.get_following',
-      [cleaned, start, 'blog', limit]
-    );
-    return (result || []).map(r => r.following);
-  } catch {
-    return [];
-  }
+  const cacheKey = `following:${cleaned}:${start}:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<Array<{ following: string }>>(
+          'condenser_api.get_following',
+          [cleaned, start, 'blog', limit]
+        );
+        return (result || []).map(r => r.following);
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
 
 /**
  * Fetch follow counts (followers and following)
  */
-export async function getFollowCount(account: string): Promise<{ follower_count: number; following_count: number }> {
+export async function getFollowCount(account: string, forceRefresh: boolean = false): Promise<{ follower_count: number; following_count: number }> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
-  try {
-    const result = await hiveRpcCall('condenser_api.get_follow_count', [cleaned]);
-    return result || { follower_count: 0, following_count: 0 };
-  } catch {
-    return { follower_count: 0, following_count: 0 };
-  }
+  const cacheKey = `follow_count:${cleaned}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall('condenser_api.get_follow_count', [cleaned]);
+        return result || { follower_count: 0, following_count: 0 };
+      } catch {
+        return { follower_count: 0, following_count: 0 };
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
 
 /**
  * Fetch list of trending topics/tags on Hive
  */
-export async function getTrendingTags(limit: number = 30): Promise<Array<{ name: string; tag: string; total_payouts?: string }>> {
-  try {
-    const result = await hiveRpcCall<Array<{ name: string; total_payouts?: string }>>(
-      'condenser_api.get_trending_tags',
-      ['', limit]
-    );
-    return (result || [])
-      .filter(t => t.name && !t.name.startsWith('hive-'))
-      .map(t => ({ name: t.name, tag: t.name, total_payouts: t.total_payouts }));
-  } catch {
-    return [
-      { name: 'photography', tag: 'photography' },
-      { name: 'finance', tag: 'finance' },
-      { name: 'crypto', tag: 'crypto' },
-      { name: 'travel', tag: 'travel' },
-      { name: 'art', tag: 'art' },
-      { name: 'food', tag: 'food' },
-      { name: 'hive', tag: 'hive' },
-      { name: 'nature', tag: 'nature' },
-      { name: 'gaming', tag: 'gaming' }
-    ];
-  }
+export async function getTrendingTags(limit: number = 30, forceRefresh: boolean = false): Promise<Array<{ name: string; tag: string; total_payouts?: string }>> {
+  const cacheKey = `trending_tags:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<Array<{ name: string; total_payouts?: string }>>(
+          'condenser_api.get_trending_tags',
+          ['', limit]
+        );
+        return (result || [])
+          .filter(t => t.name && !t.name.startsWith('hive-'))
+          .map(t => ({ name: t.name, tag: t.name, total_payouts: t.total_payouts }));
+      } catch {
+        return [
+          { name: 'photography', tag: 'photography' },
+          { name: 'finance', tag: 'finance' },
+          { name: 'crypto', tag: 'crypto' },
+          { name: 'travel', tag: 'travel' },
+          { name: 'art', tag: 'art' },
+          { name: 'food', tag: 'food' },
+          { name: 'hive', tag: 'hive' },
+          { name: 'nature', tag: 'nature' },
+          { name: 'gaming', tag: 'gaming' }
+        ];
+      }
+    },
+    { ttl: CACHE_TTL.TRENDING_TAGS, forceRefresh }
+  );
 }
 
 /**
  * Fetch subscribed communities for a user
  */
-export async function getSubscriptions(account: string): Promise<Array<[string, string, string, string]>> {
+export async function getSubscriptions(account: string, forceRefresh: boolean = false): Promise<Array<[string, string, string, string]>> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
-  try {
-    const result = await hiveRpcCall<Array<[string, string, string, string]>>(
-      'bridge.list_all_subscriptions',
-      { account: cleaned }
-    );
-    return result || [];
-  } catch {
-    return [];
-  }
+  const cacheKey = `subscriptions:${cleaned}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<Array<[string, string, string, string]>>(
+          'bridge.list_all_subscriptions',
+          { account: cleaned }
+        );
+        return result || [];
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
 }
+
 
 
 /**

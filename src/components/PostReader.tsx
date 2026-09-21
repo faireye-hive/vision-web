@@ -155,7 +155,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         setCommentSuccess(true);
         setNewCommentBody('');
         setTimeout(() => setCommentSuccess(false), 4000);
-        getDiscussion(post.author, post.permlink).then(setDiscussion);
+        getDiscussion(post.author, post.permlink, true).then(setDiscussion);
       } else {
         alert(res.message || 'Could not post comment via Keychain');
       }
@@ -228,10 +228,10 @@ export const PostReader: React.FC<PostReaderProps> = ({
             id="back-to-feed-btn"
             onClick={onClose}
             className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition shadow-xs"
-            title="Voltar ao Feed (Esc)"
+            title="Back to Feed (Esc)"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Voltar ao Feed</span>
+            <span>Back to Feed</span>
           </button>
 
           <div className="hidden md:flex items-center gap-2 text-xs text-gray-400 truncate">

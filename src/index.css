@@ -7,6 +7,14 @@
     color: #1e293b;
     -webkit-font-smoothing: antialiased;
   }
+
+  button, [role="button"], a {
+    cursor: pointer;
+  }
+
+  button:disabled, [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 /* Custom scrollbars */

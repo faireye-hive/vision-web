@@ -1,0 +1,8 @@
+{
+  "name": "Nebulosa Web",
+  "description": "Lightweight decentralized web client for the Hive blockchain powered directly by public Hive RPC APIs with zero backend or secrets",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

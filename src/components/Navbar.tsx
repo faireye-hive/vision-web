@@ -32,8 +32,8 @@ interface NavbarProps {
   onOpenStats: () => void;
   onOpenCommunities: () => void;
   onOpenManageCommunities?: () => void;
-  activeNav?: 'discover' | 'waves' | 'decks' | 'explorer';
-  onNavChange?: (nav: 'discover' | 'waves' | 'decks' | 'explorer') => void;
+  activeNav?: 'feed' | 'discover' | 'waves' | 'communities';
+  onNavChange?: (nav: 'feed' | 'discover' | 'waves' | 'communities') => void;
   currentUser: CurrentUser | null;
   onLogin: (user: CurrentUser) => void;
   onLogout: () => void;
@@ -149,8 +149,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="navbar-hamburger-btn"
               onClick={() => setShowMobileMenu(!showMobileMenu)}
-              className="p-1.5 -ml-1.5 text-gray-700 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition lg:hidden"
+              className="p-1.5 -ml-1.5 text-gray-700 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition cursor-pointer lg:hidden"
               aria-label="Open navigation menu"
+              title="Toggle navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -163,7 +164,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onSortChange('hot');
                 if (onNavChange) onNavChange('discover');
               }}
-              className="flex items-center gap-2.5 focus:outline-none group"
+              className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
+              title="Nebulosa Home - Hive Blockchain Client"
             >
               <img
                 src="/assets/logo-circle.svg"
@@ -175,15 +177,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </button>
 
-            {/* Primary Nav Links: Discover, Waves, Decks, Explorer */}
+            {/* Primary Nav Links: Feed, Discover, Waves, Communities */}
             <nav className="hidden md:flex items-center gap-1 sm:gap-2">
+              <button
+                id="nav-feed-btn"
+                onClick={() => {
+                  if (onNavChange) onNavChange('feed');
+                  onTagChange('');
+                }}
+                title="Feed: Stories and updates from authors and accounts you follow"
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${activeNav === 'feed'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
+              >
+                Feed
+              </button>
+
               <button
                 id="nav-discover-btn"
                 onClick={() => {
                   if (onNavChange) onNavChange('discover');
                   onTagChange('');
                 }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${activeNav === 'discover'
+                title="Discover: Global Hive feed ranked by Hot, Trending, and New"
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${activeNav === 'discover'
                   ? 'bg-blue-50 text-blue-600 font-bold'
                   : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
@@ -194,7 +212,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-waves-btn"
                 onClick={() => { if (onNavChange) onNavChange('waves'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${activeNav === 'waves'
+                title="Waves: Short-form microblogging and decentralized instant updates"
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer ${activeNav === 'waves'
                   ? 'bg-blue-50 text-blue-600 font-bold'
                   : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
@@ -203,27 +222,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
-                id="nav-decks-btn"
-                onClick={() => { if (onNavChange) onNavChange('decks'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${activeNav === 'decks'
+                id="nav-communities-btn"
+                onClick={() => {
+                  if (onNavChange) onNavChange('communities');
+                }}
+                title="Communities: Explore Hive communities and specialized groups"
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer ${activeNav === 'communities'
                   ? 'bg-blue-50 text-blue-600 font-bold'
                   : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
               >
-                Decks
-              </button>
-
-              {/* Explorer Menu */}
-              <button
-                id="nav-explorer-btn"
-                onClick={() => { if (onNavChange) onNavChange('explorer'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition flex items-center gap-1.5 ${activeNav === 'explorer'
-                  ? 'bg-blue-50 text-blue-600 font-bold'
-                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                  }`}
-              >
-                <Compass className="w-3.5 h-3.5 text-blue-500" />
-                <span>Explorer</span>
+                Communities
               </button>
             </nav>
           </div>
@@ -262,7 +271,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="write-btn"
               onClick={() => setShowWriteModal(true)}
-              className="hidden sm:flex items-center gap-1.5 bg-[#3577f1] hover:bg-blue-600 text-white text-xs sm:text-sm font-semibold px-4 py-1.5 rounded-full shadow-sm transition"
+              title="Write and publish a new post to the Hive blockchain"
+              className="hidden sm:flex items-center gap-1.5 bg-[#3577f1] hover:bg-blue-600 text-white text-xs sm:text-sm font-semibold px-4 py-1.5 rounded-full shadow-sm transition cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
               <span>Write</span>
@@ -273,7 +283,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="keychain-login-btn"
                 onClick={() => setShowLoginModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition shadow-sm"
+                title="Connect Hive Keychain wallet for keyless signing"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Key className="w-3.5 h-3.5 text-rose-600" />
                 <span>Keychain Login</span>
@@ -283,7 +294,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="user-avatar-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1 pr-2 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition focus:outline-none"
+                  title={`Signed in as @${currentUser.username} - click for profile and settings`}
+                  className="flex items-center gap-2 p-1 pr-2 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition focus:outline-none cursor-pointer"
                 >
                   <div className="relative">
                     <img
@@ -342,11 +354,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
 
                       <button
-                        onClick={() => { if (onNavChange) onNavChange('explorer'); setShowUserMenu(false); }}
+                        onClick={() => { if (onNavChange) onNavChange('communities'); setShowUserMenu(false); }}
                         className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2"
                       >
-                        <Compass className="w-4 h-4 text-purple-600" />
-                        <span>Blockchain Explorer</span>
+                        <Layers className="w-4 h-4 text-purple-600" />
+                        <span>Explore Communities</span>
                       </button>
 
                       <button
@@ -417,6 +429,69 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {showMobileMenu && (
+          <div id="mobile-nav-drawer" className="md:hidden border-t border-gray-150 py-3 px-1 space-y-1 bg-white">
+            <button
+              onClick={() => {
+                if (onNavChange) onNavChange('feed');
+                onTagChange('');
+                setShowMobileMenu(false);
+              }}
+              title="Feed: Stories and updates from creators and accounts you follow"
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                activeNav === 'feed' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>Feed (Following)</span>
+              {activeNav === 'feed' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+            </button>
+
+            <button
+              onClick={() => {
+                if (onNavChange) onNavChange('discover');
+                onTagChange('');
+                setShowMobileMenu(false);
+              }}
+              title="Discover: Global Hive feed ranked by Hot, Trending, and New"
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                activeNav === 'discover' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>Discover (Global)</span>
+              {activeNav === 'discover' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+            </button>
+
+            <button
+              onClick={() => {
+                if (onNavChange) onNavChange('waves');
+                setShowMobileMenu(false);
+              }}
+              title="Waves: Short-form microblogging and decentralized instant updates"
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                activeNav === 'waves' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>Waves</span>
+              {activeNav === 'waves' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+            </button>
+
+            <button
+              onClick={() => {
+                if (onNavChange) onNavChange('communities');
+                setShowMobileMenu(false);
+              }}
+              title="Communities: Explore Hive communities and specialized groups"
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                activeNav === 'communities' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>Communities</span>
+              {activeNav === 'communities' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ================= KEYCHAIN LOGIN MODAL ================= */}

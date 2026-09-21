@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   RefreshCw,
   Compass,
@@ -8,13 +8,17 @@ import {
   Hash,
   UserPlus,
   MessageSquare,
-  FileText
+  FileText,
+  Zap
 } from 'lucide-react';
 import {
   HivePost,
   getRankedPosts,
+  getCachedRankedPosts,
   getAccountPosts,
-  getHiveAvatarUrl
+  getHiveAvatarUrl,
+  getDiscussion,
+  apiCache
 } from './services/hiveApi';
 import { KeychainService, CurrentUser } from './services/keychain';
 import { Navbar } from './components/Navbar';
@@ -25,7 +29,27 @@ import { AccountModal } from './components/AccountModal';
 import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { CommunitiesModal } from './components/CommunitiesModal';
 import { ManageCommunitiesModal } from './components/ManageCommunitiesModal';
-import { ExplorerView } from './components/ExplorerView';
+
+function getInitialUrlParams() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const params = new URLSearchParams(window.location.search);
+    let tab = params.get('tab') as 'feed' | 'discover' | 'waves' | 'communities' | null;
+    if ((tab as string) === 'following') tab = 'feed';
+    if ((tab as string) === 'decks' || (tab as string) === 'explorer') tab = 'discover';
+
+    return {
+      tab,
+      sort: params.get('sort') as 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted' | null,
+      tag: params.get('tag') || '',
+      source: params.get('source') as 'following' | 'communities' | 'global' | null,
+      post: params.get('post') || null,
+      author: params.get('author') || null
+    };
+  } catch {
+    return {};
+  }
+}
 
 const DEFAULT_TOP_COMMUNITIES = [
   {
@@ -52,23 +76,37 @@ const DEFAULT_TOP_COMMUNITIES = [
 ];
 
 export function App() {
+  const initialParams = useRef(getInitialUrlParams()).current;
+
   // Hive Keychain Current User state
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => {
     return KeychainService.getCurrentUser();
   });
 
-  // Source tab: when logged out, default strictly to 'global'
-  const [sourceTab, setSourceTab] = useState<'following' | 'communities' | 'global'>(() => {
-    return KeychainService.getCurrentUser() ? 'global' : 'global';
+  // Sort order: initialize from URL if valid, otherwise 'hot'
+  const [sort, setSort] = useState<'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted'>(() => {
+    if (initialParams.sort && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(initialParams.sort)) {
+      return initialParams.sort;
+    }
+    return 'hot';
   });
 
-  // Sort order: default strictly to 'hot'
-  const [sort, setSort] = useState<'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted'>('hot');
-  const [tag, setTag] = useState<string>('');
-  const [activeNav, setActiveNav] = useState<'discover' | 'waves' | 'decks' | 'explorer'>('discover');
+  const [tag, setTag] = useState<string>(() => initialParams.tag || '');
+  const [activeNav, setActiveNav] = useState<'feed' | 'discover' | 'waves' | 'communities'>(() => {
+    if (initialParams.tab && ['feed', 'discover', 'waves', 'communities'].includes(initialParams.tab)) {
+      return initialParams.tab;
+    }
+    if (initialParams.source === 'following') return 'feed';
+    if (initialParams.source === 'communities') return 'communities';
+    return 'discover';
+  });
+
+  // Derived sourceTab for backwards compatibility
+  const sourceTab: 'following' | 'communities' | 'global' =
+    activeNav === 'feed' ? 'following' : activeNav === 'communities' ? 'communities' : 'global';
 
   // Author feed filter (showing user posts or comments directly in the feed)
-  const [feedAuthor, setFeedAuthor] = useState<string | null>(null);
+  const [feedAuthor, setFeedAuthor] = useState<string | null>(() => initialParams.author || null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
 
   const [posts, setPosts] = useState<HivePost[]>([]);
@@ -93,6 +131,10 @@ export function App() {
   const [showCommunitiesModal, setShowCommunitiesModal] = useState<boolean>(false);
   const [showManageCommunitiesModal, setShowManageCommunitiesModal] = useState<boolean>(false);
 
+  // Preserve scroll position when opening and closing posts
+  const feedScrollPositionRef = useRef<number>(0);
+  const isPopStateRef = useRef<boolean>(false);
+
   // Toggle join community
   const toggleJoinCommunity = (communityName: string) => {
     setJoinedCommunities(prev => {
@@ -110,7 +152,24 @@ export function App() {
 
   // Fetch posts based on feedAuthor OR active sourceTab, sort, tag
   const fetchPosts = useCallback(async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
+    // Check if we already have cached posts to render immediately without blank screen
+    let hasCached = false;
+    if (!isRefresh && !feedAuthor && sort !== 'created') {
+      let queryTag = tag;
+      const observer = currentUser?.username || '';
+      if (sourceTab === 'communities' && !queryTag) {
+        queryTag = 'my';
+      }
+      const cached = getCachedRankedPosts(sort, queryTag, 20, undefined, undefined, observer);
+      if (cached && cached.length > 0) {
+        setPosts(cached);
+        hasCached = true;
+      }
+    }
+
+    if (!isRefresh && !hasCached) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -118,24 +177,30 @@ export function App() {
 
       // If user filtered by a specific author to see their posts or comments in the feed
       if (feedAuthor) {
-        fetched = await getAccountPosts(authorFeedMode, feedAuthor, 20);
-      } else if (sourceTab === 'following' && currentUser) {
-        try {
-          fetched = await getAccountPosts('feed' as any, currentUser.username, 20);
-        } catch {
+        fetched = await getAccountPosts(authorFeedMode, feedAuthor, 20, isRefresh);
+      } else if (activeNav === 'feed') {
+        if (currentUser) {
+          try {
+            fetched = await getAccountPosts('feed' as any, currentUser.username, 20, isRefresh);
+          } catch {
+            fetched = [];
+          }
+        } else {
           fetched = [];
         }
-      } else if (sourceTab === 'communities') {
-
+      } else if (activeNav === 'communities') {
         const observer = currentUser?.username || '';
         let queryTag = tag;
         if (!queryTag) {
-          queryTag = 'my';
+          queryTag = observer ? 'my' : 'hive-125125';
         }
 
-        fetched = await getRankedPosts(sort, queryTag, 20, undefined, undefined, observer);
+        fetched = await getRankedPosts(sort, queryTag, 20, undefined, undefined, observer, isRefresh);
+      } else if (activeNav === 'waves') {
+        fetched = await getRankedPosts(sort, 'waves', 20, undefined, undefined, '', isRefresh);
       } else {
-        fetched = await getRankedPosts(sort, tag, 20);
+        // 'discover' (Global)
+        fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
       }
 
       setPosts(fetched || []);
@@ -147,7 +212,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [sort, tag, sourceTab, currentUser, joinedCommunities, feedAuthor, authorFeedMode]);
+  }, [sort, tag, activeNav, currentUser, joinedCommunities, feedAuthor, authorFeedMode]);
 
   useEffect(() => {
     fetchPosts();
@@ -163,15 +228,18 @@ export function App() {
       if (feedAuthor) {
         const more = await getAccountPosts(authorFeedMode, feedAuthor, 20);
         setPosts(prev => [...prev, ...more.slice(prev.length)]);
-      } else {
+      } else if (activeNav === 'feed') {
+        if (currentUser) {
+          const more = await getAccountPosts('feed' as any, currentUser.username, 20);
+          setPosts(prev => [...prev, ...more.slice(prev.length)]);
+        }
+      } else if (activeNav === 'communities') {
         let queryTag = tag;
         const observer = currentUser?.username || '';
-
-        if (sourceTab === 'communities' && !tag) {
+        if (!queryTag) {
           queryTag = observer ? 'my' : 'hive-125125';
         }
 
-        // Repasse o 'observer' como 6º parâmetro no getRankedPosts
         const more = await getRankedPosts(
           sort,
           queryTag,
@@ -180,7 +248,27 @@ export function App() {
           lastPost.permlink,
           observer
         );
-
+        const uniqueMore = more.slice(1);
+        setPosts((prev) => [...prev, ...uniqueMore]);
+      } else if (activeNav === 'waves') {
+        const more = await getRankedPosts(
+          sort,
+          'waves',
+          20,
+          lastPost.author,
+          lastPost.permlink
+        );
+        const uniqueMore = more.slice(1);
+        setPosts((prev) => [...prev, ...uniqueMore]);
+      } else {
+        // discover (Global)
+        const more = await getRankedPosts(
+          sort,
+          tag,
+          20,
+          lastPost.author,
+          lastPost.permlink
+        );
         const uniqueMore = more.slice(1);
         setPosts((prev) => [...prev, ...uniqueMore]);
       }
@@ -191,22 +279,291 @@ export function App() {
     }
   };
 
+  // Open post and push to browser history, while saving feed scroll position
+  const handleSelectPost = useCallback((post: HivePost, pushHistory = true) => {
+    feedScrollPositionRef.current = window.scrollY;
+    setSelectedPost(post);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    if (pushHistory) {
+      const params = new URLSearchParams(window.location.search);
+      params.set('post', `@${post.author}/${post.permlink}`);
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.pushState(
+        {
+          type: 'post',
+          author: post.author,
+          permlink: post.permlink,
+          scrollY: feedScrollPositionRef.current
+        },
+        '',
+        newUrl
+      );
+    }
+  }, []);
+
+  // Close post and restore the exact feed scroll position
+  const handleClosePost = useCallback((popHistory = true) => {
+    setSelectedPost(null);
+
+    const targetY = feedScrollPositionRef.current;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: targetY, behavior: 'instant' });
+      setTimeout(() => {
+        window.scrollTo({ top: targetY, behavior: 'instant' });
+      }, 30);
+    });
+
+    if (popHistory) {
+      if (window.history.state?.type === 'post') {
+        window.history.back();
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('post')) {
+          params.delete('post');
+          const query = params.toString();
+          const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+          window.history.pushState({ type: 'feed', scrollY: targetY }, '', newUrl);
+        }
+      }
+    }
+  }, []);
+
+  // Modal openers that push to history so browser back closes the modal instead of leaving the app
+  const openStatsModal = useCallback(() => {
+    window.history.pushState({ type: 'modal', modal: 'stats' }, '', window.location.href);
+    setShowStatsModal(true);
+  }, []);
+
+  const openCommunitiesModal = useCallback(() => {
+    window.history.pushState({ type: 'modal', modal: 'communities' }, '', window.location.href);
+    setShowCommunitiesModal(true);
+  }, []);
+
+  const openManageCommunitiesModal = useCallback(() => {
+    window.history.pushState({ type: 'modal', modal: 'manageCommunities' }, '', window.location.href);
+    setShowManageCommunitiesModal(true);
+  }, []);
+
+  const openAuthorProfile = useCallback((username: string) => {
+    window.history.pushState({ type: 'modal', modal: 'account', username }, '', window.location.href);
+    setSelectedAuthorProfile(username);
+  }, []);
+
   const handleSourceTabChange = (newTab: 'following' | 'communities' | 'global') => {
-    setSourceTab(newTab);
+    if (newTab === 'following') {
+      setActiveNav('feed');
+    } else if (newTab === 'communities') {
+      setActiveNav('communities');
+    } else {
+      setActiveNav('discover');
+    }
     setFeedAuthor(null);
     setTag('');
-    if (activeNav === 'explorer') {
-      setActiveNav('discover');
+    if (selectedPost) {
+      handleClosePost(false);
     }
   };
 
   // Clicking an author filters their posts directly in the feed!
-  const handleSelectAuthor = (author: string) => {
+  const handleSelectAuthor = useCallback((author: string) => {
     setFeedAuthor(author);
     setAuthorFeedMode('posts');
-    setSelectedPost(null);
+    if (selectedPost) {
+      handleClosePost(false);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, [selectedPost, handleClosePost]);
+
+  // If initial URL had a direct post link, load that discussion
+  useEffect(() => {
+    if (initialParams.post) {
+      const match = initialParams.post.match(/^@?([^/]+)\/(.+)$/);
+      if (match) {
+        const [, author, permlink] = match;
+        getDiscussion(author, permlink).then((disc) => {
+          const root = disc[`${author}/${permlink}`] || Object.values(disc)[0];
+          if (root) {
+            setSelectedPost(root);
+          }
+        }).catch((err) => {
+          console.error('Failed to load initial post from URL:', err);
+        });
+      }
+    }
+  }, [initialParams.post]);
+
+  // Listen for browser Back and Forward button events
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      isPopStateRef.current = true;
+
+      // 1. If any modal was open, close it on back button
+      if (showStatsModal || showCommunitiesModal || showManageCommunitiesModal || selectedAuthorProfile) {
+        setShowStatsModal(false);
+        setShowCommunitiesModal(false);
+        setShowManageCommunitiesModal(false);
+        setSelectedAuthorProfile(null);
+        setTimeout(() => { isPopStateRef.current = false; }, 50);
+        return;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const postParam = params.get('post');
+
+      // 2. If a post was open and now there's no post in URL -> user hit back to return to feed
+      if (selectedPost && !postParam) {
+        setSelectedPost(null);
+        const targetY = event.state?.scrollY ?? feedScrollPositionRef.current;
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: targetY, behavior: 'instant' });
+          setTimeout(() => {
+            window.scrollTo({ top: targetY, behavior: 'instant' });
+          }, 30);
+        });
+        setTimeout(() => { isPopStateRef.current = false; }, 50);
+        return;
+      }
+
+      // 3. If navigating forward/back into a post
+      if (postParam) {
+        const currentPostStr = selectedPost ? `@${selectedPost.author}/${selectedPost.permlink}` : '';
+        if (currentPostStr !== postParam) {
+          const match = postParam.match(/^@?([^/]+)\/(.+)$/);
+          if (match) {
+            const [, author, permlink] = match;
+            const found = posts.find((p) => p.author === author && p.permlink === permlink);
+            if (found) {
+              feedScrollPositionRef.current = event.state?.scrollY ?? window.scrollY;
+              setSelectedPost(found);
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            } else {
+              getDiscussion(author, permlink).then((disc) => {
+                const root = disc[`${author}/${permlink}`] || Object.values(disc)[0];
+                if (root) {
+                  feedScrollPositionRef.current = event.state?.scrollY ?? window.scrollY;
+                  setSelectedPost(root);
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }
+              });
+            }
+          }
+        }
+        setTimeout(() => { isPopStateRef.current = false; }, 50);
+        return;
+      }
+
+      // 4. Tab / Sort / Tag / Author navigation via browser Back/Forward
+      const tabParam = params.get('tab');
+      if (tabParam === 'feed' || tabParam === 'discover' || tabParam === 'waves' || tabParam === 'communities') {
+        setActiveNav(tabParam);
+      } else if (tabParam === 'following') {
+        setActiveNav('feed');
+      } else {
+        setActiveNav('discover');
+      }
+
+      const sortParam = params.get('sort');
+      if (sortParam && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(sortParam)) {
+        setSort(sortParam as any);
+      } else {
+        setSort('hot');
+      }
+
+      const tagParam = params.get('tag');
+      setTag(tagParam || '');
+
+      const authorParam = params.get('author');
+      setFeedAuthor(authorParam || null);
+
+      setTimeout(() => {
+        isPopStateRef.current = false;
+      }, 50);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedPost, posts, showStatsModal, showCommunitiesModal, showManageCommunitiesModal, selectedAuthorProfile]);
+
+  // Synchronize state changes to URL and browser history so the Back button remembers navigation history
+  useEffect(() => {
+    if (isPopStateRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    let changed = false;
+
+    // tab
+    if (activeNav !== 'discover') {
+      if (params.get('tab') !== activeNav) {
+        params.set('tab', activeNav);
+        changed = true;
+      }
+    } else if (params.has('tab')) {
+      params.delete('tab');
+      changed = true;
+    }
+
+    // sort
+    if (sort !== 'hot') {
+      if (params.get('sort') !== sort) {
+        params.set('sort', sort);
+        changed = true;
+      }
+    } else if (params.has('sort')) {
+      params.delete('sort');
+      changed = true;
+    }
+
+    // tag
+    if (tag) {
+      if (params.get('tag') !== tag) {
+        params.set('tag', tag);
+        changed = true;
+      }
+    } else if (params.has('tag')) {
+      params.delete('tag');
+      changed = true;
+    }
+
+    // source
+    if (sourceTab !== 'global') {
+      if (params.get('source') !== sourceTab) {
+        params.set('source', sourceTab);
+        changed = true;
+      }
+    } else if (params.has('source')) {
+      params.delete('source');
+      changed = true;
+    }
+
+    // author
+    if (feedAuthor) {
+      if (params.get('author') !== feedAuthor) {
+        params.set('author', feedAuthor);
+        changed = true;
+      }
+    } else if (params.has('author')) {
+      params.delete('author');
+      changed = true;
+    }
+
+    if (changed) {
+      const query = params.toString();
+      const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      window.history.pushState(
+        {
+          tab: activeNav,
+          sort,
+          tag,
+          source: sourceTab,
+          author: feedAuthor,
+          scrollY: window.scrollY
+        },
+        '',
+        newUrl
+      );
+    }
+  }, [activeNav, sort, tag, sourceTab, feedAuthor]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f8fa] text-gray-900 font-sans">
@@ -216,15 +573,15 @@ export function App() {
         currentSort={sort}
         onSortChange={(s) => setSort(s)}
         currentTag={tag}
-        onTagChange={(t) => { setTag(t); setFeedAuthor(null); setSelectedPost(null); }}
-        onOpenAccount={(user) => setSelectedAuthorProfile(user)}
-        onOpenStats={() => setShowStatsModal(true)}
-        onOpenCommunities={() => setShowCommunitiesModal(true)}
-        onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
+        onTagChange={(t) => { setTag(t); setFeedAuthor(null); if (selectedPost) handleClosePost(false); }}
+        onOpenAccount={(user) => openAuthorProfile(user)}
+        onOpenStats={openStatsModal}
+        onOpenCommunities={openCommunitiesModal}
+        onOpenManageCommunities={openManageCommunitiesModal}
         activeNav={activeNav}
         onNavChange={(nav) => {
           setActiveNav(nav);
-          setSelectedPost(null);
+          if (selectedPost) handleClosePost(false);
         }}
         currentUser={currentUser}
         onLogin={(user) => {
@@ -233,7 +590,7 @@ export function App() {
         onLogout={() => {
           KeychainService.logout();
           setCurrentUser(null);
-          setSourceTab('global');
+          setActiveNav('discover');
           setSort('hot');
           setFeedAuthor(null);
         }}
@@ -242,45 +599,21 @@ export function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
 
-        {/* If Explorer tab is selected */}
-        {activeNav === 'explorer' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start">
-            <aside className="hidden lg:block">
-              <LeftSidebar
-                sourceTab={sourceTab}
-                onSourceTabChange={handleSourceTabChange}
-                currentTag={tag}
-                onSelectTag={(t) => { setTag(t); setActiveNav('discover'); }}
-                onSelectAuthor={handleSelectAuthor}
-                feedPosts={posts}
-                currentUser={currentUser}
-                onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
-                joinedCommunities={joinedCommunities}
-              />
-            </aside>
-            <section className="min-w-0 flex-1">
-              <ExplorerView
-                onBackToFeed={() => setActiveNav('discover')}
-                onSelectTag={(t) => { setTag(t); setActiveNav('discover'); }}
-                onSelectAuthor={handleSelectAuthor}
-                onSelectCommunity={(c) => { setTag(c); setSourceTab('communities'); setActiveNav('discover'); }}
-              />
-            </section>
-          </div>
-        ) : selectedPost ? (
-          /* ================= IN-PLACE POST READER (NAVBAR & SIDEBAR INTACT) ================= */
+        {/* ================= IN-PLACE POST READER (NAVBAR & SIDEBAR INTACT) ================= */}
+        {selectedPost && (
           <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start animate-in fade-in duration-150">
-
             <aside className="hidden lg:block">
               <LeftSidebar
-                sourceTab={sourceTab}
-                onSourceTabChange={handleSourceTabChange}
+                activeNav={activeNav}
+                onNavChange={(n) => { setActiveNav(n); handleClosePost(false); }}
+                currentSort={sort}
+                onSortChange={(s) => { setSort(s); handleClosePost(false); }}
                 currentTag={tag}
-                onSelectTag={(t) => { setTag(t); setSelectedPost(null); }}
-                onSelectAuthor={handleSelectAuthor}
+                onSelectTag={(t) => { setTag(t); handleClosePost(false); }}
+                onSelectAuthor={(a) => { handleSelectAuthor(a); handleClosePost(false); }}
                 feedPosts={posts}
                 currentUser={currentUser}
-                onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
+                onOpenManageCommunities={openManageCommunitiesModal}
                 joinedCommunities={joinedCommunities}
               />
             </aside>
@@ -288,9 +621,9 @@ export function App() {
             <section className="min-w-0 flex-1">
               <PostReader
                 post={selectedPost}
-                onClose={() => setSelectedPost(null)}
+                onClose={() => handleClosePost()}
                 onSelectAuthor={handleSelectAuthor}
-                onSelectTag={(t) => { setTag(t); setSelectedPost(null); }}
+                onSelectTag={(t) => { setTag(t); handleClosePost(); }}
                 currentUser={currentUser}
                 onRequireLogin={() => {
                   alert('Please connect Hive Keychain in the top menu to perform this action.');
@@ -298,24 +631,31 @@ export function App() {
               />
             </section>
           </div>
-        ) : (
-          /* ================= FEED LAYOUT ================= */
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_300px] gap-6 items-start">
+        )}
 
-            {/* Left Sidebar */}
-            <aside className="hidden lg:block">
-              <LeftSidebar
-                sourceTab={sourceTab}
-                onSourceTabChange={handleSourceTabChange}
-                currentTag={tag}
-                onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
-                onSelectAuthor={handleSelectAuthor}
-                feedPosts={posts}
-                currentUser={currentUser}
-                onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
-                joinedCommunities={joinedCommunities}
-              />
-            </aside>
+        {/* ================= FEED LAYOUT (KEPT IN DOM TO PRESERVE SCROLL POSITION) ================= */}
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_300px] gap-6 items-start ${
+            selectedPost ? 'hidden' : 'grid'
+          }`}
+        >
+
+        {/* Left Sidebar */}
+        <aside className="hidden lg:block">
+          <LeftSidebar
+            activeNav={activeNav}
+            onNavChange={(n) => { setActiveNav(n); setFeedAuthor(null); setTag(''); }}
+            currentSort={sort}
+            onSortChange={(s) => setSort(s)}
+            currentTag={tag}
+            onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
+            onSelectAuthor={handleSelectAuthor}
+            feedPosts={posts}
+            currentUser={currentUser}
+            onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
+            joinedCommunities={joinedCommunities}
+          />
+        </aside>
 
             {/* Center Feed Section */}
             <section className="min-w-0 flex-1">
@@ -385,159 +725,97 @@ export function App() {
 
               {/* Feed Controls Header */}
               <div className="bg-white rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] mb-4">
-
-                {/* Source Tabs: When logged out, ONLY Global appears! When logged in, Following & Communities appear */}
-                <div className="flex items-center gap-6 border-b border-gray-50 pb-2.5">
-
-                  {currentUser && (
-                    <>
-                      <button
-                        id="tab-following-btn"
-                        onClick={() => handleSourceTabChange('following')}
-                        className={`text-sm font-semibold transition pb-1 relative flex items-center gap-1.5 ${sourceTab === 'following' && !feedAuthor
-                          ? 'text-blue-600 font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        <span>Following</span>
-                        {sourceTab === 'following' && !feedAuthor && (
-                          <span className="absolute bottom-[-11px] left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-                        )}
-                      </button>
-
-                      <button
-                        id="tab-communities-btn"
-                        onClick={() => handleSourceTabChange('communities')}
-                        className={`text-sm font-semibold transition pb-1 relative flex items-center gap-1.5 ${sourceTab === 'communities' && !feedAuthor
-                          ? 'text-blue-600 font-bold'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Communities</span>
-                        {sourceTab === 'communities' && !feedAuthor && (
-                          <span className="absolute bottom-[-11px] left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-                        )}
-                      </button>
-                    </>
-                  )}
-
-                  {/* Global Tab (Always available, sole tab when logged out) */}
-                  <button
-                    id="tab-global-btn"
-                    onClick={() => handleSourceTabChange('global')}
-                    className={`text-sm font-semibold transition pb-1 relative flex items-center gap-1.5 ${sourceTab === 'global' && !feedAuthor
-                      ? 'text-blue-600 font-bold'
-                      : 'text-gray-500 hover:text-gray-900'
-                      }`}
-                  >
-                    <Hash className="w-3.5 h-3.5" />
-                    <span>Global</span>
-                    {sourceTab === 'global' && !feedAuthor && (
-                      <span className="absolute bottom-[-11px] left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
-                    )}
-                  </button>
-
-                  {!currentUser && (
-                    <span className="text-[11px] text-gray-400 ml-auto">
-                      Connect Keychain to unlock Following feed & communities
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Left: Feed Title & Active Filters */}
+                  <div className="flex items-center flex-wrap gap-2.5">
+                    <span className="font-bold text-gray-900 text-sm sm:text-base capitalize">
+                      {activeNav === 'feed' ? 'Your Feed' : activeNav === 'discover' ? 'Discover' : activeNav === 'communities' ? 'Communities' : 'Waves'}
                     </span>
-                  )}
+
+                    {/* Active Sort label on desktop */}
+                    {(activeNav === 'discover' || activeNav === 'communities') && (
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 capitalize hidden sm:inline-block cursor-default"
+                        title={`Feed sorted by ${sort === 'created' ? 'New' : sort}`}
+                      >
+                        {sort === 'created' ? 'New' : sort}
+                      </span>
+                    )}
+
+                    {activeNav === 'feed' && (
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hidden sm:inline-block cursor-default"
+                        title="Displaying chronologically ordered stories from your followed accounts"
+                      >
+                        Following
+                      </span>
+                    )}
+
+                    {/* Tag filter chip (if any) */}
+                    {tag && (
+                      <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                        <span>#{tag}</span>
+                        <button
+                          onClick={() => setTag('')}
+                          className="hover:text-blue-900 font-bold ml-1 cursor-pointer"
+                          title="Clear topic filter"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Cache Status Badge & Refresh Action */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                    {/* Cache Status Badge: shows Live for 'New' tab, Cached for others */}
+                    {sort === 'created' && activeNav !== 'feed' ? (
+                      <span
+                        className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 cursor-default"
+                        title="Real-time newly created blockchain posts (cache bypassed)"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Live</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="text-[11px] font-medium text-slate-500 bg-slate-100/90 px-2 py-0.5 rounded-full inline-flex items-center gap-1 cursor-default"
+                        title="Fast instant navigation powered by client cache"
+                      >
+                        <Zap className="w-3 h-3 text-amber-500" />
+                        <span>Cached</span>
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => fetchPosts(true)}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 rounded-full hover:bg-gray-100 transition cursor-pointer"
+                      title="Force refresh (bypasses cache)"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Sort Filters: ONLY shown in Communities & Global */}
-                {sourceTab !== 'following' && !feedAuthor && (
-                  <div className="flex items-center justify-between pt-3 overflow-x-auto gap-4">
-                    <div className="flex items-center gap-5 sm:gap-6 text-xs sm:text-sm font-medium">
-
+                {/* Mobile Sort Navigation (Visible only on mobile screens where the left sidebar is hidden and only for Discover & Communities) */}
+                {(activeNav === 'discover' || activeNav === 'communities') && (
+                  <div className="flex lg:hidden items-center gap-2 pt-3 mt-3 border-t border-gray-100 overflow-x-auto no-scrollbar">
+                    {(['hot', 'trending', 'created', 'payout', 'muted'] as const).map((s) => (
                       <button
-                        onClick={() => setSort('trending')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'trending'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
+                        key={s}
+                        onClick={() => setSort(s)}
+                        title={`Sort by ${s === 'created' ? 'New' : s}`}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
+                          sort === s
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                       >
-                        Trending
+                        {s === 'created' ? 'New' : s.charAt(0).toUpperCase() + s.slice(1)}
                       </button>
-
-                      <button
-                        onClick={() => setSort('hot')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'hot'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        Hot
-                      </button>
-
-                      <button
-                        onClick={() => setSort('created')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'created'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        New
-                      </button>
-
-                      <button
-                        onClick={() => setSort('payout')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'payout'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        Payout
-                      </button>
-
-                      <button
-                        onClick={() => setSort('muted')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'muted'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        Muted
-                      </button>
-
-                      <button
-                        onClick={() => setSort('promoted')}
-                        className={`transition pb-0.5 whitespace-nowrap ${sort === 'promoted'
-                          ? 'text-blue-600 font-bold border-b-2 border-blue-600'
-                          : 'text-gray-500 hover:text-gray-900'
-                          }`}
-                      >
-                        Promoted
-                      </button>
-                    </div>
-
-                    {/* Tag filter chip (if any) or Refresh */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {tag && (
-                        <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-medium">
-                          <span>#{tag}</span>
-                          <button
-                            onClick={() => setTag('')}
-                            className="hover:text-blue-900 font-bold ml-1"
-                            title="Clear topic"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => fetchPosts(true)}
-                        className="p-1 text-gray-400 hover:text-gray-700 transition"
-                        title="Refresh feed"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                      </button>
-                    </div>
+                    ))}
                   </div>
                 )}
-
               </div>
 
               {/* Error Banner */}
@@ -582,24 +860,43 @@ export function App() {
                     </div>
                   ))}
                 </div>
-              ) : sourceTab === 'following' && posts.length === 0 ? (
+              ) : activeNav === 'feed' && !currentUser ? (
+                /* GUEST USER IN FEED */
+                <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+                  <UserPlus className="w-12 h-12 text-gray-300 mx-auto" />
+                  <div>
+                    <h3 className="text-base font-bold text-gray-800">Connect your Hive account</h3>
+                    <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                      Log in with Hive Keychain above to see posts from the authors and curators you follow, or explore the global Discover feed.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveNav('discover')}
+                    title="Switch to global Discover feed"
+                    className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+                  >
+                    Explore Discover Feed
+                  </button>
+                </div>
+              ) : activeNav === 'feed' && posts.length === 0 ? (
                 /* EMPTY FOLLOWING FEED */
                 <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                   <UserPlus className="w-12 h-12 text-gray-300 mx-auto" />
                   <div>
                     <h3 className="text-base font-bold text-gray-800">You aren't following anyone yet</h3>
                     <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                      Follow creators to see their posts here or discover trending content in the global feed.
+                      Follow creators across Hive to see their latest stories here, or explore Discover.
                     </p>
                   </div>
                   <button
-                    onClick={() => handleSourceTabChange('global')}
-                    className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs"
+                    onClick={() => setActiveNav('discover')}
+                    title="Switch to global Discover feed"
+                    className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
                   >
-                    Explore Global Feed
+                    Explore Discover Feed
                   </button>
                 </div>
-              ) : sourceTab === 'communities' && posts.length === 0 ? (
+              ) : activeNav === 'communities' && posts.length === 0 ? (
                 /* EMPTY COMMUNITIES FEED */
                 <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                   <Layers className="w-12 h-12 text-gray-300 mx-auto" />
@@ -611,7 +908,8 @@ export function App() {
                   </div>
                   <button
                     onClick={() => setShowManageCommunitiesModal(true)}
-                    className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs"
+                    title="Open community manager to discover and join communities"
+                    className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
                   >
                     Explore Communities
                   </button>
@@ -622,7 +920,7 @@ export function App() {
                     <PostCard
                       key={post.post_id || `${post.author}/${post.permlink}`}
                       post={post}
-                      onSelectPost={(p) => setSelectedPost(p)}
+                      onSelectPost={(p) => handleSelectPost(p)}
                       onSelectAuthor={handleSelectAuthor}
                       onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
                     />
@@ -634,7 +932,8 @@ export function App() {
                       id="load-more-posts-btn"
                       onClick={handleLoadMore}
                       disabled={loadingMore}
-                      className="px-6 py-2.5 rounded-full bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition"
+                      title="Fetch older posts from the blockchain"
+                      className="px-6 py-2.5 rounded-full bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
                     >
                       {loadingMore ? (
                         <span className="flex items-center gap-2">
@@ -657,11 +956,11 @@ export function App() {
                     onClick={() => {
                       setTag('');
                       setFeedAuthor(null);
-                      setSourceTab('global');
+                      setActiveNav('discover');
                     }}
                     className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs"
                   >
-                    Explore Global Feed
+                    Explore Discover Feed
                   </button>
                 </div>
               )}
@@ -691,7 +990,7 @@ export function App() {
                           <button
                             onClick={() => {
                               setTag(comm.name);
-                              setSourceTab('communities');
+                              setActiveNav('communities');
                               setFeedAuthor(null);
                             }}
                             className="flex items-center gap-2.5 text-left focus:outline-none min-w-0"
@@ -752,7 +1051,6 @@ export function App() {
             </aside>
 
           </div>
-        )}
 
       </main>
 
@@ -760,25 +1058,49 @@ export function App() {
       {selectedAuthorProfile && (
         <AccountModal
           username={selectedAuthorProfile}
-          onClose={() => setSelectedAuthorProfile(null)}
-          onSelectPost={(p) => setSelectedPost(p)}
+          onClose={() => {
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setSelectedAuthorProfile(null);
+            }
+          }}
+          onSelectPost={(p) => handleSelectPost(p)}
           onSelectAuthor={handleSelectAuthor}
         />
       )}
 
       {/* Blockchain Stats Modal */}
       {showStatsModal && (
-        <BlockchainStatsModal onClose={() => setShowStatsModal(false)} />
+        <BlockchainStatsModal
+          onClose={() => {
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setShowStatsModal(false);
+            }
+          }}
+        />
       )}
 
       {/* Communities Directory Modal */}
       {showCommunitiesModal && (
         <CommunitiesModal
-          onClose={() => setShowCommunitiesModal(false)}
+          onClose={() => {
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setShowCommunitiesModal(false);
+            }
+          }}
           onSelectCommunity={(comm) => {
             setTag(comm);
-            setSourceTab('communities');
-            setShowCommunitiesModal(false);
+            setActiveNav('communities');
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setShowCommunitiesModal(false);
+            }
           }}
           activeCommunity={tag}
         />
@@ -787,11 +1109,21 @@ export function App() {
       {/* Manage Communities Dedicated Modal */}
       {showManageCommunitiesModal && (
         <ManageCommunitiesModal
-          onClose={() => setShowManageCommunitiesModal(false)}
+          onClose={() => {
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setShowManageCommunitiesModal(false);
+            }
+          }}
           onSelectCommunity={(comm) => {
             setTag(comm);
-            setSourceTab('communities');
-            setShowManageCommunitiesModal(false);
+            setActiveNav('communities');
+            if (window.history.state?.type === 'modal') {
+              window.history.back();
+            } else {
+              setShowManageCommunitiesModal(false);
+            }
           }}
           joinedCommunities={joinedCommunities}
           onToggleJoinCommunity={toggleJoinCommunity}
