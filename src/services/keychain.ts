@@ -205,7 +205,7 @@ export class KeychainService {
   ): Promise<KeychainResponse> {
     const permlink = `re-${parentAuthor.replace(/[^a-z0-9]/g, '')}-${Date.now()}`;
     const jsonMetadata = JSON.stringify({
-      app: 'ecency-vision/1.0.0',
+      app: 'nebulosa-web/0.0.1',
       format: 'markdown'
     });
 

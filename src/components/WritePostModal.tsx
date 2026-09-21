@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Edit3, 
-  Eye, 
-  Bold, 
-  Italic, 
-  Heading1, 
-  Heading2, 
-  Quote, 
-  Code, 
-  Link as LinkIcon, 
-  Image as ImageIcon, 
-  List, 
-  Send, 
-  Check, 
-  Sparkles, 
-  Layers, 
+import {
+  X,
+  Edit3,
+  Eye,
+  Bold,
+  Italic,
+  Heading1,
+  Heading2,
+  Quote,
+  Code,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  List,
+  Send,
+  Check,
+  Sparkles,
+  Layers,
   HelpCircle,
   AlertCircle
 } from 'lucide-react';
@@ -43,7 +43,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
   const [tagsInput, setTagsInput] = useState(() => localStorage.getItem('hive_draft_tags') || 'hive');
   const [payoutOption, setPayoutOption] = useState<'50-50' | '100-hp' | 'decline'>('50-50');
   const [selectedCommunity, setSelectedCommunity] = useState(defaultCommunity || '');
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
         .slice(0, 80) + `-${Date.now().toString().slice(-5)}`;
 
       const jsonMetadata = JSON.stringify({
-        app: 'ecency-vision/2.0.0',
+        app: 'nebulosa-web/0.0.1',
         format: 'markdown',
         tags: cleanTags
       });
@@ -165,7 +165,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div 
+      <div
         className="bg-white rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
@@ -186,18 +186,16 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
             <div className="flex items-center bg-gray-100 p-1 rounded-full text-xs font-semibold">
               <button
                 onClick={() => setActiveTab('edit')}
-                className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${
-                  activeTab === 'edit' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
+                className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${activeTab === 'edit' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Write</span>
               </button>
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${
-                  activeTab === 'preview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
-                }`}
+                className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${activeTab === 'preview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                  }`}
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Preview</span>
@@ -215,7 +213,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
-          
+
           {errorMessage && (
             <div className="p-3.5 rounded-2xl bg-rose-50 text-rose-700 text-xs font-medium flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -337,7 +335,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
                 {title || 'Story Title Preview'}
               </h1>
-              <div 
+              <div
                 className="prose prose-slate max-w-none text-sm text-gray-800 leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(body || '*No content written yet...*') }}
               />
@@ -346,7 +344,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({
 
           {/* Tags & Community Options */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            
+
             {/* Tags Input */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-700 block">

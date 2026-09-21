@@ -4,6 +4,7 @@ packages/*/node_modules/
 .idea
 .next
 .DS_Store
+dist/
 
 # Test coverage
 coverage/

@@ -1,5 +1,5 @@
 {
-  "name": "vision-web",
+  "name": "nebulosa-web",
   "private": true,
   "type": "module",
   "scripts": {

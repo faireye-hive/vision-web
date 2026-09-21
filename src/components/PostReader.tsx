@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   ArrowLeft,
-  X, 
-  Heart, 
-  MessageSquare, 
-  Clock, 
-  Share2, 
-  ExternalLink, 
-  Check, 
-  User, 
+  X,
+  Heart,
+  MessageSquare,
+  Clock,
+  Share2,
+  ExternalLink,
+  Check,
+  User,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -18,11 +18,11 @@ import {
   Repeat,
   AlertCircle
 } from 'lucide-react';
-import { 
-  HivePost, 
-  getDiscussion, 
-  calculateReputation, 
-  getHiveAvatarUrl 
+import {
+  HivePost,
+  getDiscussion,
+  calculateReputation,
+  getHiveAvatarUrl
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtml } from '../utils/sanitize';
@@ -214,14 +214,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const payoutString = post.payout ? `$${post.payout.toFixed(3)}` : (post.pending_payout_value || '$0.000');
 
   return (
-    <article 
+    <article
       id="in-place-post-reader"
       className="bg-white rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col w-full animate-in fade-in duration-200"
     >
-      
+
       {/* ================= TOP RETURN & BREADCRUMB BAR ================= */}
       <div className="flex items-center justify-between px-6 sm:px-8 py-3.5 bg-white/95 backdrop-blur-md sticky top-16 z-20">
-        
+
         {/* Back Button */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -280,7 +280,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
       {/* ================= POST CONTENT AREA ================= */}
       <div className="px-6 sm:px-12 py-6 space-y-6 max-w-4xl mx-auto w-full">
-        
+
         {/* Compact Metadata Row (Avatar, @author, date, community/tag in one row) */}
         <div className="flex items-center gap-3">
           <button
@@ -336,7 +336,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         </h1>
 
         {/* Main Article Body (DOMPurify protected) */}
-        <div 
+        <div
           id="sanitized-post-body"
           className="article-body prose prose-slate max-w-none text-gray-800 leading-relaxed break-words pt-2"
           dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
@@ -359,7 +359,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         {/* ================= BOTTOM ENGAGEMENT, PAYOUT & VOTING BAR ================= */}
         {/* User reads first, then votes, tips, sees payout, and comments down here */}
         <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
-          
+
           {/* Payout Display (Placed at the bottom) */}
           <div className="flex items-center gap-3">
             <div className="bg-emerald-50 px-4 py-2 rounded-2xl">
@@ -380,18 +380,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           {/* Voting, Comments & Share Controls */}
           <div className="flex items-center gap-3">
-            
+
             {/* Upvote Button with Keychain Slider Popover */}
             <div className="relative">
               <button
                 id="keychain-vote-btn"
                 onClick={() => setShowVoteSlider(!showVoteSlider)}
                 disabled={voteLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs ${
-                  hasVoted
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs ${hasVoted
                     ? 'bg-rose-500 text-white'
                     : 'bg-rose-50 hover:bg-rose-100 text-rose-600'
-                }`}
+                  }`}
               >
                 <Heart className={`w-4 h-4 ${hasVoted ? 'fill-white' : ''}`} />
                 <span>{totalVotesCount} {totalVotesCount === 1 ? 'vote' : 'votes'}</span>
@@ -538,9 +537,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
           {comments.length > 0 ? (
             <div className="space-y-3">
               {comments.map((comment) => (
-                <CommentCard 
-                  key={comment.post_id || comment.permlink} 
-                  comment={comment} 
+                <CommentCard
+                  key={comment.post_id || comment.permlink}
+                  comment={comment}
                   onSelectAuthor={onSelectAuthor}
                   currentUser={currentUser}
                 />
@@ -653,16 +652,16 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onSelectAuthor, curr
     try {
       await KeychainService.vote(currentUser.username, comment.author, comment.permlink, 10000);
       setUpvoted(true);
-    } catch {}
+    } catch { }
   };
 
   return (
     <div className="p-4 rounded-2xl bg-gray-50/70 space-y-2">
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
-          <img 
-            src={avatar} 
-            alt={comment.author} 
+          <img
+            src={avatar}
+            alt={comment.author}
             className="w-6 h-6 rounded-full object-cover bg-gray-200"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
@@ -682,7 +681,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onSelectAuthor, curr
         </span>
       </div>
 
-      <div 
+      <div
         className="text-xs sm:text-sm text-gray-800 leading-relaxed pl-8 break-words prose prose-slate max-w-none"
         dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
       />

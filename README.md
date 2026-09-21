@@ -1,4 +1,4 @@
-# Ecency Vision Web
+# Nebulosa Web
 
 Lightweight, decentralized web client for the **Hive blockchain** — powered directly by public Hive JSON-RPC APIs with zero backend, zero database, and zero secrets.
 

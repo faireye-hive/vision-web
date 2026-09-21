@@ -798,12 +798,12 @@ export function App() {
         />
       )}
 
-      {/* Clean borderless Ecency Footer */}
+      {/* Clean borderless Nebulosa Footer */}
       <footer className="py-6 text-center text-xs text-gray-400 bg-white mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)]">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <img src="/assets/logo-circle.svg" alt="Ecency" className="w-5 h-5" />
-            <span className="font-semibold text-gray-700">Ecency Vision</span>
+            <img src="/assets/logo-circle.svg" alt="Nebulosa" className="w-5 h-5" />
+            <span className="font-semibold text-gray-700">Nebulosa Vision</span>
             <span>• Direct Hive Blockchain Client with Keychain Support</span>
           </div>
           <p className="text-[11px] text-gray-400">

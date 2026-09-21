@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Menu,
-  Search, 
+  Search,
   HelpCircle,
   Edit3,
   MessageSquare,
@@ -143,10 +143,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header id="app-navbar" className="sticky top-0 z-40 bg-white shadow-[0_1px_4px_rgba(0,0,0,0.03)]">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
-          
-          {/* Left section: Hamburger, Ecency Logo, Nav links */}
+
+          {/* Left section: Hamburger, Nebulosa Logo, Nav links */}
           <div className="flex items-center gap-4 sm:gap-6">
-            <button 
+            <button
               id="navbar-hamburger-btn"
               onClick={() => setShowMobileMenu(!showMobileMenu)}
               className="p-1.5 -ml-1.5 text-gray-700 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition lg:hidden"
@@ -155,23 +155,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Ecency Circular Brand Logo */}
-            <button 
+            {/* Nebulosa Circular Brand Logo */}
+            <button
               id="brand-home-btn"
-              onClick={() => { 
-                onTagChange(''); 
-                onSortChange('hot'); 
-                if (onNavChange) onNavChange('discover'); 
+              onClick={() => {
+                onTagChange('');
+                onSortChange('hot');
+                if (onNavChange) onNavChange('discover');
               }}
               className="flex items-center gap-2.5 focus:outline-none group"
             >
-              <img 
-                src="/assets/logo-circle.svg" 
-                alt="Ecency Logo" 
-                className="w-9 h-9 rounded-full shadow-sm group-hover:opacity-90 transition-opacity" 
+              <img
+                src="/assets/logo-circle.svg"
+                alt="Nebulosa Logo"
+                className="w-9 h-9 rounded-full shadow-sm group-hover:opacity-90 transition-opacity"
               />
               <span className="font-extrabold text-base tracking-tight text-gray-900 hidden sm:inline">
-                Ecency
+                Nebulosa
               </span>
             </button>
 
@@ -179,15 +179,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <nav className="hidden md:flex items-center gap-1 sm:gap-2">
               <button
                 id="nav-discover-btn"
-                onClick={() => { 
-                  if (onNavChange) onNavChange('discover'); 
-                  onTagChange(''); 
+                onClick={() => {
+                  if (onNavChange) onNavChange('discover');
+                  onTagChange('');
                 }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${
-                  activeNav === 'discover' 
-                    ? 'bg-blue-50 text-blue-600 font-bold' 
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition ${activeNav === 'discover'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
               >
                 Discover
               </button>
@@ -195,11 +194,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-waves-btn"
                 onClick={() => { if (onNavChange) onNavChange('waves'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${
-                  activeNav === 'waves' 
-                    ? 'bg-blue-50 text-blue-600 font-bold' 
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${activeNav === 'waves'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
               >
                 Waves
               </button>
@@ -207,11 +205,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-decks-btn"
                 onClick={() => { if (onNavChange) onNavChange('decks'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${
-                  activeNav === 'decks' 
-                    ? 'bg-blue-50 text-blue-600 font-bold' 
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition ${activeNav === 'decks'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
               >
                 Decks
               </button>
@@ -220,11 +217,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="nav-explorer-btn"
                 onClick={() => { if (onNavChange) onNavChange('explorer'); }}
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition flex items-center gap-1.5 ${
-                  activeNav === 'explorer' 
-                    ? 'bg-blue-50 text-blue-600 font-bold' 
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition flex items-center gap-1.5 ${activeNav === 'explorer'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
               >
                 <Compass className="w-3.5 h-3.5 text-blue-500" />
                 <span>Explorer</span>
@@ -234,9 +230,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right section: Search, Perks, Write, Keychain Login / User Avatar */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            
+
             {/* RPC Node & Stats Helper icon */}
-            <button 
+            <button
               id="help-btn"
               onClick={onOpenStats}
               className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition hidden sm:flex"
@@ -290,9 +286,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="flex items-center gap-2 p-1 pr-2 rounded-full border border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition focus:outline-none"
                 >
                   <div className="relative">
-                    <img 
-                      src={currentUser.avatar} 
-                      alt={currentUser.username} 
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.username}
                       className="w-7 h-7 object-cover rounded-full border border-gray-150"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
@@ -308,15 +304,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* User Dropdown */}
                 {showUserMenu && (
-                  <div 
+                  <div
                     id="user-menu-dropdown"
                     className="absolute right-0 mt-2 w-64 bg-white border border-gray-150 rounded-2xl shadow-xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
                   >
                     <div className="flex items-center gap-3 p-2 border-b border-gray-100">
-                      <img 
-                        src={currentUser.avatar} 
-                        alt={currentUser.username} 
-                        className="w-10 h-10 rounded-full border border-gray-200 object-cover" 
+                      <img
+                        src={currentUser.avatar}
+                        alt={currentUser.username}
+                        className="w-10 h-10 rounded-full border border-gray-200 object-cover"
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-gray-900 truncate">@{currentUser.username}</p>
@@ -332,12 +328,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <UserIcon className="w-4 h-4 text-blue-600" />
                         <span>Profile & Wallet</span>
                       </button>
-                      
+
                       <button
-                        onClick={() => { 
-                          if (onOpenManageCommunities) onOpenManageCommunities(); 
-                          else onOpenCommunities(); 
-                          setShowUserMenu(false); 
+                        onClick={() => {
+                          if (onOpenManageCommunities) onOpenManageCommunities();
+                          else onOpenCommunities();
+                          setShowUserMenu(false);
                         }}
                         className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 rounded-xl flex items-center gap-2"
                       >
@@ -383,7 +379,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Node Switcher Menu */}
             {showNodeMenu && (
-              <div 
+              <div
                 id="node-dropdown-menu"
                 className="absolute right-4 top-16 mt-2 w-72 bg-white border border-gray-150 rounded-2xl shadow-xl p-3 z-50"
               >
@@ -402,11 +398,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         key={node}
                         onClick={() => handleSelectNode(node)}
-                        className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition ${
-                          isActive 
-                            ? 'bg-blue-50 text-blue-700 font-medium' 
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition ${isActive
+                          ? 'bg-blue-50 text-blue-700 font-medium'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
                       >
                         <span className="font-mono text-[11px] truncate max-w-[170px]">{node.replace('https://', '')}</span>
                         <div className="flex items-center gap-1.5">
@@ -428,7 +423,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {showLoginModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md border border-gray-150 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            
+
             <div className="flex items-center justify-between pb-3 border-b border-gray-150">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-rose-50 border border-rose-100 text-rose-600">
@@ -440,7 +435,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => setShowLoginModal(false)}
                 className="p-1.5 text-gray-400 hover:text-gray-700 rounded-xl"
               >
@@ -449,15 +444,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Keychain Extension Detection Indicator */}
-            <div className={`p-3 rounded-2xl text-xs flex items-center gap-2.5 border ${
-              keychainInstalled 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                : 'bg-amber-50 border-amber-200 text-amber-800'
-            }`}>
+            <div className={`p-3 rounded-2xl text-xs flex items-center gap-2.5 border ${keychainInstalled
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
               <ShieldCheck className="w-4 h-4 flex-shrink-0" />
               <span>
-                {keychainInstalled 
-                  ? 'Hive Keychain extension detected in browser.' 
+                {keychainInstalled
+                  ? 'Hive Keychain extension detected in browser.'
                   : 'Extension not detected. You can still login to test or install the extension.'}
               </span>
             </div>

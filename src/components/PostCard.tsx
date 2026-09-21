@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
-import { 
+import {
   ChevronUp,
-  Heart, 
-  Repeat, 
-  Gift, 
-  Share2, 
+  Heart,
+  Repeat,
+  Gift,
+  Share2,
   MoreHorizontal,
   Bookmark
 } from 'lucide-react';
-import { 
-  HivePost, 
-  calculateReputation, 
-  getHiveAvatarUrl, 
-  getPostThumbnail, 
-  getPostSnippet 
+import {
+  HivePost,
+  calculateReputation,
+  getHiveAvatarUrl,
+  getPostThumbnail,
+  getPostSnippet
 } from '../services/hiveApi';
 
 interface PostCardProps {
@@ -45,7 +45,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const thumbnail = getPostThumbnail(post);
   const snippet = getPostSnippet(post.body, 170);
 
-  // Format relative time like Ecency: 19m, 44m, 1h, 2d
+  // Format relative time like Nebulosa: 19m, 44m, 1h, 2d
   const formatTime = (dateString: string) => {
     try {
       const past = new Date(dateString + 'Z').getTime();
@@ -111,7 +111,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   };
 
   return (
-    <article 
+    <article
       id={`post-card-${post.post_id || post.permlink}`}
       onClick={() => onSelectPost(post)}
       className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-200 cursor-pointer mb-4 group"
@@ -119,16 +119,16 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Header: Author avatar, Name, Community, Time */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               onSelectAuthor(post.author);
             }}
             className="flex-shrink-0 focus:outline-none"
           >
-            <img 
-              src={avatarUrl} 
-              alt={post.author} 
+            <img
+              src={avatarUrl}
+              alt={post.author}
               loading="lazy"
               className="w-8 h-8 rounded-full bg-gray-100 object-cover hover:opacity-90 transition"
               onError={(e) => {
@@ -147,7 +147,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             >
               {post.author}
             </button>
-            
+
             <span className="text-[10px] text-gray-400 font-medium">
               ({rep})
             </span>
@@ -177,9 +177,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         <button
           onClick={toggleBookmark}
-          className={`p-1.5 rounded-full hover:bg-gray-100 transition ${
-            isBookmarked ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
-          }`}
+          className={`p-1.5 rounded-full hover:bg-gray-100 transition ${isBookmarked ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+            }`}
           title={isBookmarked ? 'Bookmarked' : 'Save post'}
         >
           <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
@@ -190,9 +189,9 @@ export const PostCard: React.FC<PostCardProps> = ({
       <div className="flex gap-4 items-start">
         {thumbnail && (
           <div className="flex-shrink-0 w-32 h-20 sm:w-40 sm:h-24 rounded-2xl overflow-hidden bg-gray-100">
-            <img 
-              src={thumbnail} 
-              alt="" 
+            <img
+              src={thumbnail}
+              alt=""
               loading="lazy"
               className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
               onError={(e) => {
@@ -215,15 +214,14 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Footer: Chevron Upvote, Payout, Heart/Votes, Reblog, Gift, Share, More */}
       <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-gray-50 text-xs text-gray-500">
         <div className="flex items-center gap-3 sm:gap-4">
-          
+
           {/* Upvote Button (Ecency circle chevron) */}
           <button
             onClick={handleUpvote}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition ${
-              upvoted 
-                ? 'bg-blue-600 text-white' 
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition ${upvoted
+                ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-            }`}
+              }`}
             title="Upvote post"
           >
             <ChevronUp className="w-4 h-4" />
