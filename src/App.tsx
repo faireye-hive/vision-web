@@ -29,6 +29,8 @@ import { AccountModal } from './components/AccountModal';
 import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { CommunitiesModal } from './components/CommunitiesModal';
 import { ManageCommunitiesModal } from './components/ManageCommunitiesModal';
+import { SortDropdown } from './components/SortDropdown';
+import { TrendingTopicsCard } from './components/TrendingTopicsCard';
 
 function getInitialUrlParams() {
   if (typeof window === 'undefined') return {};
@@ -732,14 +734,13 @@ export function App() {
                       {activeNav === 'feed' ? 'Your Feed' : activeNav === 'discover' ? 'Discover' : activeNav === 'communities' ? 'Communities' : 'Waves'}
                     </span>
 
-                    {/* Active Sort label on desktop */}
+                    {/* Sort Selector Dropdown for Discover and Communities */}
                     {(activeNav === 'discover' || activeNav === 'communities') && (
-                      <span
-                        className="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 capitalize hidden sm:inline-block cursor-default"
-                        title={`Feed sorted by ${sort === 'created' ? 'New' : sort}`}
-                      >
-                        {sort === 'created' ? 'New' : sort}
-                      </span>
+                      <SortDropdown
+                        id="discover-header-sort-dropdown"
+                        currentSort={sort}
+                        onSortChange={(newSort) => setSort(newSort)}
+                      />
                     )}
 
                     {activeNav === 'feed' && (
@@ -969,7 +970,17 @@ export function App() {
 
             {/* Right Column */}
             <aside className="hidden xl:block space-y-6">
-              <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+              {activeNav === 'discover' ? (
+                <TrendingTopicsCard
+                  currentTag={tag}
+                  onSelectTag={(newTag) => {
+                    setTag(newTag);
+                    setFeedAuthor(null);
+                  }}
+                  feedPosts={posts}
+                />
+              ) : (
+                <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
 
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
@@ -1048,6 +1059,7 @@ export function App() {
                 </button>
 
               </div>
+              )}
             </aside>
 
           </div>

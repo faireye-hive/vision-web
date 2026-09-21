@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
+import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'waves' | 'communities';
@@ -279,8 +280,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <aside id="left-sidebar" className="space-y-4">
 
-      {/* ================= CARD 1: LEFT SORT & FILTER NAVBAR (DISCOVER & COMMUNITIES ONLY) ================= */}
-      {(activeNav === 'discover' || activeNav === 'communities') && (
+      {/* ================= CARD 1: LEFT SORT & FILTER NAVBAR (COMMUNITIES ONLY) ================= */}
+      {activeNav === 'communities' && (
         <div className="bg-white rounded-3xl p-4 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
 
           {/* Header */}
@@ -344,8 +345,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </div>
       )}
 
-      {/* ================= CARD 2: CONTEXTUAL DISCOVERY (TOPICS / COMMUNITIES / AUTHORS) ================= */}
-      <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+      {/* ================= CARD 2: CONTEXTUAL DISCOVERY ================= */}
+      {activeNav === 'discover' ? (
+        <PredefinedCategoriesCard
+          currentTag={currentTag}
+          onSelectTag={onSelectTag}
+        />
+      ) : (
+        <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
 
         {/* Dynamic Header */}
         <div className="flex items-center justify-between pb-3">
@@ -632,6 +639,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         )}
 
       </div>
+      )}
 
       {/* Manage Communities Button */}
       {activeNav === 'communities' && (
