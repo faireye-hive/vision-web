@@ -1,0 +1,15 @@
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+.idea
+.next
+.DS_Store
+
+# Test coverage
+coverage/
+*.lcov
+
+packages/*/coverage/
+
+# Byte cache from running the hosting operator scripts and their tests
+__pycache__/
