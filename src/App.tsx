@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   RefreshCw,
   Compass,
@@ -30,7 +30,12 @@ import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { CommunitiesModal } from './components/CommunitiesModal';
 import { ManageCommunitiesModal } from './components/ManageCommunitiesModal';
 import { SortDropdown } from './components/SortDropdown';
+import { LanguageDropdown } from './components/LanguageDropdown';
+import { CategoryDropdown } from './components/CategoryDropdown';
+import { CategorySubtopicsBar } from './components/CategorySubtopicsBar';
 import { TrendingTopicsCard } from './components/TrendingTopicsCard';
+import { getLanguageDiscoveryFeed } from './services/combflowApi';
+import { findCategoryByTag } from './data/categorySubtopics';
 
 function getInitialUrlParams() {
   if (typeof window === 'undefined') return {};
@@ -46,7 +51,8 @@ function getInitialUrlParams() {
       tag: params.get('tag') || '',
       source: params.get('source') as 'following' | 'communities' | 'global' | null,
       post: params.get('post') || null,
-      author: params.get('author') || null
+      author: params.get('author') || null,
+      lang: params.get('lang') || 'global'
     };
   } catch {
     return {};
@@ -111,6 +117,15 @@ export function App() {
   const [feedAuthor, setFeedAuthor] = useState<string | null>(() => initialParams.author || null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
 
+  // Discover Language filter ('global' or specific language code like 'de', 'es', 'pt', etc.)
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => initialParams.lang || 'global');
+
+  // Discover Category definition (art, photography, gaming, crypto, etc.) if current tag matches or is a subtopic
+  const activeCategory = useMemo(() => {
+    if (activeNav !== 'discover' || !tag) return undefined;
+    return findCategoryByTag(tag);
+  }, [activeNav, tag]);
+
   const [posts, setPosts] = useState<HivePost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
@@ -156,7 +171,7 @@ export function App() {
   const fetchPosts = useCallback(async (isRefresh = false) => {
     // Check if we already have cached posts to render immediately without blank screen
     let hasCached = false;
-    if (!isRefresh && !feedAuthor && sort !== 'created') {
+    if (!isRefresh && !feedAuthor && sort !== 'created' && (activeNav !== 'discover' || selectedLanguage === 'global')) {
       let queryTag = tag;
       const observer = currentUser?.username || '';
       if (sourceTab === 'communities' && !queryTag) {
@@ -201,8 +216,19 @@ export function App() {
       } else if (activeNav === 'waves') {
         fetched = await getRankedPosts(sort, 'waves', 20, undefined, undefined, '', isRefresh);
       } else {
-        // 'discover' (Global)
-        fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
+        // 'discover'
+        if (selectedLanguage !== 'global') {
+          fetched = await getLanguageDiscoveryFeed({
+            language: selectedLanguage,
+            limit: 20,
+            offset: 0,
+            observer: currentUser?.username || '',
+            category: tag || undefined,
+          });
+        } else {
+          // Global
+          fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
+        }
       }
 
       setPosts(fetched || []);
@@ -214,7 +240,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [sort, tag, activeNav, currentUser, joinedCommunities, feedAuthor, authorFeedMode]);
+  }, [sort, tag, activeNav, currentUser, joinedCommunities, feedAuthor, authorFeedMode, selectedLanguage]);
 
   useEffect(() => {
     fetchPosts();
@@ -263,16 +289,31 @@ export function App() {
         const uniqueMore = more.slice(1);
         setPosts((prev) => [...prev, ...uniqueMore]);
       } else {
-        // discover (Global)
-        const more = await getRankedPosts(
-          sort,
-          tag,
-          20,
-          lastPost.author,
-          lastPost.permlink
-        );
-        const uniqueMore = more.slice(1);
-        setPosts((prev) => [...prev, ...uniqueMore]);
+        // discover
+        if (selectedLanguage !== 'global') {
+          const currentOffset = posts.length;
+          const more = await getLanguageDiscoveryFeed({
+            language: selectedLanguage,
+            limit: 20,
+            offset: currentOffset,
+            observer: currentUser?.username || '',
+            category: tag || undefined,
+          });
+          const existingKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
+          const uniqueMore = more.filter((p) => !existingKeys.has(`${p.author}/${p.permlink}`));
+          setPosts((prev) => [...prev, ...uniqueMore]);
+        } else {
+          // Global
+          const more = await getRankedPosts(
+            sort,
+            tag,
+            20,
+            lastPost.author,
+            lastPost.permlink
+          );
+          const uniqueMore = more.slice(1);
+          setPosts((prev) => [...prev, ...uniqueMore]);
+        }
       }
     } catch (err: any) {
       console.error('Failed to load more posts:', err);
@@ -478,6 +519,9 @@ export function App() {
       const authorParam = params.get('author');
       setFeedAuthor(authorParam || null);
 
+      const langParam = params.get('lang');
+      setSelectedLanguage(langParam || 'global');
+
       setTimeout(() => {
         isPopStateRef.current = false;
       }, 50);
@@ -549,6 +593,17 @@ export function App() {
       changed = true;
     }
 
+    // language
+    if (activeNav === 'discover' && selectedLanguage !== 'global') {
+      if (params.get('lang') !== selectedLanguage) {
+        params.set('lang', selectedLanguage);
+        changed = true;
+      }
+    } else if (params.has('lang')) {
+      params.delete('lang');
+      changed = true;
+    }
+
     if (changed) {
       const query = params.toString();
       const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
@@ -559,13 +614,14 @@ export function App() {
           tag,
           source: sourceTab,
           author: feedAuthor,
+          lang: selectedLanguage,
           scrollY: window.scrollY
         },
         '',
         newUrl
       );
     }
-  }, [activeNav, sort, tag, sourceTab, feedAuthor]);
+  }, [activeNav, sort, tag, sourceTab, feedAuthor, selectedLanguage]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f8fa] text-gray-900 font-sans">
@@ -743,6 +799,30 @@ export function App() {
                       />
                     )}
 
+                    {/* Language Selector Dropdown (combflow.net Top 20 Languages) for Discover */}
+                    {activeNav === 'discover' && (
+                      <LanguageDropdown
+                        id="discover-header-language-dropdown"
+                        selectedLanguage={selectedLanguage}
+                        onSelectLanguage={(langCode) => {
+                          setSelectedLanguage(langCode);
+                          setFeedAuthor(null);
+                        }}
+                      />
+                    )}
+
+                    {/* Category Dropdown (Browse Topics) for Discover */}
+                    {activeNav === 'discover' && (
+                      <CategoryDropdown
+                        id="discover-header-category-dropdown"
+                        currentCategory={activeCategory}
+                        onSelectCategory={(categoryTag) => {
+                          setTag(categoryTag);
+                          setFeedAuthor(null);
+                        }}
+                      />
+                    )}
+
                     {activeNav === 'feed' && (
                       <span
                         className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hidden sm:inline-block cursor-default"
@@ -755,7 +835,7 @@ export function App() {
                     {/* Tag filter chip (if any) */}
                     {tag && (
                       <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
-                        <span>#{tag}</span>
+                        <span>{activeCategory?.icon ? `${activeCategory.icon} ` : ''}#{tag}</span>
                         <button
                           onClick={() => setTag('')}
                           className="hover:text-blue-900 font-bold ml-1 cursor-pointer"
@@ -797,6 +877,23 @@ export function App() {
                     </button>
                   </div>
                 </div>
+
+                {/* Subcategory Navigation Bar for Discover (when a category tag or subtopic is selected) */}
+                {activeNav === 'discover' && activeCategory && (
+                  <CategorySubtopicsBar
+                    id="discover-category-subtopics-bar"
+                    category={activeCategory}
+                    currentTag={tag}
+                    onSelectTag={(newSubTag) => {
+                      setTag(newSubTag);
+                      setFeedAuthor(null);
+                    }}
+                    onClearCategory={() => {
+                      setTag('');
+                      setFeedAuthor(null);
+                    }}
+                  />
+                )}
 
                 {/* Mobile Sort Navigation (Visible only on mobile screens where the left sidebar is hidden and only for Discover & Communities) */}
                 {(activeNav === 'discover' || activeNav === 'communities') && (
@@ -951,17 +1048,20 @@ export function App() {
                 <div className="p-16 text-center space-y-3 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                   <Compass className="w-10 h-10 text-gray-300 mx-auto" />
                   <p className="text-sm text-gray-500 font-medium">
-                    No posts found in this feed.
+                    {selectedLanguage !== 'global' && activeNav === 'discover'
+                      ? `No recent posts found for this language filter.`
+                      : 'No posts found in this feed.'}
                   </p>
                   <button
                     onClick={() => {
                       setTag('');
+                      setSelectedLanguage('global');
                       setFeedAuthor(null);
                       setActiveNav('discover');
                     }}
-                    className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs"
+                    className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
                   >
-                    Explore Discover Feed
+                    {selectedLanguage !== 'global' && activeNav === 'discover' ? 'Reset to Global Feed' : 'Explore Discover Feed'}
                   </button>
                 </div>
               )}
