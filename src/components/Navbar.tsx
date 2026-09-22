@@ -32,8 +32,8 @@ interface NavbarProps {
   onOpenStats: () => void;
   onOpenCommunities: () => void;
   onOpenManageCommunities?: () => void;
-  activeNav?: 'feed' | 'discover' | 'waves' | 'communities';
-  onNavChange?: (nav: 'feed' | 'discover' | 'waves' | 'communities') => void;
+  activeNav?: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
+  onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
   currentUser: CurrentUser | null;
   onLogin: (user: CurrentUser) => void;
   onLogout: () => void;
@@ -210,15 +210,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
-                id="nav-waves-btn"
-                onClick={() => { if (onNavChange) onNavChange('waves'); }}
-                title="Waves: Short-form microblogging and decentralized instant updates"
-                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer ${activeNav === 'waves'
+                id="nav-shorts-btn"
+                onClick={() => { if (onNavChange) onNavChange('shorts'); }}
+                title="Shorts: Microblogging & instant community snaps via @peak.snaps"
+                className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition cursor-pointer ${activeNav === 'shorts' || activeNav === 'waves'
                   ? 'bg-blue-50 text-blue-600 font-bold'
                   : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
                   }`}
               >
-                Waves
+                Shorts
               </button>
 
               <button
@@ -465,16 +465,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => {
-                if (onNavChange) onNavChange('waves');
+                if (onNavChange) onNavChange('shorts');
                 setShowMobileMenu(false);
               }}
-              title="Waves: Short-form microblogging and decentralized instant updates"
+              title="Shorts: Microblogging & instant community snaps via @peak.snaps"
               className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer ${
-                activeNav === 'waves' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                activeNav === 'shorts' || activeNav === 'waves' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <span>Waves</span>
-              {activeNav === 'waves' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+              <span>Shorts</span>
+              {(activeNav === 'shorts' || activeNav === 'waves') && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
             </button>
 
             <button

@@ -16,6 +16,8 @@ export interface HivePost {
   json_metadata: string | Record<string, any>;
   created: string;
   updated?: string;
+  parent_author?: string;
+  parent_permlink?: string;
   depth: number;
   children: number;
   net_rshares: number;

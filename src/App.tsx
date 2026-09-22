@@ -9,7 +9,8 @@ import {
   UserPlus,
   MessageSquare,
   FileText,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import {
   HivePost,
@@ -34,6 +35,8 @@ import { LanguageDropdown } from './components/LanguageDropdown';
 import { CategoryDropdown } from './components/CategoryDropdown';
 import { CategorySubtopicsBar } from './components/CategorySubtopicsBar';
 import { TrendingTopicsCard } from './components/TrendingTopicsCard';
+import { ShortsFeed } from './components/ShortsFeed';
+import { ShortsWordFilterCard } from './components/ShortsWordFilterCard';
 import { getLanguageDiscoveryFeed } from './services/combflowApi';
 import { findCategoryByTag } from './data/categorySubtopics';
 
@@ -41,9 +44,10 @@ function getInitialUrlParams() {
   if (typeof window === 'undefined') return {};
   try {
     const params = new URLSearchParams(window.location.search);
-    let tab = params.get('tab') as 'feed' | 'discover' | 'waves' | 'communities' | null;
+    let tab = params.get('tab') as 'feed' | 'discover' | 'shorts' | 'communities' | null;
     if ((tab as string) === 'following') tab = 'feed';
     if ((tab as string) === 'decks' || (tab as string) === 'explorer') tab = 'discover';
+    if ((tab as string) === 'waves') tab = 'shorts';
 
     return {
       tab,
@@ -100,10 +104,11 @@ export function App() {
   });
 
   const [tag, setTag] = useState<string>(() => initialParams.tag || '');
-  const [activeNav, setActiveNav] = useState<'feed' | 'discover' | 'waves' | 'communities'>(() => {
-    if (initialParams.tab && ['feed', 'discover', 'waves', 'communities'].includes(initialParams.tab)) {
+  const [activeNav, setActiveNav] = useState<'feed' | 'discover' | 'shorts' | 'communities'>(() => {
+    if (initialParams.tab && ['feed', 'discover', 'shorts', 'communities'].includes(initialParams.tab)) {
       return initialParams.tab;
     }
+    if ((initialParams.tab as any) === 'waves') return 'shorts';
     if (initialParams.source === 'following') return 'feed';
     if (initialParams.source === 'communities') return 'communities';
     return 'discover';
@@ -148,6 +153,69 @@ export function App() {
   const [showCommunitiesModal, setShowCommunitiesModal] = useState<boolean>(false);
   const [showManageCommunitiesModal, setShowManageCommunitiesModal] = useState<boolean>(false);
 
+  // Shorts hashtags & filtering state
+  const [shortsHashtags, setShortsHashtags] = useState<{ tag: string; count: number }[]>([]);
+  const [selectedShortTag, setSelectedShortTag] = useState<string>('');
+  const [shortsHiddenCount, setShortsHiddenCount] = useState<number>(0);
+
+  // Blocked words list (with localStorage persistence)
+  const [blockedWords, setBlockedWords] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('hive_shorts_blocked_words');
+      return saved ? JSON.parse(saved) : ['giveaway', 'airdrop'];
+    } catch {
+      return ['giveaway', 'airdrop'];
+    }
+  });
+
+  const [filterEnabled, setFilterEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hive_shorts_filter_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleAddBlockedWord = (word: string) => {
+    const clean = word.trim().toLowerCase();
+    if (!clean || blockedWords.includes(clean)) return;
+    const next = [...blockedWords, clean];
+    setBlockedWords(next);
+    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify(next));
+  };
+
+  const handleRemoveBlockedWord = (word: string) => {
+    const next = blockedWords.filter((w) => w !== word);
+    setBlockedWords(next);
+    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify(next));
+  };
+
+  const handleClearAllBlockedWords = () => {
+    setBlockedWords([]);
+    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify([]));
+  };
+
+  const handleToggleFilterEnabled = () => {
+    setFilterEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('hive_shorts_filter_enabled', String(next));
+      return next;
+    });
+  };
+
+  // Stable callbacks for Shorts feed to prevent unnecessary re-renders
+  const handleShortsHashtagsExtracted = useCallback((tags: { tag: string; count: number }[]) => {
+    setShortsHashtags(tags);
+  }, []);
+
+  const handleShortsHiddenCountChange = useCallback((cnt: number) => {
+    setShortsHiddenCount(cnt);
+  }, []);
+
+  const handleSelectShortTag = useCallback((st: string) => {
+    setSelectedShortTag(st);
+  }, []);
+
   // Preserve scroll position when opening and closing posts
   const feedScrollPositionRef = useRef<number>(0);
   const isPopStateRef = useRef<boolean>(false);
@@ -169,6 +237,12 @@ export function App() {
 
   // Fetch posts based on feedAuthor OR active sourceTab, sort, tag
   const fetchPosts = useCallback(async (isRefresh = false) => {
+    // If activeNav is shorts, ShortsFeed handles its own microblogging lifecycle
+    if (activeNav === 'shorts' || (activeNav as string) === 'waves') {
+      setLoading(false);
+      return;
+    }
+
     // Check if we already have cached posts to render immediately without blank screen
     let hasCached = false;
     if (!isRefresh && !feedAuthor && sort !== 'created' && (activeNav !== 'discover' || selectedLanguage === 'global')) {
@@ -213,8 +287,6 @@ export function App() {
         }
 
         fetched = await getRankedPosts(sort, queryTag, 20, undefined, undefined, observer, isRefresh);
-      } else if (activeNav === 'waves') {
-        fetched = await getRankedPosts(sort, 'waves', 20, undefined, undefined, '', isRefresh);
       } else {
         // 'discover'
         if (selectedLanguage !== 'global') {
@@ -275,16 +347,6 @@ export function App() {
           lastPost.author,
           lastPost.permlink,
           observer
-        );
-        const uniqueMore = more.slice(1);
-        setPosts((prev) => [...prev, ...uniqueMore]);
-      } else if (activeNav === 'waves') {
-        const more = await getRankedPosts(
-          sort,
-          'waves',
-          20,
-          lastPost.author,
-          lastPost.permlink
         );
         const uniqueMore = more.slice(1);
         setPosts((prev) => [...prev, ...uniqueMore]);
@@ -498,8 +560,10 @@ export function App() {
 
       // 4. Tab / Sort / Tag / Author navigation via browser Back/Forward
       const tabParam = params.get('tab');
-      if (tabParam === 'feed' || tabParam === 'discover' || tabParam === 'waves' || tabParam === 'communities') {
+      if (tabParam === 'feed' || tabParam === 'discover' || tabParam === 'shorts' || tabParam === 'communities') {
         setActiveNav(tabParam);
+      } else if (tabParam === 'waves') {
+        setActiveNav('shorts');
       } else if (tabParam === 'following') {
         setActiveNav('feed');
       } else {
@@ -712,14 +776,32 @@ export function App() {
             currentUser={currentUser}
             onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
             joinedCommunities={joinedCommunities}
+            shortsHashtags={shortsHashtags}
+            selectedShortTag={selectedShortTag}
+            onSelectShortTag={handleSelectShortTag}
           />
         </aside>
 
             {/* Center Feed Section */}
             <section className="min-w-0 flex-1">
-
-              {/* Author Feed Filter Banner (When an author is clicked) */}
-              {feedAuthor && (
+              {activeNav === 'shorts' || (activeNav as string) === 'waves' ? (
+                <ShortsFeed
+                  currentUser={currentUser}
+                  onSelectAuthor={handleSelectAuthor}
+                  onRequireLogin={() => {
+                    alert('Please log in using the Login button with Hive Keychain in the top navigation bar to vote or reply.');
+                  }}
+                  selectedTag={selectedShortTag}
+                  onSelectTag={handleSelectShortTag}
+                  blockedWords={blockedWords}
+                  filterEnabled={filterEnabled}
+                  onHashtagsExtracted={handleShortsHashtagsExtracted}
+                  onHiddenCountChange={handleShortsHiddenCountChange}
+                />
+              ) : (
+                <>
+                  {/* Author Feed Filter Banner (When an author is clicked) */}
+                  {feedAuthor && (
                 <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] mb-4 flex items-center justify-between gap-3 animate-in fade-in">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
@@ -1065,100 +1147,142 @@ export function App() {
                   </button>
                 </div>
               )}
+                </>
+              )}
 
             </section>
 
             {/* Right Column */}
             <aside className="hidden xl:block space-y-6">
-              {activeNav === 'discover' ? (
-                <TrendingTopicsCard
-                  currentTag={tag}
-                  onSelectTag={(newTag) => {
-                    setTag(newTag);
-                    setFeedAuthor(null);
-                  }}
-                  feedPosts={posts}
-                />
-              ) : (
-                <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+              {activeNav === 'shorts' ? (
+                <>
+                  <ShortsWordFilterCard
+                    blockedWords={blockedWords}
+                    onAddWord={handleAddBlockedWord}
+                    onRemoveWord={handleRemoveBlockedWord}
+                    onClearAll={handleClearAllBlockedWords}
+                    filterEnabled={filterEnabled}
+                    onToggleFilter={handleToggleFilterEnabled}
+                    hiddenCount={shortsHiddenCount}
+                  />
 
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
-                  <button
-                    onClick={() => setShowManageCommunitiesModal(true)}
-                    className="text-xs text-blue-600 hover:underline font-semibold"
-                  >
-                    Manage
-                  </button>
-                </div>
-
-                <div className="space-y-5">
-                  {DEFAULT_TOP_COMMUNITIES.map((comm) => {
-                    const isJoined = !!joinedCommunities[comm.name];
-                    return (
-                      <div key={comm.name} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <button
-                            onClick={() => {
-                              setTag(comm.name);
-                              setActiveNav('communities');
-                              setFeedAuthor(null);
-                            }}
-                            className="flex items-center gap-2.5 text-left focus:outline-none min-w-0"
-                          >
-                            <img
-                              src={comm.avatar}
-                              alt={comm.title}
-                              className="w-7 h-7 rounded-full object-cover bg-gray-100 flex-shrink-0"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
-                              }}
-                            />
-                            <span className="font-bold text-xs sm:text-sm text-gray-900 hover:text-blue-600 truncate">
-                              {comm.title}
-                            </span>
-                          </button>
-
-                          <button
-                            onClick={() => toggleJoinCommunity(comm.name)}
-                            className={`text-xs px-3 py-0.5 rounded-full font-semibold transition flex-shrink-0 ${isJoined
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                              }`}
-                          >
-                            {isJoined ? 'Joined' : 'Join'}
-                          </button>
-                        </div>
-
-                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                          {comm.about}
-                        </p>
-
-                        <p className="text-[11px] text-gray-400">
-                          {comm.subscribers.toLocaleString()} members
-                        </p>
+                  <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <h3 className="font-bold text-sm text-gray-900">About Shorts</h3>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      Shorts brings decentralized microblogging to Hive. Snaps are published by community members directly as comments under container posts by <span className="font-semibold text-gray-800">@peak.snaps</span>.
+                    </p>
+                    <div className="pt-2 border-t border-gray-100 space-y-2 text-xs text-gray-500">
+                      <div className="flex items-center justify-between">
+                        <span>Protocol</span>
+                        <span className="font-semibold text-gray-800">PeakD Snaps</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="flex items-center justify-between">
+                        <span>Source</span>
+                        <span className="font-semibold text-gray-800">@peak.snaps</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Feed Type</span>
+                        <span className="font-semibold text-blue-600">Twitter-like Stream</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {activeNav === 'discover' && (
+                    <TrendingTopicsCard
+                      currentTag={tag}
+                      onSelectTag={(newTag) => {
+                        setTag(newTag);
+                        setFeedAuthor(null);
+                      }}
+                      feedPosts={posts}
+                    />
+                  )}
 
-                <button
-                  onClick={() => setShowManageCommunitiesModal(true)}
-                  className="text-xs font-semibold text-blue-600 hover:underline mt-5 block"
-                >
-                  Manage all communities
-                </button>
+                  <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
 
-                <hr className="border-gray-50 my-4" />
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
+                      <button
+                        onClick={() => setShowManageCommunitiesModal(true)}
+                        className="text-xs text-blue-600 hover:underline font-semibold"
+                      >
+                        Manage
+                      </button>
+                    </div>
 
-                <button
-                  onClick={() => setShowCommunitiesModal(true)}
-                  className="text-xs font-semibold text-blue-600 hover:underline block"
-                >
-                  Create your community
-                </button>
+                    <div className="space-y-5">
+                      {DEFAULT_TOP_COMMUNITIES.map((comm) => {
+                        const isJoined = !!joinedCommunities[comm.name];
+                        return (
+                          <div key={comm.name} className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => {
+                                  setTag(comm.name);
+                                  setActiveNav('communities');
+                                  setFeedAuthor(null);
+                                }}
+                                className="flex items-center gap-2.5 text-left focus:outline-none min-w-0"
+                              >
+                                <img
+                                  src={comm.avatar}
+                                  alt={comm.title}
+                                  className="w-7 h-7 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
+                                  }}
+                                />
+                                <span className="font-bold text-xs sm:text-sm text-gray-900 hover:text-blue-600 truncate">
+                                  {comm.title}
+                                </span>
+                              </button>
 
-              </div>
+                              <button
+                                onClick={() => toggleJoinCommunity(comm.name)}
+                                className={`text-xs px-3 py-0.5 rounded-full font-semibold transition flex-shrink-0 ${isJoined
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                                  }`}
+                              >
+                                {isJoined ? 'Joined' : 'Join'}
+                              </button>
+                            </div>
+
+                            <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                              {comm.about}
+                            </p>
+
+                            <p className="text-[11px] text-gray-400">
+                              {comm.subscribers.toLocaleString()} members
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setShowManageCommunitiesModal(true)}
+                      className="text-xs font-semibold text-blue-600 hover:underline mt-5 block"
+                    >
+                      Manage all communities
+                    </button>
+
+                    <hr className="border-gray-50 my-4" />
+
+                    <button
+                      onClick={() => setShowCommunitiesModal(true)}
+                      className="text-xs font-semibold text-blue-600 hover:underline block"
+                    >
+                      Create your community
+                    </button>
+
+                  </div>
+                </>
               )}
             </aside>
 
