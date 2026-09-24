@@ -10,7 +10,10 @@ import {
   MessageSquare,
   FileText,
   Zap,
-  Sparkles
+  Sparkles,
+  Shuffle,
+  Repeat,
+  ChevronDown
 } from 'lucide-react';
 import {
   HivePost,
@@ -19,13 +22,21 @@ import {
   getAccountPosts,
   getHiveAvatarUrl,
   getDiscussion,
-  apiCache
+  apiCache,
+  getFollowedCommentsFeed,
+  getFollowedMixedFeed,
+  getFollowedRootFeed,
+  getFollowing,
+  isReblogPost
 } from './services/hiveApi';
 import { KeychainService, CurrentUser } from './services/keychain';
 import { Navbar } from './components/Navbar';
 import { LeftSidebar } from './components/LeftSidebar';
 import { PostCard } from './components/PostCard';
+import { RecommendedUsersCard } from './components/RecommendedUsersCard';
 import { PostReader } from './components/PostReader';
+import { PostSidebar } from './components/PostSidebar';
+import { PostHeading } from './utils/sanitize';
 import { AccountModal } from './components/AccountModal';
 import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { CommunitiesModal } from './components/CommunitiesModal';
@@ -122,6 +133,49 @@ export function App() {
   const [feedAuthor, setFeedAuthor] = useState<string | null>(() => initialParams.author || null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
 
+  // Following feed filter mode: root posts, comments, or mixed (chronological)
+  const [followingMode, setFollowingMode] = useState<'root' | 'comments' | 'mixed'>(() => {
+    try {
+      const saved = localStorage.getItem('hive_following_mode');
+      if (saved === 'root' || saved === 'comments' || saved === 'mixed') {
+        return saved;
+      }
+    } catch {}
+    return 'root';
+  });
+
+  // Reblog hiding preference in Following feed (with persistence)
+  const [hideReblogs, setHideReblogs] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hive_hide_reblogs') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleHideReblogs = () => {
+    setHideReblogs(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('hive_hide_reblogs', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Followed creators list for the current user
+  const [followingUsersList, setFollowingUsersList] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (currentUser?.username) {
+      getFollowing(currentUser.username, '', 80)
+        .then(users => setFollowingUsersList(users || []))
+        .catch(() => setFollowingUsersList([]));
+    } else {
+      setFollowingUsersList([]);
+    }
+  }, [currentUser?.username]);
+
   // Discover Language filter ('global' or specific language code like 'de', 'es', 'pt', etc.)
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() => initialParams.lang || 'global');
 
@@ -148,6 +202,7 @@ export function App() {
 
   // Modals & Inspection states
   const [selectedPost, setSelectedPost] = useState<HivePost | null>(null);
+  const [postHeadings, setPostHeadings] = useState<PostHeading[]>([]);
   const [selectedAuthorProfile, setSelectedAuthorProfile] = useState<string | null>(null);
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [showCommunitiesModal, setShowCommunitiesModal] = useState<boolean>(false);
@@ -235,6 +290,14 @@ export function App() {
   // Check if user has joined at least one community
   const hasJoinedCommunities = Object.values(joinedCommunities).some(Boolean);
 
+  // Filtered posts taking "Hide Reblogs" setting into account for Following feed
+  const displayedPosts = useMemo(() => {
+    if (activeNav === 'feed' && hideReblogs && (followingMode === 'root' || followingMode === 'mixed')) {
+      return posts.filter(p => !isReblogPost(p));
+    }
+    return posts;
+  }, [posts, activeNav, hideReblogs, followingMode]);
+
   // Fetch posts based on feedAuthor OR active sourceTab, sort, tag
   const fetchPosts = useCallback(async (isRefresh = false) => {
     // If activeNav is shorts, ShortsFeed handles its own microblogging lifecycle
@@ -272,7 +335,13 @@ export function App() {
       } else if (activeNav === 'feed') {
         if (currentUser) {
           try {
-            fetched = await getAccountPosts('feed' as any, currentUser.username, 20, isRefresh);
+            if (followingMode === 'comments') {
+              fetched = await getFollowedCommentsFeed(currentUser.username, isRefresh);
+            } else if (followingMode === 'mixed') {
+              fetched = await getFollowedMixedFeed(currentUser.username, isRefresh);
+            } else {
+              fetched = await getFollowedRootFeed(currentUser.username, 20, isRefresh);
+            }
           } catch {
             fetched = [];
           }
@@ -312,7 +381,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [sort, tag, activeNav, currentUser, joinedCommunities, feedAuthor, authorFeedMode, selectedLanguage]);
+  }, [sort, tag, activeNav, currentUser, joinedCommunities, feedAuthor, authorFeedMode, selectedLanguage, followingMode]);
 
   useEffect(() => {
     fetchPosts();
@@ -330,8 +399,24 @@ export function App() {
         setPosts(prev => [...prev, ...more.slice(prev.length)]);
       } else if (activeNav === 'feed') {
         if (currentUser) {
-          const more = await getAccountPosts('feed' as any, currentUser.username, 20);
-          setPosts(prev => [...prev, ...more.slice(prev.length)]);
+          if (followingMode === 'root') {
+            const more = await getFollowedRootFeed(currentUser.username, posts.length + 20);
+            setPosts(prev => [...prev, ...more.slice(prev.length)]);
+          } else if (followingMode === 'comments') {
+            const more = await getFollowedCommentsFeed(currentUser.username, true);
+            const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+            const unique = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+            if (unique.length > 0) {
+              setPosts(prev => [...prev, ...unique]);
+            }
+          } else {
+            const more = await getFollowedMixedFeed(currentUser.username, true);
+            const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+            const unique = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+            if (unique.length > 0) {
+              setPosts(prev => [...prev, ...unique]);
+            }
+          }
         }
       } else if (activeNav === 'communities') {
         let queryTag = tag;
@@ -388,6 +473,7 @@ export function App() {
   const handleSelectPost = useCallback((post: HivePost, pushHistory = true) => {
     feedScrollPositionRef.current = window.scrollY;
     setSelectedPost(post);
+    setPostHeadings([]);
     window.scrollTo({ top: 0, behavior: 'instant' });
 
     if (pushHistory) {
@@ -410,6 +496,7 @@ export function App() {
   // Close post and restore the exact feed scroll position
   const handleClosePost = useCallback((popHistory = true) => {
     setSelectedPost(null);
+    setPostHeadings([]);
 
     const targetY = feedScrollPositionRef.current;
     requestAnimationFrame(() => {
@@ -431,6 +518,16 @@ export function App() {
           window.history.pushState({ type: 'feed', scrollY: targetY }, '', newUrl);
         }
       }
+    }
+  }, []);
+
+  // Smooth bookmark heading navigation
+  const handleSelectHeading = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const yOffset = -90; // offset for sticky navigation header
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
     }
   }, []);
 
@@ -721,35 +818,30 @@ export function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
 
-        {/* ================= IN-PLACE POST READER (NAVBAR & SIDEBAR INTACT) ================= */}
+        {/* ================= IN-PLACE POST READER (BOOKMARKS OUTLINE & SIMILAR STORIES SIDEBAR) ================= */}
         {selectedPost && (
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 items-start animate-in fade-in duration-150">
-            <aside className="hidden lg:block">
-              <LeftSidebar
-                activeNav={activeNav}
-                onNavChange={(n) => { setActiveNav(n); handleClosePost(false); }}
-                currentSort={sort}
-                onSortChange={(s) => { setSort(s); handleClosePost(false); }}
-                currentTag={tag}
-                onSelectTag={(t) => { setTag(t); handleClosePost(false); }}
-                onSelectAuthor={(a) => { handleSelectAuthor(a); handleClosePost(false); }}
-                feedPosts={posts}
-                currentUser={currentUser}
-                onOpenManageCommunities={openManageCommunitiesModal}
-                joinedCommunities={joinedCommunities}
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start animate-in fade-in duration-150">
+            <aside className="hidden lg:block sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+              <PostSidebar
+                post={selectedPost}
+                headings={postHeadings}
+                onSelectHeading={handleSelectHeading}
+                onSelectPost={handleSelectPost}
+                onClose={handleClosePost}
               />
             </aside>
 
             <section className="min-w-0 flex-1">
               <PostReader
                 post={selectedPost}
-                onClose={() => handleClosePost()}
+                onClose={handleClosePost}
                 onSelectAuthor={handleSelectAuthor}
                 onSelectTag={(t) => { setTag(t); handleClosePost(); }}
                 currentUser={currentUser}
                 onRequireLogin={() => {
                   alert('Please connect Hive Keychain in the top menu to perform this action.');
                 }}
+                onHeadingsExtracted={setPostHeadings}
               />
             </section>
           </div>
@@ -906,12 +998,59 @@ export function App() {
                     )}
 
                     {activeNav === 'feed' && (
-                      <span
-                        className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hidden sm:inline-block cursor-default"
-                        title="Displaying chronologically ordered stories from your followed accounts"
-                      >
-                        Following
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Feed Mode Selector Dropdown */}
+                        <div className="relative inline-flex items-center">
+                          <select
+                            id="following-feed-mode-select"
+                            value={followingMode}
+                            onChange={(e) => {
+                              const mode = e.target.value as 'root' | 'comments' | 'mixed';
+                              setFollowingMode(mode);
+                              try {
+                                localStorage.setItem('hive_following_mode', mode);
+                              } catch {}
+                            }}
+                            className="appearance-none bg-gray-100 hover:bg-gray-200/80 text-gray-800 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
+                            title="Filter following feed mode"
+                          >
+                            <option value="root">Root Posts</option>
+                            <option value="comments">Comments</option>
+                            <option value="mixed">Mixed</option>
+                          </select>
+                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600">
+                            {followingMode === 'root' ? (
+                              <FileText className="w-3.5 h-3.5" />
+                            ) : followingMode === 'comments' ? (
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            ) : (
+                              <Shuffle className="w-3.5 h-3.5" />
+                            )}
+                          </div>
+                          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500" />
+                        </div>
+
+                        {/* Reblogs Checkmark Toggle */}
+                        {followingMode !== 'comments' && (
+                          <label
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
+                              !hideReblogs
+                                ? 'bg-purple-50/80 border-purple-200 text-purple-800 hover:bg-purple-100/70'
+                                : 'bg-white border-gray-200/80 text-gray-500 hover:bg-gray-50'
+                            }`}
+                            title={!hideReblogs ? 'Reblogs are visible. Uncheck to hide.' : 'Reblogs are hidden. Check to show.'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!hideReblogs}
+                              onChange={handleToggleHideReblogs}
+                              className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 cursor-pointer accent-purple-600"
+                            />
+                            <Repeat className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Reblogs</span>
+                          </label>
+                        )}
+                      </div>
                     )}
 
                     {/* Tag filter chip (if any) */}
@@ -1063,9 +1202,19 @@ export function App() {
                 <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                   <UserPlus className="w-12 h-12 text-gray-300 mx-auto" />
                   <div>
-                    <h3 className="text-base font-bold text-gray-800">You aren't following anyone yet</h3>
+                    <h3 className="text-base font-bold text-gray-800">
+                      {followingMode === 'comments'
+                        ? 'No recent comments found'
+                        : followingMode === 'mixed'
+                        ? 'No recent activity found'
+                        : "You aren't following anyone yet or they haven't posted recently"}
+                    </h3>
                     <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                      Follow creators across Hive to see their latest stories here, or explore Discover.
+                      {followingMode === 'comments'
+                        ? 'None of the accounts you follow commented in the last 7 days, or your following list is empty.'
+                        : followingMode === 'mixed'
+                        ? 'No root stories or comments were detected from followed accounts in the last 7 days.'
+                        : 'Follow creators across Hive to see their latest stories here, or explore Discover.'}
                     </p>
                   </div>
                   <button
@@ -1095,37 +1244,64 @@ export function App() {
                   </button>
                 </div>
               ) : posts.length > 0 ? (
-                <div className="space-y-4">
-                  {posts.map((post) => (
-                    <PostCard
-                      key={post.post_id || `${post.author}/${post.permlink}`}
-                      post={post}
-                      onSelectPost={(p) => handleSelectPost(p)}
-                      onSelectAuthor={handleSelectAuthor}
-                      onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
-                    />
-                  ))}
+                displayedPosts.length > 0 ? (
+                  <div className="space-y-4">
+                    {displayedPosts.map((post) => (
+                      <PostCard
+                        key={post.post_id || `${post.author}/${post.permlink}`}
+                        post={post}
+                        onSelectPost={(p) => handleSelectPost(p)}
+                        onSelectAuthor={handleSelectAuthor}
+                        onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
+                      />
+                    ))}
 
-                  {/* Load More Button */}
-                  <div className="text-center pt-2 pb-8">
-                    <button
-                      id="load-more-posts-btn"
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      title="Fetch older posts from the blockchain"
-                      className="px-6 py-2.5 rounded-full bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
-                    >
-                      {loadingMore ? (
-                        <span className="flex items-center gap-2">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                          Loading more stories...
-                        </span>
-                      ) : (
-                        'Load More'
-                      )}
-                    </button>
+                    {/* Load More Button */}
+                    <div className="text-center pt-2 pb-8">
+                      <button
+                        id="load-more-posts-btn"
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        title="Fetch older posts from the blockchain"
+                        className="px-6 py-2.5 rounded-full bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
+                      >
+                        {loadingMore ? (
+                          <span className="flex items-center gap-2">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                            Loading more stories...
+                          </span>
+                        ) : (
+                          'Load More'
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+                    <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
+                    <div>
+                      <h3 className="text-base font-bold text-gray-800">All loaded posts are reblogs</h3>
+                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                        You unchecked "Reblogs". Check the box or load more posts to view them.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={handleToggleHideReblogs}
+                        className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-full font-semibold transition cursor-pointer shadow-xs"
+                      >
+                        Enable Reblogs
+                      </button>
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="px-4 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                      >
+                        {loadingMore ? 'Loading...' : 'Load More'}
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="p-16 text-center space-y-3 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                   <Compass className="w-10 h-10 text-gray-300 mx-auto" />
@@ -1190,99 +1366,112 @@ export function App() {
                     </div>
                   </div>
                 </>
-              ) : (
-                <>
-                  {activeNav === 'discover' && (
-                    <TrendingTopicsCard
-                      currentTag={tag}
-                      onSelectTag={(newTag) => {
-                        setTag(newTag);
-                        setFeedAuthor(null);
-                      }}
-                      feedPosts={posts}
-                    />
-                  )}
-
-                  <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
-
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
-                      <button
-                        onClick={() => setShowManageCommunitiesModal(true)}
-                        className="text-xs text-blue-600 hover:underline font-semibold"
-                      >
-                        Manage
-                      </button>
-                    </div>
-
-                    <div className="space-y-5">
-                      {DEFAULT_TOP_COMMUNITIES.map((comm) => {
-                        const isJoined = !!joinedCommunities[comm.name];
-                        return (
-                          <div key={comm.name} className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <button
-                                onClick={() => {
-                                  setTag(comm.name);
-                                  setActiveNav('communities');
-                                  setFeedAuthor(null);
-                                }}
-                                className="flex items-center gap-2.5 text-left focus:outline-none min-w-0"
-                              >
-                                <img
-                                  src={comm.avatar}
-                                  alt={comm.title}
-                                  className="w-7 h-7 rounded-full object-cover bg-gray-100 flex-shrink-0"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
-                                  }}
-                                />
-                                <span className="font-bold text-xs sm:text-sm text-gray-900 hover:text-blue-600 truncate">
-                                  {comm.title}
-                                </span>
-                              </button>
-
-                              <button
-                                onClick={() => toggleJoinCommunity(comm.name)}
-                                className={`text-xs px-3 py-0.5 rounded-full font-semibold transition flex-shrink-0 ${isJoined
-                                  ? 'bg-blue-50 text-blue-600'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                                  }`}
-                              >
-                                {isJoined ? 'Joined' : 'Join'}
-                              </button>
-                            </div>
-
-                            <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                              {comm.about}
-                            </p>
-
-                            <p className="text-[11px] text-gray-400">
-                              {comm.subscribers.toLocaleString()} members
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-
+              ) : activeNav === 'communities' ? (
+                <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
                     <button
                       onClick={() => setShowManageCommunitiesModal(true)}
-                      className="text-xs font-semibold text-blue-600 hover:underline mt-5 block"
+                      className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
                     >
-                      Manage all communities
+                      Manage
                     </button>
-
-                    <hr className="border-gray-50 my-4" />
-
-                    <button
-                      onClick={() => setShowCommunitiesModal(true)}
-                      className="text-xs font-semibold text-blue-600 hover:underline block"
-                    >
-                      Create your community
-                    </button>
-
                   </div>
-                </>
+
+                  <div className="space-y-4">
+                    {DEFAULT_TOP_COMMUNITIES.map((comm) => {
+                      const isJoined = !!joinedCommunities[comm.name];
+                      return (
+                        <div key={comm.name} className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              onClick={() => {
+                                setTag(comm.name);
+                                setActiveNav('communities');
+                                setFeedAuthor(null);
+                              }}
+                              className="flex items-center gap-2.5 text-left focus:outline-none min-w-0 cursor-pointer"
+                            >
+                              <img
+                                src={comm.avatar}
+                                alt={comm.title}
+                                className="w-7 h-7 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
+                                }}
+                              />
+                              <span className="font-bold text-xs sm:text-sm text-gray-900 hover:text-blue-600 truncate">
+                                {comm.title}
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => toggleJoinCommunity(comm.name)}
+                              className={`text-xs px-3 py-1 rounded-full font-semibold transition flex-shrink-0 cursor-pointer ${
+                                isJoined
+                                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                              }`}
+                            >
+                              {isJoined ? 'Joined' : 'Join'}
+                            </button>
+                          </div>
+
+                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                            {comm.about}
+                          </p>
+
+                          <p className="text-[11px] text-gray-400">
+                            {comm.subscribers.toLocaleString()} members
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setShowManageCommunitiesModal(true)}
+                    className="text-xs font-semibold text-blue-600 hover:underline mt-4 block cursor-pointer"
+                  >
+                    Manage all communities
+                  </button>
+
+                  <hr className="border-gray-100 my-3" />
+
+                  <button
+                    onClick={() => setShowCommunitiesModal(true)}
+                    className="text-xs font-semibold text-blue-600 hover:underline block cursor-pointer"
+                  >
+                    Create your community
+                  </button>
+                </div>
+              ) : activeNav === 'discover' ? (
+                <TrendingTopicsCard
+                  currentTag={tag}
+                  onSelectTag={(newTag) => {
+                    setTag(newTag);
+                    setFeedAuthor(null);
+                  }}
+                  feedPosts={posts}
+                />
+              ) : (
+                /* Feed and other views: Show Recommended Users */
+                <RecommendedUsersCard
+                  currentUser={currentUser}
+                  feedPosts={posts}
+                  onSelectAuthor={handleSelectAuthor}
+                  followingUsers={followingUsersList}
+                  onFollowChange={(targetUser, isNowFollowing) => {
+                    setFollowingUsersList(prev => {
+                      const targetLower = targetUser.toLowerCase();
+                      if (isNowFollowing) {
+                        return prev.some(u => u.toLowerCase() === targetLower) ? prev : [...prev, targetUser];
+                      } else {
+                        return prev.filter(u => u.toLowerCase() !== targetLower);
+                      }
+                    });
+                  }}
+                />
               )}
             </aside>
 

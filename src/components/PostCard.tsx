@@ -6,14 +6,16 @@ import {
   Gift,
   Share2,
   MoreHorizontal,
-  Bookmark
+  Bookmark,
+  MessageSquare
 } from 'lucide-react';
 import {
   HivePost,
   calculateReputation,
   getHiveAvatarUrl,
   getPostThumbnail,
-  getPostSnippet
+  getPostSnippet,
+  getRebloggedBy
 } from '../services/hiveApi';
 
 interface PostCardProps {
@@ -43,12 +45,22 @@ export const PostCard: React.FC<PostCardProps> = ({
   const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'small');
   const thumbnail = getPostThumbnail(post);
-  const snippet = getPostSnippet(post.body, 170);
+  const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
+  const rebloggedBy = getRebloggedBy(post);
+  const snippet = getPostSnippet(post.body, isComment ? 240 : 170);
+
+  // Formatted comment title or post title
+  const displayTitle = isComment
+    ? (post.title && !post.title.startsWith('Re: re-') && !post.title.startsWith('Re: @')
+      ? post.title
+      : `Comment on: "${(post.parent_permlink || 'discussion').replace(/[-_]/g, ' ')}"`)
+    : post.title;
 
   // Format relative time like Nebulosa: 19m, 44m, 1h, 2d
   const formatTime = (dateString: string) => {
     try {
-      const past = new Date(dateString + 'Z').getTime();
+      const safeStr = dateString.endsWith('Z') ? dateString : `${dateString}Z`;
+      const past = new Date(safeStr).getTime();
       const now = Date.now();
       const diffSec = Math.max(0, Math.floor((now - past) / 1000));
       if (diffSec < 60) return `${diffSec}s`;
@@ -116,6 +128,60 @@ export const PostCard: React.FC<PostCardProps> = ({
       onClick={() => onSelectPost(post)}
       className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-200 cursor-pointer mb-4 group"
     >
+      {/* Reblog Activity Banner */}
+      {!isComment && rebloggedBy && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-purple-50/80 border border-purple-100 text-xs text-purple-900 overflow-hidden">
+          <Repeat className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+          <div className="truncate flex-1">
+            <span className="text-purple-700">Reblogged by</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectAuthor(rebloggedBy);
+              }}
+              className="font-bold text-purple-950 hover:underline ml-1 cursor-pointer"
+            >
+              @{rebloggedBy}
+            </button>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100/80 text-purple-800 flex-shrink-0">
+            Reblog
+          </span>
+        </div>
+      )}
+
+      {/* Comment Activity Context Banner */}
+      {isComment && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-blue-50/80 border border-blue-100 text-xs text-blue-900 overflow-hidden">
+          <MessageSquare className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+          <div className="truncate flex-1">
+            <span className="font-semibold text-blue-950">@{post.author}</span>
+            <span className="text-blue-700 ml-1">commented on</span>
+            {post.parent_author && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectAuthor(post.parent_author!);
+                }}
+                className="font-semibold text-blue-900 hover:text-blue-950 hover:underline mx-1 cursor-pointer"
+              >
+                @{post.parent_author}
+              </button>
+            )}
+            {post.parent_permlink && (
+              <span className="text-blue-700/80 text-[11px] truncate hidden sm:inline">
+                • <span className="italic font-normal">"{post.parent_permlink.replace(/[-_]/g, ' ')}"</span>
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 text-blue-800 flex-shrink-0">
+            Comment
+          </span>
+        </div>
+      )}
+
       {/* Header: Author avatar, Name, Community, Time */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -203,7 +269,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         <div className="flex-1 min-w-0">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
-            {post.title}
+            {displayTitle}
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 line-clamp-2 leading-relaxed mt-1.5">
             {snippet}

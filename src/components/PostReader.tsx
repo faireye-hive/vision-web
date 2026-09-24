@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
+  ArrowUp,
   X,
   Heart,
   MessageSquare,
   Clock,
+  Calendar,
   Share2,
   ExternalLink,
   Check,
@@ -16,7 +18,9 @@ import {
   Send,
   Coins,
   Repeat,
-  AlertCircle
+  AlertCircle,
+  Hash,
+  Bookmark
 } from 'lucide-react';
 import {
   HivePost,
@@ -25,7 +29,7 @@ import {
   getHiveAvatarUrl
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
-import { markdownToSafeHtml } from '../utils/sanitize';
+import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
 
 interface PostReaderProps {
   post: HivePost;
@@ -34,6 +38,79 @@ interface PostReaderProps {
   onSelectTag: (tag: string) => void;
   currentUser: CurrentUser | null;
   onRequireLogin?: () => void;
+  onHeadingsExtracted?: (headings: PostHeading[]) => void;
+  onActiveHeadingChange?: (id: string) => void;
+}
+
+/**
+ * Format timestamp safely preventing Invalid Date errors
+ */
+function formatPostDate(dateStr?: string): { relative: string; full: string } {
+  if (!dateStr) return { relative: 'Recently', full: '' };
+  try {
+    const safeStr = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`;
+    const date = new Date(safeStr);
+    if (isNaN(date.getTime())) return { relative: 'Recently', full: dateStr };
+
+    const diffMs = Math.max(0, Date.now() - date.getTime());
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    let relative = '';
+    if (diffDay > 30) {
+      relative = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    } else if (diffDay > 0) {
+      relative = `${diffDay}d ago`;
+    } else if (diffHour > 0) {
+      relative = `${diffHour}h ago`;
+    } else if (diffMin > 0) {
+      relative = `${diffMin}m ago`;
+    } else {
+      relative = 'just now';
+    }
+
+    const full = date.toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    return { relative, full };
+  } catch {
+    return { relative: 'Recently', full: dateStr || '' };
+  }
+}
+
+/**
+ * Extract all tags assigned to the post from category and json_metadata
+ */
+function extractPostTags(post: HivePost): string[] {
+  const set = new Set<string>();
+  if (post.category && !post.category.startsWith('hive-')) {
+    set.add(post.category.toLowerCase());
+  }
+
+  if (post.json_metadata) {
+    try {
+      const meta = typeof post.json_metadata === 'string'
+        ? JSON.parse(post.json_metadata)
+        : post.json_metadata;
+
+      if (Array.isArray(meta?.tags)) {
+        for (const t of meta.tags) {
+          if (typeof t === 'string' && t.trim()) {
+            const clean = t.trim().toLowerCase().replace(/^#/, '');
+            if (clean && !clean.startsWith('hive-')) {
+              set.add(clean);
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return Array.from(set).slice(0, 10);
 }
 
 export const PostReader: React.FC<PostReaderProps> = ({
@@ -42,12 +119,18 @@ export const PostReader: React.FC<PostReaderProps> = ({
   onSelectAuthor,
   onSelectTag,
   currentUser,
-  onRequireLogin
+  onRequireLogin,
+  onHeadingsExtracted,
+  onActiveHeadingChange
 }) => {
   const [discussion, setDiscussion] = useState<Record<string, HivePost>>({});
   const [loadingDiscussion, setLoadingDiscussion] = useState(true);
   const [copied, setCopied] = useState(false);
   const [showVoters, setShowVoters] = useState(false);
+
+  // Floating back/top navigation & reading progress
+  const [scrolledDown, setScrolledDown] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
 
   // Interactive Keychain states
   const [hasVoted, setHasVoted] = useState(false);
@@ -66,6 +149,56 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [tipLoading, setTipLoading] = useState(false);
   const [tipNotice, setTipNotice] = useState<string | null>(null);
 
+  const onCloseRef = React.useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}, [post.author, post.permlink]);
+
+  // Handle Escape key to close post reader
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Parse HTML and headings safely with DOMPurify
+  const { html: safeHtmlContent, headings } = useMemo(() => {
+    return markdownToSafeHtmlWithHeadings(post.body || '');
+  }, [post.body]);
+
+  // Inform parent / sidebar about extracted headings
+  useEffect(() => {
+    if (onHeadingsExtracted) {
+      onHeadingsExtracted(headings);
+    }
+  }, [headings, onHeadingsExtracted]);
+
+  // Track window scroll for floating back/top bar and reading progress
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      setScrolledDown(scrollY > 240);
+
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight > 0) {
+        const progress = Math.min(100, Math.max(0, Math.round((scrollY / docHeight) * 100)));
+        setReadingProgress(progress);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Fetch comments & discussion without resetting scroll
   useEffect(() => {
     let isMounted = true;
     setLoadingDiscussion(true);
@@ -81,28 +214,34 @@ export const PostReader: React.FC<PostReaderProps> = ({
         if (isMounted) setLoadingDiscussion(false);
       });
 
-    // Check if current user already voted
-    if (currentUser?.username && post.active_votes) {
-      const alreadyVoted = post.active_votes.some(v => v.voter.toLowerCase() === currentUser.username.toLowerCase());
-      if (alreadyVoted) setHasVoted(true);
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    // Ensure page is scrolled to top on open
-    window.scrollTo(0, 0);
-
     return () => {
       isMounted = false;
-      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [post.author, post.permlink, onClose, currentUser?.username]);
+  }, [post.author, post.permlink]);
+
+  // Check if current user has already voted
+  useEffect(() => {
+    if (currentUser?.username && post.active_votes) {
+      const alreadyVoted = post.active_votes.some(
+        v => v.voter.toLowerCase() === currentUser.username.toLowerCase()
+      );
+      if (alreadyVoted) setHasVoted(true);
+    }
+  }, [currentUser?.username, post.active_votes]);
+
+  const scrollToComments = () => {
+    const el = document.getElementById('comments-section');
+    if (el) {
+      const yOffset = -75;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
 
   const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'medium');
+  const postDate = formatPostDate(post.created);
+  const postTags = extractPostTags(post);
 
   const handleCopyLink = () => {
     const url = `https://ecency.com/@${post.author}/${post.permlink}`;
@@ -209,58 +348,104 @@ export const PostReader: React.FC<PostReaderProps> = ({
   };
 
   const comments = getComments();
-  const safeHtmlContent = markdownToSafeHtml(post.body);
+  const totalCommentsCount = comments.length > 0 ? comments.length : (post.children || 0);
   const totalVotesCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (hasVoted ? 1 : 0);
   const payoutString = post.payout ? `$${post.payout.toFixed(3)}` : (post.pending_payout_value || '$0.000');
 
   return (
     <article
       id="in-place-post-reader"
-      className="bg-white rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col w-full animate-in fade-in duration-200"
+      className="bg-white rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col w-full animate-in fade-in duration-200 relative"
     >
+      {/* Top Reading Progress Line */}
+      <div
+        className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600 sticky top-16 z-30 transition-all duration-150"
+        style={{ width: `${readingProgress}%` }}
+      />
 
-      {/* ================= TOP RETURN & BREADCRUMB BAR ================= */}
-      <div className="flex items-center justify-between px-6 sm:px-8 py-3.5 bg-white/95 backdrop-blur-md sticky top-16 z-20">
+      {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-white/95 backdrop-blur-md sticky top-16 z-20 border-b border-gray-100 gap-3">
 
-        {/* Back Button */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* Left: Back button + Author details */}
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             id="back-to-feed-btn"
             onClick={onClose}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
             title="Back to Feed (Esc)"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Feed</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
 
-          <div className="hidden md:flex items-center gap-2 text-xs text-gray-400 truncate">
-            <span>/</span>
-            {post.category && (
-              <button
-                onClick={() => {
-                  onSelectTag(post.category);
-                  onClose();
-                }}
-                className="font-medium text-gray-500 hover:text-blue-600 truncate"
-              >
-                #{post.category}
-              </button>
-            )}
-            {post.community_title && (
+          {/* Author avatar */}
+          <button
+            onClick={() => onSelectAuthor(post.author)}
+            className="focus:outline-none flex-shrink-0 group cursor-pointer"
+            title={`View @${post.author} profile`}
+          >
+            <img
+              src={avatarUrl}
+              alt={post.author}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
+              }}
+            />
+          </button>
+
+          {/* Author info & metadata */}
+          <div className="min-w-0 flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
+            <button
+              onClick={() => onSelectAuthor(post.author)}
+              className="font-bold text-gray-900 hover:text-blue-600 transition truncate cursor-pointer text-xs sm:text-sm"
+            >
+              @{post.author}
+            </button>
+            <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700">
+              {rep}
+            </span>
+            <span className="text-gray-300 hidden xs:inline">•</span>
+            <span className="text-gray-500 hidden sm:flex items-center gap-1" title={postDate.full}>
+              <Clock className="w-3 h-3 text-gray-400" />
+              <span>{postDate.relative}</span>
+            </span>
+
+            {(post.community_title || post.community) && (
               <>
-                <span>/</span>
-                <span className="truncate text-gray-400">{post.community_title}</span>
+                <span className="text-gray-300 hidden md:inline">•</span>
+                <button
+                  onClick={() => {
+                    onSelectTag(post.community || post.category);
+                    onClose();
+                  }}
+                  className="hidden md:flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 hover:underline transition truncate cursor-pointer text-xs"
+                  title="View Community"
+                >
+                  <Layers className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                  <span className="truncate">{post.community_title || post.community}</span>
+                </button>
               </>
             )}
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Right Actions: Shortcut to Comments, Share, Ecency, Close */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {/* Header Shortcut to Comments */}
+          <button
+            onClick={scrollToComments}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 text-xs font-bold transition border border-blue-200/60 shadow-2xs cursor-pointer"
+            title={`Jump directly to ${totalCommentsCount} comments`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+            <span>{totalCommentsCount}</span>
+            <span className="hidden lg:inline text-[11px] font-medium text-blue-600/80">Comments</span>
+          </button>
+
           <button
             onClick={handleCopyLink}
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
             title="Copy Hive link"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
@@ -270,70 +455,72 @@ export const PostReader: React.FC<PostReaderProps> = ({
             href={`https://ecency.com/@${post.author}/${post.permlink}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
             title="View on Ecency.com"
           >
             <ExternalLink className="w-4 h-4" />
           </a>
+
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+            title="Close post (Esc)"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
       {/* ================= POST CONTENT AREA ================= */}
-      <div className="px-6 sm:px-12 py-6 space-y-6 max-w-4xl mx-auto w-full">
+      <div className="px-5 sm:px-10 md:px-12 py-6 space-y-5 max-w-4xl mx-auto w-full">
 
-        {/* Compact Metadata Row (Avatar, @author, date, community/tag in one row) */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => onSelectAuthor(post.author)}
-            className="focus:outline-none flex-shrink-0"
-          >
-            <img
-              src={avatarUrl}
-              alt={post.author}
-              className="w-10 h-10 rounded-full object-cover shadow-xs"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
-              }}
-            />
-          </button>
+        {/* Big, Clear Post Title */}
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">
+          {post.title}
+        </h1>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-            <button
-              onClick={() => onSelectAuthor(post.author)}
-              className="font-bold text-gray-900 hover:text-blue-600 transition text-sm"
-            >
-              @{post.author}
-            </button>
-            <span className="text-[11px] text-gray-400 font-medium">({rep})</span>
-            <span className="text-gray-300">•</span>
-            <span className="flex items-center gap-1 text-gray-400">
-              <Clock className="w-3 h-3" />
-              <span>{new Date(post.created + 'Z').toLocaleDateString()}</span>
+        {/* Author details on mobile / tags row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gray-100">
+          <div className="flex items-center gap-2 text-xs text-gray-500 sm:hidden">
+            <span className="flex items-center gap-1" title={postDate.full}>
+              <Clock className="w-3.5 h-3.5 text-gray-400" />
+              <span>{postDate.relative}</span>
             </span>
-
-            {(post.community_title || post.category) && (
+            {(post.community_title || post.community) && (
               <>
-                <span className="text-gray-300">•</span>
-                <span className="text-gray-400">in</span>
+                <span>•</span>
                 <button
                   onClick={() => {
-                    if (post.community) onSelectTag(post.community);
-                    else onSelectTag(post.category);
+                    onSelectTag(post.community || post.category);
                     onClose();
                   }}
                   className="font-semibold text-blue-600 hover:underline"
                 >
-                  {post.community_title || `#${post.category}`}
+                  {post.community_title || post.community}
                 </button>
               </>
             )}
           </div>
-        </div>
 
-        {/* Big, Clear Post Title (Completely visible, never hidden) */}
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight pt-1">
-          {post.title}
-        </h1>
+          {/* Tags list pills cleanly wrapped without clipping */}
+          {postTags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {postTags.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    onSelectTag(t);
+                    onClose();
+                  }}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-100 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium border border-gray-200/60 shadow-2xs transition cursor-pointer"
+                >
+                  <Hash className="w-2.5 h-2.5 text-gray-400" />
+                  <span>{t}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Main Article Body (DOMPurify protected) */}
         <div
@@ -341,6 +528,30 @@ export const PostReader: React.FC<PostReaderProps> = ({
           className="article-body prose prose-slate max-w-none text-gray-800 leading-relaxed break-words pt-2"
           dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
         />
+
+        {/* Full Tags Section at bottom of post */}
+        {postTags.length > 0 && (
+          <div className="pt-4 pb-2 border-t border-gray-100 space-y-2">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              Topics & Tags
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {postTags.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    onSelectTag(t);
+                    onClose();
+                  }}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium border border-gray-200 transition cursor-pointer"
+                >
+                  <Hash className="w-3 h-3 text-gray-400" />
+                  <span>{t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Beneficiaries if present */}
         {post.beneficiaries && post.beneficiaries.length > 0 && (
@@ -357,6 +568,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
         {/* ================= BOTTOM ENGAGEMENT, PAYOUT & VOTING BAR ================= */}
+
         {/* User reads first, then votes, tips, sees payout, and comments down here */}
         <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
 
@@ -447,11 +659,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
               {showVoters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
 
-            {/* Comments Counter */}
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 bg-gray-50 px-3 py-2 rounded-full">
+            {/* Comments Counter Shortcut */}
+            <button
+              onClick={scrollToComments}
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded-full transition cursor-pointer"
+              title="Jump to Comments"
+            >
               <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-              <span>{post.children || 0}</span>
-            </div>
+              <span>{totalCommentsCount}</span>
+            </button>
 
           </div>
 
@@ -484,11 +700,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
         {/* ================= DISCUSSION & COMMENTS ================= */}
-        <section className="pt-8 border-t border-gray-150 space-y-6">
+        <section id="comments-section" className="pt-8 border-t border-gray-150 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-blue-600" />
-              <span>Discussion ({post.children || 0})</span>
+              <span>Discussion ({totalCommentsCount})</span>
             </h3>
             {loadingDiscussion && (
               <span className="text-xs text-gray-400 animate-pulse">Loading discussion...</span>
@@ -630,6 +846,64 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* ================= FLOATING COMMENTS SHORTCUT (IN THE MARGIN/EMPTY SPACE) ================= */}
+      <button
+        id="floating-comments-shortcut-btn"
+        onClick={scrollToComments}
+        className="fixed right-5 sm:right-7 bottom-24 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 backdrop-blur-md shadow-lg border border-gray-200/90 hover:border-blue-400 text-gray-800 hover:text-blue-600 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
+        title={`Jump directly to comments (${totalCommentsCount})`}
+      >
+        <div className="relative flex items-center justify-center">
+          <MessageSquare className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+          {totalCommentsCount > 0 && (
+            <span className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center leading-tight shadow-2xs">
+              {totalCommentsCount}
+            </span>
+          )}
+        </div>
+        <span className="text-xs font-bold hidden sm:inline text-gray-700 group-hover:text-blue-600">
+          {totalCommentsCount} {totalCommentsCount === 1 ? 'Comment' : 'Comments'}
+        </span>
+      </button>
+
+      {/* ================= FLOATING SCROLL NAVIGATION (FOLLOWS USER DOWN THE PAGE) ================= */}
+      <div
+        className={`fixed bottom-6 right-5 sm:right-7 z-40 flex items-center gap-2 bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 transition-all duration-300 ${
+          scrolledDown ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+      >
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer shadow-2xs"
+          title="Back to Feed (Esc)"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back</span>
+        </button>
+
+        <div className="h-4 w-px bg-gray-200" />
+
+        <button
+          onClick={scrollToComments}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-blue-50 text-gray-700 hover:text-blue-600 text-xs font-bold transition cursor-pointer"
+          title={`Jump to ${totalCommentsCount} Comments`}
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+          <span>{totalCommentsCount}</span>
+        </button>
+
+        <div className="h-4 w-px bg-gray-200" />
+
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition cursor-pointer"
+          title="Scroll to Top"
+        >
+          <ArrowUp className="w-3.5 h-3.5" />
+          <span>Top ({readingProgress}%)</span>
+        </button>
+      </div>
 
     </article>
   );

@@ -32,6 +32,12 @@ const ALLOWED_ATTR = [
   'width', 'height', 'align', 'loading'
 ];
 
+export interface PostHeading {
+  id: string;
+  text: string;
+  level: number;
+}
+
 /**
  * Sanitize raw HTML from blockchain posts against XSS injections
  */
@@ -46,10 +52,13 @@ export function sanitizeHtml(dirtyHtml: string): string {
 }
 
 /**
- * Parses markdown body to sanitized HTML with XSS prevention
+ * Parses markdown body to sanitized HTML with XSS prevention and extracts headings with safe unique IDs
  */
-export function markdownToSafeHtml(markdown: string): string {
-  if (!markdown) return '';
+export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string; headings: PostHeading[] } {
+  if (!markdown) return { html: '', headings: [] };
+
+  const headings: PostHeading[] = [];
+  let headingIndex = 0;
 
   let html = markdown
     // Escape dangerous raw script tags first
@@ -64,7 +73,10 @@ export function markdownToSafeHtml(markdown: string): string {
     // Italics: *text* or _text_
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/_(.*?)_/g, '<em>$1</em>')
-    // Headers
+    // Headers (h1-h6)
+    .replace(/^###### (.*$)/gim, '<h6 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h6>')
+    .replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h5>')
+    .replace(/^#### (.*$)/gim, '<h4 class="text-base font-bold text-gray-900 mt-5 mb-2">$1</h4>')
     .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-gray-900 mt-6 mb-2">$1</h3>')
     .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-900 mt-8 mb-3">$1</h2>')
     .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-900 mt-8 mb-4">$1</h1>')
@@ -81,6 +93,31 @@ export function markdownToSafeHtml(markdown: string): string {
 
   html = `<div class="prose prose-slate max-w-none text-sm sm:text-base leading-relaxed"><p class="mb-4 leading-relaxed text-gray-800">${html}</p></div>`;
 
-  // Always run through DOMPurify to strip any remaining malicious constructs or injection attempts
-  return sanitizeHtml(html);
+  // Inject unique IDs into all <h1-6> headings (from markdown or raw HTML in post body)
+  html = html.replace(/<h([1-6])([^>]*)>(.*?)<\/h\1>/gi, (match, levelStr, attrs, innerContent) => {
+    const level = parseInt(levelStr, 10);
+    // Strip tags to get clean plain-text heading for table of contents
+    const cleanText = innerContent.replace(/<[^>]+>/g, '').trim();
+    if (!cleanText) return match;
+
+    const id = `post-heading-${headingIndex++}`;
+    headings.push({
+      id,
+      text: cleanText,
+      level
+    });
+
+    const cleanAttrs = attrs.replace(/\sid=(['"][^'"]*['"]|\S+)/gi, '');
+    return `<h${level} id="${id}" ${cleanAttrs}>${innerContent}</h${level}>`;
+  });
+
+  const safeHtml = sanitizeHtml(html);
+  return { html: safeHtml, headings };
+}
+
+/**
+ * Parses markdown body to sanitized HTML with XSS prevention
+ */
+export function markdownToSafeHtml(markdown: string): string {
+  return markdownToSafeHtmlWithHeadings(markdown).html;
 }

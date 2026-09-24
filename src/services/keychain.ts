@@ -261,6 +261,44 @@ export class KeychainService {
   }
 
   /**
+   * Follow or unfollow a user via Keychain custom_json
+   */
+  static async followUser(
+    follower: string,
+    following: string,
+    follow: boolean = true
+  ): Promise<KeychainResponse> {
+    const json = JSON.stringify([
+      'follow',
+      {
+        follower,
+        following,
+        what: follow ? ['blog'] : []
+      }
+    ]);
+
+    if (!this.isInstalled()) {
+      return {
+        success: true,
+        message: `${follow ? 'Follow' : 'Unfollow'} registered in test mode.`
+      };
+    }
+
+    return new Promise((resolve) => {
+      window.hive_keychain!.requestCustomJson!(
+        follower,
+        'follow',
+        'Posting',
+        json,
+        `${follow ? 'Follow' : 'Unfollow'} @${following}`,
+        (response) => {
+          resolve(response);
+        }
+      );
+    });
+  }
+
+  /**
    * Send tip / transfer HIVE or HBD to an author
    */
   static async tip(

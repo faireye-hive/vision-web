@@ -17,9 +17,10 @@ import {
   Check,
   Radio,
   SlidersHorizontal,
-  FolderOpen
+  FolderOpen,
+  MessageSquare
 } from 'lucide-react';
-import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions } from '../services/hiveApi';
+import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions, hiveRpcCall } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
 import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
 
@@ -195,11 +196,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const activeTab: 'following' | 'communities' | 'global' =
     activeNav === 'feed' ? 'following' : activeNav === 'communities' ? 'communities' : 'global';
 
-  // Map author -> latest post timestamp from currently loaded feed
+  // Map author -> latest activity timestamp from currently loaded feed
   const authorLastPostMap = useMemo(() => {
     const map: Record<string, { timestamp: number; dateStr: string }> = {};
     for (const post of feedPosts) {
-      const postTime = new Date(post.created + 'Z').getTime();
+      if (!post || !post.created) continue;
+      const safeDateStr = post.created.endsWith('Z') ? post.created : `${post.created}Z`;
+      const postTime = new Date(safeDateStr).getTime();
+      if (isNaN(postTime)) continue;
+
       if (!map[post.author] || postTime > map[post.author].timestamp) {
         map[post.author] = {
           timestamp: postTime,
@@ -209,6 +214,64 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     }
     return map;
   }, [feedPosts]);
+
+  // Store blockchain last_post timestamp for followed accounts
+  const [accountLastPostMap, setAccountLastPostMap] = useState<Record<string, { timestamp: number; dateStr: string }>>({});
+
+  useEffect(() => {
+    if (!followingUsers || followingUsers.length === 0) {
+      setAccountLastPostMap({});
+      return;
+    }
+
+    // Batch query condenser_api.get_accounts in chunks of 15
+    const chunkSize = 15;
+    const chunks: string[][] = [];
+    for (let i = 0; i < Math.min(followingUsers.length, 60); i += chunkSize) {
+      chunks.push(followingUsers.slice(i, i + chunkSize));
+    }
+
+    let isMounted = true;
+    Promise.all(
+      chunks.map(chunk =>
+        hiveRpcCall<Array<{ name: string; last_post?: string }>>('condenser_api.get_accounts', [chunk]).catch(() => [])
+      )
+    ).then(results => {
+      if (!isMounted) return;
+      const map: Record<string, { timestamp: number; dateStr: string }> = {};
+      for (const accounts of results) {
+        for (const acc of accounts || []) {
+          if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
+            const safeStr = acc.last_post.endsWith('Z') ? acc.last_post : `${acc.last_post}Z`;
+            const time = new Date(safeStr).getTime();
+            if (!isNaN(time)) {
+              map[acc.name] = { timestamp: time, dateStr: acc.last_post };
+            }
+          }
+        }
+      }
+      setAccountLastPostMap(map);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [followingUsers]);
+
+  // Combined activity map: feed items + blockchain account last_post
+  const authorActivityMap = useMemo(() => {
+    const combined: Record<string, { timestamp: number; dateStr: string }> = { ...authorLastPostMap };
+
+    for (const [author, info] of Object.entries(accountLastPostMap)) {
+      if (!combined[author] || info.timestamp > combined[author].timestamp) {
+        combined[author] = {
+          timestamp: info.timestamp,
+          dateStr: info.dateStr
+        };
+      }
+    }
+    return combined;
+  }, [authorLastPostMap, accountLastPostMap]);
 
   // Ranked following users
   const rankedFollowing = useMemo(() => {
@@ -221,14 +284,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       if (isFavA && !isFavB) return -1;
       if (!isFavA && isFavB) return 1;
 
-      const timeA = authorLastPostMap[a]?.timestamp || 0;
-      const timeB = authorLastPostMap[b]?.timestamp || 0;
+      const timeA = authorActivityMap[a]?.timestamp || 0;
+      const timeB = authorActivityMap[b]?.timestamp || 0;
       if (timeA !== timeB) {
         return timeB - timeA;
       }
       return a.localeCompare(b);
     });
-  }, [followingUsers, searchQuery, favAuthors, authorLastPostMap]);
+  }, [followingUsers, searchQuery, favAuthors, authorActivityMap]);
 
   // Ranked Communities
   const rankedCommunities = useMemo(() => {
@@ -276,7 +339,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   const getRelativeTime = (timeStr?: string) => {
     if (!timeStr) return null;
-    const diff = Math.floor((Date.now() - new Date(timeStr + 'Z').getTime()) / 1000);
+    const safeStr = timeStr.endsWith('Z') ? timeStr : `${timeStr}Z`;
+    const past = new Date(safeStr).getTime();
+    if (isNaN(past)) return null;
+    const diff = Math.max(0, Math.floor((Date.now() - past) / 1000));
     if (diff < 60) return `${diff}s`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
@@ -516,8 +582,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               {rankedFollowing.length > 0 ? (
                 rankedFollowing.map((author) => {
                   const isFav = favAuthors.includes(author);
-                  const lastPostInfo = authorLastPostMap[author];
-                  const timeBadge = lastPostInfo ? getRelativeTime(lastPostInfo.dateStr) : null;
+                  const lastActivityInfo = authorActivityMap[author];
+                  const timeBadge = lastActivityInfo ? getRelativeTime(lastActivityInfo.dateStr) : null;
 
                   return (
                     <div
@@ -549,8 +615,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           </p>
                           {timeBadge && (
                             <p className="text-[10px] text-emerald-600 flex items-center gap-0.5">
-                              <Clock className="w-2.5 h-2.5" />
-                              <span>posted {timeBadge} ago</span>
+                              <Clock className="w-2.5 h-2.5 flex-shrink-0" />
+                              <span>Active {timeBadge} ago</span>
                             </p>
                           )}
                         </div>

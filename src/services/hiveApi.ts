@@ -48,6 +48,9 @@ export interface HivePost {
     account: string;
     weight: number;
   }>;
+  reblogged_by?: string[];
+  first_reblogged_by?: string;
+  reblog_entries?: Array<{ account: string; timestamp?: string }>;
 }
 
 export interface HiveAccountProfile {
@@ -652,3 +655,392 @@ export function getPostSnippet(body: string, maxLength: number = 180): string {
   if (clean.length <= maxLength) return clean;
   return clean.slice(0, maxLength) + '...';
 }
+
+/**
+ * Discovers accounts followed by the user that were active (posted or commented) within the last 7 days.
+ * Efficiently batches account lookups in chunks of 15 using condenser_api.get_accounts as requested,
+ * avoiding unnecessary RPC load and caching the active set.
+ */
+export async function getFollowedActiveAccounts(
+  observer: string,
+  forceRefresh: boolean = false
+): Promise<string[]> {
+  const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleanObserver) return [];
+
+  const cacheKey = `followed_active_accounts:${cleanObserver}`;
+  if (!forceRefresh) {
+    const cached = apiCache.get<string[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    // 1. Fetch up to 100 accounts followed by user
+    const following = await getFollowing(cleanObserver, '', 100, forceRefresh);
+    if (!following || following.length === 0) return [];
+
+    // 2. Batch in chunks of 15 accounts as specified by user
+    const chunkSize = 15;
+    const chunks: string[][] = [];
+    for (let i = 0; i < following.length; i += chunkSize) {
+      chunks.push(following.slice(i, i + chunkSize));
+    }
+
+    const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const activeWithTimestamp: { name: string; lastPostTime: number }[] = [];
+
+    // Process chunks concurrently (up to 3 in flight)
+    for (let i = 0; i < chunks.length; i += 3) {
+      const slice = chunks.slice(i, i + 3);
+      const results = await Promise.all(
+        slice.map(async (chunk) => {
+          try {
+            return await hiveRpcCall<Array<{ name: string; last_post?: string }>>(
+              'condenser_api.get_accounts',
+              [chunk]
+            );
+          } catch {
+            return [];
+          }
+        })
+      );
+
+      for (const accounts of results) {
+        for (const acc of accounts || []) {
+          if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
+            const time = new Date(acc.last_post.endsWith('Z') ? acc.last_post : acc.last_post + 'Z').getTime();
+            if (!isNaN(time) && time > sevenDaysAgoMs) {
+              activeWithTimestamp.push({ name: acc.name, lastPostTime: time });
+            }
+          }
+        }
+      }
+    }
+
+    // Sort by recent activity descending
+    activeWithTimestamp.sort((a, b) => b.lastPostTime - a.lastPostTime);
+    const activeUsernames = activeWithTimestamp.map(u => u.name);
+
+    // Cache active accounts list for 10 minutes
+    apiCache.set(cacheKey, activeUsernames, CACHE_TTL.FEED);
+    return activeUsernames;
+  } catch (err) {
+    console.error('Error fetching followed active accounts:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetches recent comments and replies made by accounts followed by the user.
+ * Merges and sorts chronologically, capping at 45 items to prevent DOM/memory bloat.
+ */
+export async function getFollowedCommentsFeed(
+  observer: string,
+  forceRefresh: boolean = false
+): Promise<HivePost[]> {
+  const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleanObserver) return [];
+
+  const cacheKey = `followed_comments_feed:${cleanObserver}`;
+  if (!forceRefresh) {
+    const cached = apiCache.get<HivePost[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    // 1. Find active followed accounts (last 7 days)
+    const activeUsers = await getFollowedActiveAccounts(cleanObserver, forceRefresh);
+    if (!activeUsers || activeUsers.length === 0) return [];
+
+    // Focus on top 16 most recently active users to keep latency low & memory tight
+    const targetUsers = activeUsers.slice(0, 16);
+
+    // 2. Fetch up to 5 recent comments per user in batches of 4
+    const commentsList: HivePost[] = [];
+    const batchSize = 4;
+    for (let i = 0; i < targetUsers.length; i += batchSize) {
+      const batch = targetUsers.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(user =>
+          getAccountPosts('comments', user, 5, forceRefresh).catch(() => [] as HivePost[])
+        )
+      );
+
+      for (const userComments of batchResults) {
+        for (const item of userComments || []) {
+          if (item && item.body && item.body.trim().length > 0) {
+            commentsList.push(item);
+          }
+        }
+      }
+    }
+
+    // 3. Deduplicate by author/permlink
+    const seen = new Set<string>();
+    const uniqueComments: HivePost[] = [];
+    for (const c of commentsList) {
+      const key = `${c.author}/${c.permlink}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueComments.push(c);
+      }
+    }
+
+    // 4. Sort chronologically descending
+    uniqueComments.sort((a, b) => {
+      const timeA = new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
+      const timeB = new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
+      return timeB - timeA;
+    });
+
+    // 5. Memory guard: keep top 45 comments
+    const finalComments = uniqueComments.slice(0, 45);
+    apiCache.set(cacheKey, finalComments, CACHE_TTL.FEED);
+    return finalComments;
+  } catch (err) {
+    console.error('Error fetching followed comments feed:', err);
+    return [];
+  }
+}
+
+/**
+ * Checks if a post is a reblog (resteem)
+ */
+export function isReblogPost(post: HivePost): boolean {
+  if (post.reblogged_by && post.reblogged_by.length > 0) return true;
+  if (post.first_reblogged_by && post.first_reblogged_by.trim().length > 0) return true;
+  if (post.reblog_entries && post.reblog_entries.length > 0) return true;
+  return false;
+}
+
+/**
+ * Extracts the username who reblogged the post
+ */
+export function getRebloggedBy(post: HivePost): string | null {
+  if (post.reblogged_by && post.reblogged_by.length > 0) {
+    return post.reblogged_by[0];
+  }
+  if (post.first_reblogged_by && post.first_reblogged_by.trim().length > 0) {
+    return post.first_reblogged_by.trim();
+  }
+  if (post.reblog_entries && post.reblog_entries.length > 0) {
+    return post.reblog_entries[0].account;
+  }
+  return null;
+}
+
+/**
+ * Fetches root publications and reblogs from accounts followed by the user.
+ * Uses native condenser_api.get_discussions_by_feed with graceful fallback to active accounts' posts.
+ */
+export async function getFollowedRootFeed(
+  observer: string,
+  limit: number = 25,
+  forceRefresh: boolean = false
+): Promise<HivePost[]> {
+  const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleanObserver) return [];
+
+  const cacheKey = `followed_root_feed:${cleanObserver}:${limit}`;
+  if (!forceRefresh) {
+    const cached = apiCache.get<HivePost[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    // 1. Primary: condenser_api.get_discussions_by_feed (direct Hive blockchain feed)
+    const rawFeed = await hiveRpcCall<any[]>('condenser_api.get_discussions_by_feed', [
+      { tag: cleanObserver, limit }
+    ]);
+
+    if (Array.isArray(rawFeed) && rawFeed.length > 0) {
+      const normalized: HivePost[] = rawFeed.map((p) => {
+        const rebloggedBy: string[] = Array.isArray(p.reblogged_by) && p.reblogged_by.length > 0
+          ? p.reblogged_by
+          : (p.first_reblogged_by ? [p.first_reblogged_by] : []);
+
+        const pendingPayout = parseFloat(p.pending_payout_value || '0');
+        const totalPayout = parseFloat(p.total_payout_value || '0');
+        const curatorPayout = parseFloat(p.curator_payout_value || '0');
+
+        return {
+          post_id: Number(p.post_id || p.id || 0),
+          author: p.author,
+          permlink: p.permlink,
+          category: p.category || '',
+          title: p.title || '',
+          body: p.body || '',
+          json_metadata: p.json_metadata || '{}',
+          created: p.created || '',
+          updated: p.last_update || p.updated,
+          parent_author: p.parent_author || '',
+          parent_permlink: p.parent_permlink || '',
+          depth: Number(p.depth || 0),
+          children: Number(p.children || 0),
+          net_rshares: Number(p.net_rshares || 0),
+          is_paidout: Boolean(p.is_paidout),
+          payout: pendingPayout + totalPayout + curatorPayout,
+          pending_payout_value: p.pending_payout_value || '0.000 HBD',
+          author_reputation: typeof p.author_reputation === 'string' ? parseInt(p.author_reputation, 10) : (p.author_reputation || 0),
+          community: p.community || p.category,
+          community_title: p.community_title,
+          active_votes: p.active_votes || [],
+          reblogged_by: rebloggedBy,
+          first_reblogged_by: p.first_reblogged_by || (rebloggedBy.length > 0 ? rebloggedBy[0] : undefined),
+          reblog_entries: p.reblog_entries
+        };
+      });
+
+      apiCache.set(cacheKey, normalized, CACHE_TTL.FEED);
+      return normalized;
+    }
+  } catch (err) {
+    console.warn('condenser_api.get_discussions_by_feed failed, trying fallback:', err);
+  }
+
+  // 2. Fallback: Query recent posts from active followed creators
+  try {
+    const activeUsers = await getFollowedActiveAccounts(cleanObserver, forceRefresh);
+    if (!activeUsers || activeUsers.length === 0) return [];
+
+    const targetUsers = activeUsers.slice(0, 10);
+    const postArrays = await Promise.all(
+      targetUsers.map(user =>
+        getAccountPosts('posts', user, 4, forceRefresh).catch(() => [] as HivePost[])
+      )
+    );
+
+    const merged = postArrays.flat();
+    const seen = new Set<string>();
+    const uniquePosts: HivePost[] = [];
+    for (const p of merged) {
+      const key = `${p.author}/${p.permlink}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePosts.push(p);
+      }
+    }
+
+    uniquePosts.sort((a, b) => {
+      const timeA = new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
+      const timeB = new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
+      return timeB - timeA;
+    });
+
+    const finalPosts = uniquePosts.slice(0, limit);
+    apiCache.set(cacheKey, finalPosts, CACHE_TTL.FEED);
+    return finalPosts;
+  } catch (fallbackErr) {
+    console.error('Error fetching fallback followed root feed:', fallbackErr);
+    return [];
+  }
+}
+
+/**
+ * Fetches a merged feed combining both root stories and comments/replies from followed accounts.
+ * Interleaved and sorted chronologically with strict memory capping.
+ */
+export async function getFollowedMixedFeed(
+  observer: string,
+  forceRefresh: boolean = false
+): Promise<HivePost[]> {
+  const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleanObserver) return [];
+
+  const cacheKey = `followed_mixed_feed:${cleanObserver}`;
+  if (!forceRefresh) {
+    const cached = apiCache.get<HivePost[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    // Concurrently fetch root posts (from condenser_api / active creators) and followed comments
+    const [rootPosts, comments] = await Promise.all([
+      getFollowedRootFeed(cleanObserver, 25, forceRefresh).catch(() => [] as HivePost[]),
+      getFollowedCommentsFeed(cleanObserver, forceRefresh).catch(() => [] as HivePost[])
+    ]);
+
+    // Merge and deduplicate
+    const seen = new Set<string>();
+    const merged: HivePost[] = [];
+    for (const item of [...rootPosts, ...comments]) {
+      const key = `${item.author}/${item.permlink}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(item);
+      }
+    }
+
+    // Sort chronologically descending
+    merged.sort((a, b) => {
+      const timeA = new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
+      const timeB = new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
+      return timeB - timeA;
+    });
+
+    // Memory guard: limit to 45 items
+    const finalMixed = merged.slice(0, 45);
+    apiCache.set(cacheKey, finalMixed, CACHE_TTL.FEED);
+    return finalMixed;
+  } catch (err) {
+    console.error('Error fetching followed mixed feed:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetches similar posts recommendations from HiveSense AI API
+ * https://api.hive.blog/hivesense-api/posts/{author}/{permlink}/similar?truncate=200&result_limit=1&full_posts=5&observer=hive.blog
+ * Lightweight, non-blocking with AbortSignal and memory-capped.
+ */
+export async function getSimilarPosts(
+  author: string,
+  permlink: string,
+  signal?: AbortSignal
+): Promise<HivePost[]> {
+  const cleanAuthor = (author || '').replace(/^@/, '').trim();
+  const cleanPermlink = (permlink || '').trim();
+  if (!cleanAuthor || !cleanPermlink) return [];
+
+  const cacheKey = `similar_posts:${cleanAuthor}/${cleanPermlink}`;
+  const cached = apiCache.get<HivePost[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const url = `https://api.hive.blog/hivesense-api/posts/${encodeURIComponent(cleanAuthor)}/${encodeURIComponent(cleanPermlink)}/similar?truncate=200&result_limit=1&full_posts=5&observer=hive.blog`;
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+
+    // Memory guard: map only required properties and take max 4 posts to preserve browser resources
+    const similar: HivePost[] = data.slice(0, 4).map((item: any) => ({
+      post_id: item.post_id || item.id || 0,
+      author: item.author || '',
+      permlink: item.permlink || '',
+      category: item.category || '',
+      title: item.title || '',
+      body: item.body ? item.body.slice(0, 200) : '',
+      json_metadata: item.json_metadata || '',
+      created: item.created || '',
+      payout: typeof item.payout === 'number' ? item.payout : 0,
+      pending_payout_value: item.pending_payout_value || '$0.000',
+      active_votes: item.active_votes || [],
+      author_reputation: item.author_reputation,
+      community: item.community,
+      community_title: item.community_title,
+      depth: 0,
+      children: item.children || 0,
+      net_rshares: item.net_rshares || 0,
+      is_paidout: Boolean(item.is_paidout)
+    }));
+
+    apiCache.set(cacheKey, similar, 10 * 60 * 1000); // 10 min cache
+    return similar;
+  } catch (err: any) {
+    if (err?.name === 'AbortError') return [];
+    return [];
+  }
+}
+
