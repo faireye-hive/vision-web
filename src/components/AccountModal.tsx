@@ -353,12 +353,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               {post.title}
                             </h4>
                             <p className="text-[11px] text-gray-400 mt-1">
-                              {new Date(post.created + 'Z').toLocaleDateString()} • {post.children} comments • {post.payout ? `$${post.payout.toFixed(2)}` : (post.pending_payout_value || '$0.00')}
+                              {new Date(post.created + 'Z').toLocaleDateString()} • {post.children} comments
                             </p>
                           </div>
-                          <span className="text-xs font-semibold text-gray-800 flex-shrink-0">
-                            {post.payout ? `$${post.payout.toFixed(2)}` : ''}
-                          </span>
                         </div>
                       ))
                     ) : (

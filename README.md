@@ -23,7 +23,7 @@ Lightweight, decentralized web client for the **Hive blockchain** — powered di
 
 ```bash
 # Clone the repository
-git clone https://github.com/ecency/vision-web.git
+git clone https://github.com/faireye-hive/vision-web.git
 cd vision-web
 
 # Install dependencies
@@ -90,9 +90,7 @@ The app is a **pure client-side SPA** — no SSR, no API proxy, no server-side s
 
 ## Security
 
-To report a security issue, please email: **security@ecency.com**
-
-We will evaluate the risk and make a patch available before filing the issue publicly.
+alpha
 
 ## License
 

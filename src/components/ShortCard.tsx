@@ -344,8 +344,8 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleVote}
               disabled={voteLoading}
-              title={upvoted ? 'Upvoted' : 'Upvote Snap (100%)'}
-              className={`flex items-center gap-1.5 py-1 px-2 rounded-full transition cursor-pointer ${
+              title={upvoted ? 'Upvoted (Click to vote)' : 'Upvote Snap with Hive Keychain'}
+              className={`flex items-center gap-1.5 py-1 px-2.5 rounded-full transition cursor-pointer ${
                 upvoted
                   ? 'text-rose-600 bg-rose-50 font-bold'
                   : 'hover:text-rose-600 hover:bg-rose-50/60'
@@ -356,7 +356,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                   upvoted ? 'fill-rose-600 stroke-rose-600' : ''
                 }`}
               />
-              <span>{totalVotes}</span>
+              <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
             </button>
 
             {/* Replies / Subcomments Button */}
@@ -387,18 +387,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                 )
               )}
             </button>
-
-            {/* Payout */}
-            {snap.payout !== undefined && snap.payout > 0 ? (
-              <span
-                className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full"
-                title={`Payout: $${snap.payout.toFixed(3)}`}
-              >
-                ${snap.payout.toFixed(2)}
-              </span>
-            ) : (
-              <span className="text-gray-300">&bull;</span>
-            )}
 
             {/* Share Link */}
             <button

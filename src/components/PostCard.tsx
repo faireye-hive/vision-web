@@ -7,7 +7,9 @@ import {
   Share2,
   MoreHorizontal,
   Bookmark,
-  MessageSquare
+  MessageSquare,
+  Loader2,
+  Check
 } from 'lucide-react';
 import {
   HivePost,
@@ -17,21 +19,47 @@ import {
   getPostSnippet,
   getRebloggedBy
 } from '../services/hiveApi';
+import { KeychainService, CurrentUser } from '../services/keychain';
 
 interface PostCardProps {
   post: HivePost;
-  onSelectPost: (post: HivePost) => void;
+  onSelectPost: (post: HivePost, jumpToComments?: boolean) => void;
   onSelectAuthor: (author: string) => void;
   onSelectTag: (tag: string) => void;
+  currentUser?: CurrentUser | null;
+  onRequireLogin?: () => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
   post,
   onSelectPost,
   onSelectAuthor,
-  onSelectTag
+  onSelectTag,
+  currentUser,
+  onRequireLogin
 }) => {
-  const [upvoted, setUpvoted] = useState(false);
+  // Check if current user has already upvoted this post
+  const [upvoted, setUpvoted] = useState<boolean>(() => {
+    if (currentUser?.username && post.active_votes) {
+      return post.active_votes.some(
+        v => v.voter.toLowerCase() === currentUser.username.toLowerCase()
+      );
+    }
+    return false;
+  });
+  const [voteCountDelta, setVoteCountDelta] = useState<number>(0);
+  const [isVoting, setIsVoting] = useState<boolean>(false);
+
+  // Check if current user has reblogged this post
+  const [hasReblogged, setHasReblogged] = useState<boolean>(() => {
+    if (currentUser?.username && post.reblogged_by) {
+      return post.reblogged_by.some(u => u.toLowerCase() === currentUser.username.toLowerCase());
+    }
+    return false;
+  });
+  const [isReblogging, setIsReblogging] = useState<boolean>(false);
+  const [reblogSuccessToast, setReblogSuccessToast] = useState<boolean>(false);
+
   const [isBookmarked, setIsBookmarked] = useState(() => {
     try {
       const saved = localStorage.getItem('hive_bookmarks') || '[]';
@@ -87,12 +115,71 @@ export const PostCard: React.FC<PostCardProps> = ({
     return '$ 0.000';
   };
 
-  const voteCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (upvoted ? 1 : 0);
+  const voteCount = Math.max(0, (post.stats?.total_votes || post.active_votes?.length || 0) + voteCountDelta);
   const childrenCount = post.children || 0;
 
-  const handleUpvote = (e: React.MouseEvent) => {
+  // Real Keychain voting handler
+  const handleUpvote = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setUpvoted(!upvoted);
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else alert('Please connect Hive Keychain in the top menu to vote.');
+      return;
+    }
+    if (isVoting) return;
+
+    setIsVoting(true);
+    try {
+      // 100% weight = 10000; unvote = 0
+      const weight = upvoted ? 0 : 10000;
+      const res = await KeychainService.vote(currentUser.username, post.author, post.permlink, weight);
+      if (res.success) {
+        if (upvoted) {
+          setUpvoted(false);
+          setVoteCountDelta(prev => prev - 1);
+        } else {
+          setUpvoted(true);
+          setVoteCountDelta(prev => prev + 1);
+        }
+      } else {
+        alert(res.message || res.error || 'Keychain vote was rejected or failed.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error broadcasting vote.');
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
+  // Real Keychain reblog handler
+  const handleReblog = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isComment) return; // Reblog applies to posts
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else alert('Please connect Hive Keychain in the top menu to reblog.');
+      return;
+    }
+    if (isReblogging || hasReblogged) return;
+
+    const confirmed = window.confirm(`Reblog "@${post.author}/${post.permlink}" to your followers?`);
+    if (!confirmed) return;
+
+    setIsReblogging(true);
+    try {
+      const res = await KeychainService.reblog(currentUser.username, post.author, post.permlink);
+      if (res.success) {
+        setHasReblogged(true);
+        setReblogSuccessToast(true);
+        setTimeout(() => setReblogSuccessToast(false), 3000);
+      } else {
+        alert(res.message || res.error || 'Reblog was not completed in Keychain.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Reblog request failed.');
+    } finally {
+      setIsReblogging(false);
+    }
   };
 
   const toggleBookmark = (e: React.MouseEvent) => {
@@ -277,51 +364,75 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       </div>
 
-      {/* Footer: Chevron Upvote, Payout, Heart/Votes, Reblog, Gift, Share, More */}
+      {/* Footer: Upvote Button, Comments, Reblog, Share, More (payout and like count hidden as requested) */}
       <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-gray-50 text-xs text-gray-500">
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
 
-          {/* Upvote Button (Ecency circle chevron) */}
+          {/* Upvote Button (Ecency circle chevron with Keychain vote) */}
           <button
             onClick={handleUpvote}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition ${upvoted
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-              }`}
-            title="Upvote post"
+            disabled={isVoting}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${upvoted
+                ? 'bg-rose-500 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-600 hover:text-rose-600 hover:bg-rose-50'
+              } disabled:opacity-60`}
+            title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
           >
-            <ChevronUp className="w-4 h-4" />
+            {isVoting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-white text-white' : ''}`} />
+            )}
           </button>
 
-          {/* Payout */}
-          <span className="font-semibold text-gray-800">
-            {getPayoutDisplay()}
-          </span>
+          {/* Comments Counter (children from Hive API) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectPost(post, true);
+            }}
+            className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 transition group/comm cursor-pointer"
+            title={`${childrenCount} comments - click to view and discuss`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-gray-400 group-hover/comm:text-blue-600 transition-colors" />
+            <span className="font-semibold text-xs">{childrenCount}</span>
+          </button>
 
-          {/* Heart / Votes */}
-          <span className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900">
-            <Heart className={`w-3.5 h-3.5 ${upvoted ? 'text-rose-500 fill-rose-500' : 'text-gray-400'}`} />
-            <span>{voteCount}</span>
-          </span>
+          {/* Reblog Button */}
+          {!isComment && (
+            <button
+              type="button"
+              onClick={handleReblog}
+              disabled={isReblogging || hasReblogged}
+              className={`flex items-center gap-1.5 transition cursor-pointer ${
+                hasReblogged
+                  ? 'text-purple-600 font-bold'
+                  : 'text-gray-600 hover:text-purple-600'
+              } disabled:cursor-not-allowed`}
+              title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
+            >
+              {isReblogging ? (
+                <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
+              ) : (
+                <Repeat className={`w-3.5 h-3.5 ${hasReblogged ? 'text-purple-600' : 'text-gray-400'}`} />
+              )}
+              <span className="text-xs">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
+            </button>
+          )}
 
-          {/* Reblog */}
-          <span className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900">
-            <Repeat className="w-3.5 h-3.5 text-gray-400" />
-            <span>{Math.max(1, Math.floor(childrenCount / 3))}</span>
-          </span>
-
-          {/* Gift */}
-          <span className="hidden sm:flex items-center gap-1.5 text-gray-600 hover:text-gray-900">
-            <Gift className="w-3.5 h-3.5 text-gray-400" />
-            <span>{Math.max(1, Math.floor(voteCount / 10))}</span>
-          </span>
+          {reblogSuccessToast && (
+            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full animate-in fade-in">
+              Reblogged!
+            </span>
+          )}
         </div>
 
         {/* Right action icons: Share & More */}
         <div className="flex items-center gap-2 text-gray-400">
           <button
             onClick={handleShare}
-            className="p-1 hover:text-gray-600 rounded transition"
+            className="p-1 hover:text-gray-600 rounded transition cursor-pointer"
             title="Share post"
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -331,8 +442,8 @@ export const PostCard: React.FC<PostCardProps> = ({
               e.stopPropagation();
               onSelectPost(post);
             }}
-            className="p-1 hover:text-gray-600 rounded transition"
-            title="More options"
+            className="p-1 hover:text-gray-600 rounded transition cursor-pointer"
+            title="Open post reader"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>

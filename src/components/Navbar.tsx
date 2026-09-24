@@ -183,7 +183,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-feed-btn"
                 onClick={() => {
                   if (onNavChange) onNavChange('feed');
-                  onTagChange('');
                 }}
                 title="Feed: Stories and updates from authors and accounts you follow"
                 className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${activeNav === 'feed'
@@ -198,7 +197,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-discover-btn"
                 onClick={() => {
                   if (onNavChange) onNavChange('discover');
-                  onTagChange('');
                 }}
                 title="Discover: Global Hive feed ranked by Hot, Trending, and New"
                 className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${activeNav === 'discover'
@@ -436,7 +434,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => {
                 if (onNavChange) onNavChange('feed');
-                onTagChange('');
                 setShowMobileMenu(false);
               }}
               title="Feed: Stories and updates from creators and accounts you follow"
@@ -451,7 +448,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => {
                 if (onNavChange) onNavChange('discover');
-                onTagChange('');
                 setShowMobileMenu(false);
               }}
               title="Discover: Global Hive feed ranked by Hot, Trending, and New"

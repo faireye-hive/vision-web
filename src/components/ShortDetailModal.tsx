@@ -411,22 +411,16 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                       ? 'bg-rose-50 text-rose-600'
                       : 'bg-gray-100 text-gray-700 hover:bg-rose-50 hover:text-rose-600'
                   }`}
-                  title={currentUser ? 'Upvote with Keychain' : 'Log in to vote'}
+                  title={currentUser ? (upvoted ? 'Upvoted' : 'Upvote with Keychain') : 'Log in to vote'}
                 >
                   <Heart className={`w-4 h-4 ${upvoted ? 'fill-rose-500 text-rose-500' : ''}`} />
-                  <span>{netVotes}</span>
+                  <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
                 </button>
 
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
                   <MessageCircle className="w-4 h-4 text-blue-500" />
                   <span>{totalCommentsCount} comments</span>
                 </div>
-
-                {payout > 0 && (
-                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                    ${payout.toFixed(2)}
-                  </span>
-                )}
               </div>
 
               <button

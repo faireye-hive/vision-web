@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
   ArrowUp,
@@ -20,13 +20,17 @@ import {
   Repeat,
   AlertCircle,
   Hash,
-  Bookmark
+  Bookmark,
+  Loader2,
+  CornerDownRight
 } from 'lucide-react';
 import {
   HivePost,
   getDiscussion,
   calculateReputation,
-  getHiveAvatarUrl
+  getHiveAvatarUrl,
+  getPost,
+  getPostSnippet
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
@@ -40,6 +44,7 @@ interface PostReaderProps {
   onRequireLogin?: () => void;
   onHeadingsExtracted?: (headings: PostHeading[]) => void;
   onActiveHeadingChange?: (id: string) => void;
+  onSelectPost?: (post: HivePost) => void;
 }
 
 /**
@@ -121,7 +126,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
   currentUser,
   onRequireLogin,
   onHeadingsExtracted,
-  onActiveHeadingChange
+  onActiveHeadingChange,
+  onSelectPost
 }) => {
   const [discussion, setDiscussion] = useState<Record<string, HivePost>>({});
   const [loadingDiscussion, setLoadingDiscussion] = useState(true);
@@ -198,26 +204,51 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fetch comments & discussion without resetting scroll
-  useEffect(() => {
-    let isMounted = true;
-    setLoadingDiscussion(true);
+  // Comment context state
+  const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
+  const [parentPost, setParentPost] = useState<HivePost | null>(null);
+  const [loadingParent, setLoadingParent] = useState<boolean>(false);
 
-    getDiscussion(post.author, post.permlink)
+  // Fetch parent post/comment context if this is a comment
+  useEffect(() => {
+    if (isComment && post.parent_author && post.parent_permlink) {
+      let isMounted = true;
+      setLoadingParent(true);
+      getPost(post.parent_author, post.parent_permlink)
+        .then((p) => {
+          if (isMounted) {
+            setParentPost(p);
+            setLoadingParent(false);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setLoadingParent(false);
+        });
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setParentPost(null);
+      setLoadingParent(false);
+    }
+  }, [isComment, post.parent_author, post.parent_permlink]);
+
+  // Fetch comments & discussion without resetting scroll
+  const fetchDiscussion = useCallback((forceRefresh = false) => {
+    setLoadingDiscussion(true);
+    getDiscussion(post.author, post.permlink, forceRefresh)
       .then((data) => {
-        if (isMounted) {
-          setDiscussion(data);
-          setLoadingDiscussion(false);
-        }
+        setDiscussion(data || {});
+        setLoadingDiscussion(false);
       })
       .catch(() => {
-        if (isMounted) setLoadingDiscussion(false);
+        setLoadingDiscussion(false);
       });
-
-    return () => {
-      isMounted = false;
-    };
   }, [post.author, post.permlink]);
+
+  useEffect(() => {
+    fetchDiscussion(false);
+  }, [fetchDiscussion]);
 
   // Check if current user has already voted
   useEffect(() => {
@@ -294,7 +325,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         setCommentSuccess(true);
         setNewCommentBody('');
         setTimeout(() => setCommentSuccess(false), 4000);
-        getDiscussion(post.author, post.permlink, true).then(setDiscussion);
+        fetchDiscussion(true);
       } else {
         alert(res.message || 'Could not post comment via Keychain');
       }
@@ -340,15 +371,23 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const getComments = (): HivePost[] => {
     const key = `${post.author}/${post.permlink}`;
     const root = discussion[key] || post;
-    if (!root.replies || root.replies.length === 0) return [];
-
-    return root.replies
-      .map((replyKey) => discussion[replyKey])
-      .filter((p): p is HivePost => !!p);
+    if (root.replies && root.replies.length > 0) {
+      return root.replies
+        .map((replyKey) => discussion[replyKey])
+        .filter((p): p is HivePost => !!p);
+    }
+    // Fallback: search discussion dictionary for items with this post as parent
+    return Object.values(discussion).filter(
+      item => item.parent_author === post.author && item.parent_permlink === post.permlink
+    );
   };
 
   const comments = getComments();
-  const totalCommentsCount = comments.length > 0 ? comments.length : (post.children || 0);
+  const totalCommentsCount = useMemo(() => {
+    const key = `${post.author}/${post.permlink}`;
+    const discussionComments = Object.keys(discussion).filter(k => k !== key).length;
+    return Math.max(post.children || 0, discussionComments);
+  }, [post.children, post.author, post.permlink, discussion]);
   const totalVotesCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (hasVoted ? 1 : 0);
   const payoutString = post.payout ? `$${post.payout.toFixed(3)}` : (post.pending_payout_value || '$0.000');
 
@@ -405,6 +444,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700">
               {rep}
             </span>
+
+            {isComment && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                Comment
+              </span>
+            )}
+
             <span className="text-gray-300 hidden xs:inline">•</span>
             <span className="text-gray-500 hidden sm:flex items-center gap-1" title={postDate.full}>
               <Clock className="w-3 h-3 text-gray-400" />
@@ -474,9 +520,82 @@ export const PostReader: React.FC<PostReaderProps> = ({
       {/* ================= POST CONTENT AREA ================= */}
       <div className="px-5 sm:px-10 md:px-12 py-6 space-y-5 max-w-4xl mx-auto w-full">
 
+        {/* ================= COMMENT PARENT CONTEXT BANNER ================= */}
+        {isComment && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-blue-50/40 border border-blue-100/90 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                    <span className="text-[11px] font-bold uppercase tracking-wider bg-blue-100/80 text-blue-800 px-2 py-0.5 rounded-full">
+                      {parentPost?.depth && parentPost.depth > 0 ? 'Nested Comment Reply' : 'Comment on Root Post'}
+                    </span>
+                    <span className="text-gray-500">In response to</span>
+                    {post.parent_author && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectAuthor(post.parent_author!)}
+                        className="font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+                      >
+                        @{post.parent_author}
+                      </button>
+                    )}
+                  </div>
+                  {parentPost && (
+                    <span className="text-[11px] text-gray-400">
+                      Original discussion published {formatPostDate(parentPost.created).relative}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Button to navigate to parent post */}
+              {parentPost && onSelectPost && (
+                <button
+                  type="button"
+                  onClick={() => onSelectPost(parentPost)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs shadow-2xs border border-blue-200 hover:border-blue-600 transition cursor-pointer group/parent flex-shrink-0"
+                  title="Open and read the parent post or comment"
+                >
+                  <span>Open Parent {parentPost.depth && parentPost.depth > 0 ? 'Comment' : 'Post'}</span>
+                  <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover/parent:translate-x-0.5 transition-transform" />
+                </button>
+              )}
+            </div>
+
+            {/* Parent Content Preview */}
+            {parentPost ? (
+              <div className="bg-white/95 p-3.5 sm:p-4 rounded-2xl border border-blue-150/80 text-xs sm:text-sm text-gray-700 space-y-1.5">
+                {parentPost.title && !parentPost.title.startsWith('Re: ') && (
+                  <div className="font-bold text-gray-900 text-sm sm:text-base line-clamp-1">
+                    {parentPost.title}
+                  </div>
+                )}
+                <p className="line-clamp-3 text-gray-600 leading-relaxed italic text-xs sm:text-sm">
+                  "{getPostSnippet(parentPost.body, 250)}"
+                </p>
+              </div>
+            ) : loadingParent ? (
+              <div className="flex items-center gap-2 text-xs text-blue-600 animate-pulse py-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Fetching parent post context from Hive...</span>
+              </div>
+            ) : post.parent_permlink ? (
+              <div className="text-xs text-gray-500 italic bg-white/70 p-2.5 rounded-xl border border-blue-100">
+                Replying to discussion thread: "{post.parent_permlink.replace(/[-_]/g, ' ')}"
+              </div>
+            ) : null}
+          </div>
+        )}
+
         {/* Big, Clear Post Title */}
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">
-          {post.title}
+          {isComment && (!post.title || post.title.startsWith('Re:'))
+            ? `Comment by @${post.author}`
+            : post.title}
         </h1>
 
         {/* Author details on mobile / tags row */}
@@ -567,30 +686,22 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* ================= BOTTOM ENGAGEMENT, PAYOUT & VOTING BAR ================= */}
-
-        {/* User reads first, then votes, tips, sees payout, and comments down here */}
+        {/* ================= BOTTOM ENGAGEMENT & VOTING BAR (payout and vote counts hidden as requested) ================= */}
         <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
 
-          {/* Payout Display (Placed at the bottom) */}
+          {/* Tip Button */}
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-50 px-4 py-2 rounded-2xl">
-              <span className="text-[10px] uppercase font-bold text-emerald-700 block">Total Payout</span>
-              <span className="text-lg font-bold text-emerald-900 font-mono">{payoutString}</span>
-            </div>
-
-            {/* Tip Button */}
             <button
               onClick={() => setShowTipModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer"
               title="Send tip to author"
             >
               <Coins className="w-4 h-4 text-amber-600" />
-              <span>Tip</span>
+              <span>Send Tip</span>
             </button>
           </div>
 
-          {/* Voting, Comments & Share Controls */}
+          {/* Voting & Comments Controls */}
           <div className="flex items-center gap-3">
 
             {/* Upvote Button with Keychain Slider Popover */}
@@ -599,13 +710,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 id="keychain-vote-btn"
                 onClick={() => setShowVoteSlider(!showVoteSlider)}
                 disabled={voteLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs ${hasVoted
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${hasVoted
                     ? 'bg-rose-500 text-white'
                     : 'bg-rose-50 hover:bg-rose-100 text-rose-600'
                   }`}
+                title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
               >
                 <Heart className={`w-4 h-4 ${hasVoted ? 'fill-white' : ''}`} />
-                <span>{totalVotesCount} {totalVotesCount === 1 ? 'vote' : 'votes'}</span>
+                <span>{hasVoted ? 'Upvoted' : 'Upvote'}</span>
               </button>
 
               {/* Vote weight selector */}
@@ -640,7 +752,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   <button
                     onClick={handleVoteSubmit}
                     disabled={voteLoading}
-                    className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
+                    className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                   >
                     <Heart className="w-3.5 h-3.5 fill-white" />
                     <span>{voteLoading ? 'Signing with Keychain...' : 'Confirm Vote'}</span>
@@ -648,16 +760,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Toggle Curators List Button */}
-            <button
-              onClick={() => setShowVoters(!showVoters)}
-              className="flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-100 transition"
-              title="Toggle Curators List"
-            >
-              <span>Curators ({post.active_votes?.length || 0})</span>
-              {showVoters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
 
             {/* Comments Counter Shortcut */}
             <button
@@ -672,32 +774,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
 
         </div>
-
-        {/* Expandable Curators & Voters Section (Placed below post, not cluttering the top) */}
-        {showVoters && (
-          <div className="p-4 bg-gray-50/70 rounded-2xl space-y-2 animate-in fade-in">
-            <p className="text-xs font-bold text-gray-700">Curators on this post:</p>
-            {post.active_votes && post.active_votes.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {post.active_votes.map((v, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white text-xs shadow-xs">
-                    <button
-                      onClick={() => onSelectAuthor(v.voter)}
-                      className="font-medium text-gray-800 hover:text-blue-600 truncate"
-                    >
-                      @{v.voter}
-                    </button>
-                    <span className="text-[11px] font-mono text-emerald-600 font-bold ml-1">
-                      {v.percent / 100}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400">No voters recorded yet.</p>
-            )}
-          </div>
-        )}
 
         {/* ================= DISCUSSION & COMMENTS ================= */}
         <section id="comments-section" className="pt-8 border-t border-gray-150 space-y-6">
@@ -751,13 +827,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           {/* Comment List */}
           {comments.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {comments.map((comment) => (
-                <CommentCard
-                  key={comment.post_id || comment.permlink}
+                <CommentThreadItem
+                  key={comment.post_id || `${comment.author}/${comment.permlink}`}
                   comment={comment}
+                  discussion={discussion}
+                  depth={0}
                   onSelectAuthor={onSelectAuthor}
                   currentUser={currentUser}
+                  onRequireLogin={onRequireLogin}
+                  onRefreshDiscussion={() => fetchDiscussion(true)}
                 />
               ))}
             </div>
@@ -909,75 +989,279 @@ export const PostReader: React.FC<PostReaderProps> = ({
   );
 };
 
-interface CommentCardProps {
+interface CommentThreadItemProps {
   comment: HivePost;
+  discussion: Record<string, HivePost>;
+  depth: number;
   onSelectAuthor: (author: string) => void;
   currentUser: CurrentUser | null;
+  onRequireLogin?: () => void;
+  onRefreshDiscussion: () => void;
 }
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, onSelectAuthor, currentUser }) => {
-  const [upvoted, setUpvoted] = useState(false);
+const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
+  comment,
+  discussion,
+  depth,
+  onSelectAuthor,
+  currentUser,
+  onRequireLogin,
+  onRefreshDiscussion
+}) => {
+  // Check if current user has upvoted this comment
+  const [upvoted, setUpvoted] = useState<boolean>(() => {
+    if (currentUser?.username && comment.active_votes) {
+      return comment.active_votes.some(
+        v => v.voter.toLowerCase() === currentUser.username.toLowerCase()
+      );
+    }
+    return false;
+  });
+  const [voteCountDelta, setVoteCountDelta] = useState(0);
+  const [isVoting, setIsVoting] = useState(false);
+
+  // In-line reply state
+  const [showReplyBox, setShowReplyBox] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
+  const [replySuccess, setReplySuccess] = useState(false);
+
+  // Expand / collapse child replies (default expanded)
+  const [isExpanded, setIsExpanded] = useState(true);
+
   const rep = calculateReputation(comment.author_reputation);
   const avatar = getHiveAvatarUrl(comment.author, 'small');
   const safeCommentHtml = markdownToSafeHtml(comment.body);
+  const postDate = formatPostDate(comment.created);
 
+  // Child replies from discussion map
+  const childReplies = useMemo(() => {
+    const keys = comment.replies || [];
+    const directReplies = keys.map(k => discussion[k]).filter((c): c is HivePost => !!c);
+    if (directReplies.length > 0) return directReplies;
+    // Fallback: search discussion by parent_author and parent_permlink
+    return Object.values(discussion).filter(
+      item => item.parent_author === comment.author && item.parent_permlink === comment.permlink
+    );
+  }, [comment.author, comment.permlink, comment.replies, discussion]);
+
+  const totalVotes = Math.max(0, (comment.stats?.total_votes || comment.active_votes?.length || 0) + voteCountDelta);
+  const payout = comment.payout !== undefined && comment.payout > 0
+    ? comment.payout
+    : parseFloat(comment.pending_payout_value || '0');
+
+  // Handle vote on comment via Keychain
   const handleVote = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else alert('Please connect Hive Keychain in the top menu to vote.');
+      return;
+    }
+    if (isVoting) return;
+
+    setIsVoting(true);
     try {
-      await KeychainService.vote(currentUser.username, comment.author, comment.permlink, 10000);
-      setUpvoted(true);
-    } catch { }
+      const weight = upvoted ? 0 : 10000;
+      const res = await KeychainService.vote(currentUser.username, comment.author, comment.permlink, weight);
+      if (res.success) {
+        if (upvoted) {
+          setUpvoted(false);
+          setVoteCountDelta(prev => prev - 1);
+        } else {
+          setUpvoted(true);
+          setVoteCountDelta(prev => prev + 1);
+        }
+      } else {
+        alert(res.message || res.error || 'Vote could not be broadcast via Keychain.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Vote failed');
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
+  // Handle in-line reply to this comment via Keychain
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim()) return;
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else alert('Please connect Hive Keychain to reply.');
+      return;
+    }
+
+    setIsReplying(true);
+    try {
+      const res = await KeychainService.postComment(
+        currentUser.username,
+        comment.author,
+        comment.permlink,
+        replyText.trim()
+      );
+
+      if (res.success) {
+        setReplySuccess(true);
+        setReplyText('');
+        setTimeout(() => {
+          setReplySuccess(false);
+          setShowReplyBox(false);
+        }, 1500);
+        onRefreshDiscussion();
+      } else {
+        alert(res.message || res.error || 'Failed to post reply via Keychain.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Reply broadcast failed');
+    } finally {
+      setIsReplying(false);
+    }
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-gray-50/70 space-y-2">
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
+    <div className={`p-3.5 sm:p-4 rounded-2xl transition-all ${
+      depth === 0 ? 'bg-gray-50/80 border border-gray-150/70 shadow-2xs' : 'bg-white/90 border border-blue-100 shadow-2xs'
+    }`}>
+      {/* Author Header */}
+      <div className="flex items-center justify-between text-xs mb-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <img
             src={avatar}
             alt={comment.author}
-            className="w-6 h-6 rounded-full object-cover bg-gray-200"
+            className="w-6 h-6 rounded-full object-cover bg-gray-200 ring-1 ring-gray-200"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
             }}
           />
           <button
             onClick={() => onSelectAuthor(comment.author)}
-            className="font-bold text-gray-900 hover:text-blue-600 transition"
+            className="font-bold text-gray-900 hover:text-blue-600 transition cursor-pointer"
           >
             @{comment.author}
           </button>
           <span className="text-[10px] text-gray-400 font-medium">({rep})</span>
+          {depth > 0 && (
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded-full">
+              Reply
+            </span>
+          )}
         </div>
 
-        <span className="text-[11px] text-gray-400">
-          {new Date(comment.created + 'Z').toLocaleDateString()}
+        <span className="text-[11px] text-gray-400" title={postDate.full}>
+          {postDate.relative}
         </span>
       </div>
 
+      {/* Comment Body */}
       <div
-        className="text-xs sm:text-sm text-gray-800 leading-relaxed pl-8 break-words prose prose-slate max-w-none"
+        className="text-xs sm:text-sm text-gray-800 leading-relaxed pl-8 break-words prose prose-slate max-w-none mb-2"
         dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
       />
 
-      <div className="flex items-center gap-4 text-[11px] text-gray-500 pl-8 pt-1">
-        {comment.payout !== undefined && comment.payout > 0 && (
-          <span className="text-gray-900 font-semibold">${comment.payout.toFixed(2)}</span>
-        )}
+      {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies (payout and vote counts hidden as requested) */}
+      <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-gray-500 pl-8 pt-1 flex-wrap">
+        {/* Upvote */}
         <button
+          type="button"
           onClick={handleVote}
-          className={`flex items-center gap-1 transition ${upvoted ? 'text-rose-600 font-bold' : 'hover:text-rose-600'}`}
+          disabled={isVoting}
+          className={`flex items-center gap-1 transition cursor-pointer ${
+            upvoted ? 'text-rose-600 font-bold' : 'hover:text-rose-600'
+          }`}
+          title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
         >
-          <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-rose-600' : ''}`} />
-          <span>{(comment.stats?.total_votes || comment.active_votes?.length || 0) + (upvoted ? 1 : 0)}</span>
+          {isVoting ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+          ) : (
+            <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-rose-600' : ''}`} />
+          )}
+          <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
         </button>
-        {comment.children > 0 && (
-          <span className="flex items-center gap-1 text-blue-500">
-            <MessageSquare className="w-3.5 h-3.5" />
-            {comment.children} replies
-          </span>
+
+        {/* Reply toggle */}
+        <button
+          type="button"
+          onClick={() => setShowReplyBox(!showReplyBox)}
+          className="flex items-center gap-1 font-semibold text-gray-600 hover:text-blue-600 transition cursor-pointer"
+          title="Write a reply to this comment"
+        >
+          <CornerDownRight className="w-3.5 h-3.5" />
+          <span>Reply</span>
+        </button>
+
+        {/* Toggle child replies */}
+        {childReplies.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-2 py-0.5 rounded-full transition cursor-pointer"
+            title={isExpanded ? 'Hide replies' : 'Show replies'}
+          >
+            <MessageSquare className="w-3 h-3 text-blue-500" />
+            <span>{childReplies.length} {childReplies.length === 1 ? 'reply' : 'replies'}</span>
+            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
         )}
       </div>
+
+      {/* In-line Reply Box */}
+      {showReplyBox && (
+        <form onSubmit={handleSendReply} className="mt-3 pl-8 space-y-2 animate-in fade-in">
+          <div className="flex items-center justify-between text-[11px] text-gray-500">
+            <span>Replying to @{comment.author}</span>
+            <button
+              type="button"
+              onClick={() => setShowReplyBox(false)}
+              className="text-gray-400 hover:text-gray-600 font-medium cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+          <textarea
+            rows={2}
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder={`Write your reply to @${comment.author}...`}
+            className="w-full p-2.5 bg-white rounded-xl text-xs text-gray-800 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-2xs"
+          />
+
+          {replySuccess && (
+            <div className="p-2 rounded-lg bg-emerald-50 text-[11px] text-emerald-700 flex items-center gap-1.5 font-medium">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Reply published to the Hive blockchain!</span>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isReplying || !replyText.trim()}
+              className="flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-2xs cursor-pointer"
+            >
+              {isReplying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              <span>{isReplying ? 'Signing...' : 'Post Reply'}</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Recursive Child Replies Tree */}
+      {childReplies.length > 0 && isExpanded && (
+        <div className="mt-3 pl-3 sm:pl-5 border-l-2 border-blue-200/90 hover:border-blue-400 space-y-3 transition-colors">
+          {childReplies.map((child) => (
+            <CommentThreadItem
+              key={child.post_id || `${child.author}/${child.permlink}`}
+              comment={child}
+              discussion={discussion}
+              depth={depth + 1}
+              onSelectAuthor={onSelectAuthor}
+              currentUser={currentUser}
+              onRequireLogin={onRequireLogin}
+              onRefreshDiscussion={onRefreshDiscussion}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

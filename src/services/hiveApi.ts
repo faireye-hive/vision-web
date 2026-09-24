@@ -324,6 +324,40 @@ export function invalidateDiscussionCache(author: string, permlink: string): voi
 }
 
 /**
+ * Fetch a single post or comment by author and permlink
+ */
+export async function getPost(
+  author: string,
+  permlink: string,
+  observer: string = '',
+  forceRefresh: boolean = false
+): Promise<HivePost | null> {
+  const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
+  const cleanPermlink = permlink.trim();
+  if (!cleanAuthor || !cleanPermlink) return null;
+  const cacheKey = `post:${cleanAuthor}:${cleanPermlink}:${observer}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<HivePost>('bridge.get_post', {
+          author: cleanAuthor,
+          permlink: cleanPermlink,
+          observer
+        });
+        if (result && result.author) return result;
+        const fallback = await hiveRpcCall<HivePost>('condenser_api.get_content', [cleanAuthor, cleanPermlink]);
+        return fallback && fallback.author ? fallback : null;
+      } catch {
+        return null;
+      }
+    },
+    { ttl: CACHE_TTL.FEED, forceRefresh }
+  );
+}
+
+/**
  * Fetch detailed account info
  */
 export async function getAccount(username: string, forceRefresh: boolean = false): Promise<HiveAccount | null> {
@@ -835,7 +869,7 @@ export function getRebloggedBy(post: HivePost): string | null {
  */
 export async function getFollowedRootFeed(
   observer: string,
-  limit: number = 25,
+  limit: number = 20,
   forceRefresh: boolean = false
 ): Promise<HivePost[]> {
   const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
@@ -956,7 +990,7 @@ export async function getFollowedMixedFeed(
   try {
     // Concurrently fetch root posts (from condenser_api / active creators) and followed comments
     const [rootPosts, comments] = await Promise.all([
-      getFollowedRootFeed(cleanObserver, 25, forceRefresh).catch(() => [] as HivePost[]),
+      getFollowedRootFeed(cleanObserver, 20, forceRefresh).catch(() => [] as HivePost[]),
       getFollowedCommentsFeed(cleanObserver, forceRefresh).catch(() => [] as HivePost[])
     ]);
 

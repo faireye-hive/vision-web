@@ -98,6 +98,21 @@ const DEFAULT_TOP_COMMUNITIES = [
   }
 ];
 
+/**
+ * Ranks incoming posts by comment count (children descending) for Discover and Categories
+ * when sort is Hot, Trending, etc., but preserves exact order for 'created' (New tab).
+ */
+function sortPostsByCommentsIfApplicable(
+  items: HivePost[],
+  currentSort: string,
+  isDiscoverOrCategory: boolean
+): HivePost[] {
+  if (!isDiscoverOrCategory || currentSort === 'created') {
+    return items;
+  }
+  return [...items].sort((a, b) => ((b.children ?? 0) - (a.children ?? 0)));
+}
+
 export function App() {
   const initialParams = useRef(getInitialUrlParams()).current;
 
@@ -316,7 +331,8 @@ export function App() {
       }
       const cached = getCachedRankedPosts(sort, queryTag, 20, undefined, undefined, observer);
       if (cached && cached.length > 0) {
-        setPosts(cached);
+        const isDiscoverOrCategory = (activeNav === 'discover' || activeNav === 'communities' || Boolean(tag));
+        setPosts(sortPostsByCommentsIfApplicable(cached, sort, isDiscoverOrCategory));
         hasCached = true;
       }
     }
@@ -372,7 +388,10 @@ export function App() {
         }
       }
 
-      setPosts(fetched || []);
+      // Rank by comment count for Discover and Categories when not New
+      const isDiscoverOrCategory = (activeNav === 'discover' || activeNav === 'communities' || Boolean(tag));
+      const rankedBatch = sortPostsByCommentsIfApplicable(fetched || [], sort, isDiscoverOrCategory);
+      setPosts(rankedBatch);
     } catch (err: any) {
       console.error('Hive RPC Fetch Error:', err);
       setError(
@@ -434,7 +453,9 @@ export function App() {
           observer
         );
         const uniqueMore = more.slice(1);
-        setPosts((prev) => [...prev, ...uniqueMore]);
+        const isDiscoverOrCategory = Boolean(tag);
+        const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, isDiscoverOrCategory);
+        setPosts((prev) => [...prev, ...rankedMore]);
       } else {
         // discover
         if (selectedLanguage !== 'global') {
@@ -448,7 +469,8 @@ export function App() {
           });
           const existingKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
           const uniqueMore = more.filter((p) => !existingKeys.has(`${p.author}/${p.permlink}`));
-          setPosts((prev) => [...prev, ...uniqueMore]);
+          const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, true);
+          setPosts((prev) => [...prev, ...rankedMore]);
         } else {
           // Global
           const more = await getRankedPosts(
@@ -459,7 +481,8 @@ export function App() {
             lastPost.permlink
           );
           const uniqueMore = more.slice(1);
-          setPosts((prev) => [...prev, ...uniqueMore]);
+          const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, true);
+          setPosts((prev) => [...prev, ...rankedMore]);
         }
       }
     } catch (err: any) {
@@ -470,11 +493,13 @@ export function App() {
   };
 
   // Open post and push to browser history, while saving feed scroll position
-  const handleSelectPost = useCallback((post: HivePost, pushHistory = true) => {
+  const handleSelectPost = useCallback((post: HivePost, pushHistory = true, jumpToComments = false) => {
     feedScrollPositionRef.current = window.scrollY;
     setSelectedPost(post);
     setPostHeadings([]);
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (!jumpToComments) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
 
     if (pushHistory) {
       const params = new URLSearchParams(window.location.search);
@@ -491,10 +516,28 @@ export function App() {
         newUrl
       );
     }
+
+    if (jumpToComments) {
+      setTimeout(() => {
+        const el = document.getElementById('comments-section');
+        if (el) {
+          const yOffset = -75;
+          const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }, 150);
+    }
   }, []);
 
   // Close post and restore the exact feed scroll position
-  const handleClosePost = useCallback((popHistory = true) => {
+  const handleClosePost = useCallback(() => {
+    // If the post was opened through handleSelectPost which pushed a history state,
+    // popping history with back() cleanly restores the browser stack and previous page
+    if (window.history.state?.type === 'post') {
+      window.history.back();
+      return;
+    }
+
     setSelectedPost(null);
     setPostHeadings([]);
 
@@ -506,20 +549,70 @@ export function App() {
       }, 30);
     });
 
-    if (popHistory) {
-      if (window.history.state?.type === 'post') {
-        window.history.back();
-      } else {
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('post')) {
-          params.delete('post');
-          const query = params.toString();
-          const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
-          window.history.pushState({ type: 'feed', scrollY: targetY }, '', newUrl);
-        }
-      }
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('post')) {
+      params.delete('post');
+      const query = params.toString();
+      const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      window.history.replaceState(
+        {
+          tab: activeNav,
+          sort,
+          tag,
+          source: sourceTab,
+          author: feedAuthor,
+          scrollY: targetY
+        },
+        '',
+        newUrl
+      );
     }
-  }, []);
+  }, [activeNav, sort, tag, sourceTab, feedAuthor]);
+
+  // Main navbar tab change handler that cleanly clears any open post and prevents navigation loops
+  const handleNavChange = useCallback((newNav: 'feed' | 'discover' | 'shorts' | 'communities') => {
+    setActiveNav(newNav);
+    setFeedAuthor(null);
+    setTag('');
+    setSelectedPost(null);
+    setPostHeadings([]);
+
+    const params = new URLSearchParams();
+    if (newNav !== 'discover') {
+      params.set('tab', newNav);
+    }
+    const query = params.toString();
+    const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+
+    if (selectedPost) {
+      window.history.replaceState(
+        {
+          tab: newNav,
+          sort,
+          tag: '',
+          source: newNav === 'feed' ? 'following' : newNav === 'communities' ? 'communities' : 'global',
+          author: null,
+          scrollY: 0
+        },
+        '',
+        newUrl
+      );
+    } else {
+      window.history.pushState(
+        {
+          tab: newNav,
+          sort,
+          tag: '',
+          source: newNav === 'feed' ? 'following' : newNav === 'communities' ? 'communities' : 'global',
+          author: null,
+          scrollY: 0
+        },
+        '',
+        newUrl
+      );
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [selectedPost, sort]);
 
   // Smooth bookmark heading navigation
   const handleSelectHeading = useCallback((id: string) => {
@@ -563,7 +656,7 @@ export function App() {
     setFeedAuthor(null);
     setTag('');
     if (selectedPost) {
-      handleClosePost(false);
+      handleClosePost();
     }
   };
 
@@ -572,7 +665,7 @@ export function App() {
     setFeedAuthor(author);
     setAuthorFeedMode('posts');
     if (selectedPost) {
-      handleClosePost(false);
+      handleClosePost();
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [selectedPost, handleClosePost]);
@@ -616,6 +709,7 @@ export function App() {
       // 2. If a post was open and now there's no post in URL -> user hit back to return to feed
       if (selectedPost && !postParam) {
         setSelectedPost(null);
+        setPostHeadings([]);
         const targetY = event.state?.scrollY ?? feedScrollPositionRef.current;
         requestAnimationFrame(() => {
           window.scrollTo({ top: targetY, behavior: 'instant' });
@@ -623,8 +717,6 @@ export function App() {
             window.scrollTo({ top: targetY, behavior: 'instant' });
           }, 30);
         });
-        setTimeout(() => { isPopStateRef.current = false; }, 50);
-        return;
       }
 
       // 3. If navigating forward/back into a post
@@ -695,8 +787,10 @@ export function App() {
   // Synchronize state changes to URL and browser history so the Back button remembers navigation history
   useEffect(() => {
     if (isPopStateRef.current) return;
+    if (selectedPost) return; // Never sync feed URL while viewing a post
 
     const params = new URLSearchParams(window.location.search);
+    params.delete('post'); // Guarantee no post query parameter in feed history state
     let changed = false;
 
     // tab
@@ -792,16 +886,13 @@ export function App() {
         currentSort={sort}
         onSortChange={(s) => setSort(s)}
         currentTag={tag}
-        onTagChange={(t) => { setTag(t); setFeedAuthor(null); if (selectedPost) handleClosePost(false); }}
+        onTagChange={(t) => { setTag(t); setFeedAuthor(null); if (selectedPost) handleClosePost(); }}
         onOpenAccount={(user) => openAuthorProfile(user)}
         onOpenStats={openStatsModal}
         onOpenCommunities={openCommunitiesModal}
         onOpenManageCommunities={openManageCommunitiesModal}
         activeNav={activeNav}
-        onNavChange={(nav) => {
-          setActiveNav(nav);
-          if (selectedPost) handleClosePost(false);
-        }}
+        onNavChange={handleNavChange}
         currentUser={currentUser}
         onLogin={(user) => {
           setCurrentUser(user);
@@ -812,6 +903,7 @@ export function App() {
           setActiveNav('discover');
           setSort('hot');
           setFeedAuthor(null);
+          if (selectedPost) handleClosePost();
         }}
       />
 
@@ -842,6 +934,7 @@ export function App() {
                   alert('Please connect Hive Keychain in the top menu to perform this action.');
                 }}
                 onHeadingsExtracted={setPostHeadings}
+                onSelectPost={(p) => handleSelectPost(p, true, false)}
               />
             </section>
           </div>
@@ -858,7 +951,7 @@ export function App() {
         <aside className="hidden lg:block">
           <LeftSidebar
             activeNav={activeNav}
-            onNavChange={(n) => { setActiveNav(n); setFeedAuthor(null); setTag(''); }}
+            onNavChange={handleNavChange}
             currentSort={sort}
             onSortChange={(s) => setSort(s)}
             currentTag={tag}
@@ -1250,9 +1343,13 @@ export function App() {
                       <PostCard
                         key={post.post_id || `${post.author}/${post.permlink}`}
                         post={post}
-                        onSelectPost={(p) => handleSelectPost(p)}
+                        onSelectPost={(p, jump) => handleSelectPost(p, true, jump)}
                         onSelectAuthor={handleSelectAuthor}
                         onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
+                        currentUser={currentUser}
+                        onRequireLogin={() => {
+                          alert('Please connect Hive Keychain in the top menu to vote, comment, or reblog.');
+                        }}
                       />
                     ))}
 
