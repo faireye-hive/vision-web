@@ -13,7 +13,12 @@ import {
   Sparkles,
   Shuffle,
   Repeat,
-  ChevronDown
+  ChevronDown,
+  SlidersHorizontal,
+  Filter,
+  ShieldAlert,
+  EyeOff,
+  UserX
 } from 'lucide-react';
 import {
   HivePost,
@@ -41,6 +46,7 @@ import { AccountModal } from './components/AccountModal';
 import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { CommunitiesModal } from './components/CommunitiesModal';
 import { ManageCommunitiesModal } from './components/ManageCommunitiesModal';
+import { ContentFilterModal } from './components/ContentFilterModal';
 import { SortDropdown } from './components/SortDropdown';
 import { LanguageDropdown } from './components/LanguageDropdown';
 import { CategoryDropdown } from './components/CategoryDropdown';
@@ -50,6 +56,14 @@ import { ShortsFeed } from './components/ShortsFeed';
 import { ShortsWordFilterCard } from './components/ShortsWordFilterCard';
 import { getLanguageDiscoveryFeed } from './services/combflowApi';
 import { findCategoryByTag } from './data/categorySubtopics';
+import {
+  loadFilterConfig,
+  saveFilterWords,
+  saveFilterAuthors,
+  saveFilterEnabled,
+  applyContentFilter,
+  ContentFilterConfig
+} from './utils/contentFilter';
 
 function getInitialUrlParams() {
   if (typeof window === 'undefined') return {};
@@ -222,6 +236,66 @@ export function App() {
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [showCommunitiesModal, setShowCommunitiesModal] = useState<boolean>(false);
   const [showManageCommunitiesModal, setShowManageCommunitiesModal] = useState<boolean>(false);
+  const [showContentFilterModal, setShowContentFilterModal] = useState<boolean>(false);
+
+  // Persistent Content Filters for Feed & Discover (Words & Authors saved in cache)
+  const [contentFilterConfig, setContentFilterConfig] = useState<ContentFilterConfig>(() => loadFilterConfig());
+
+  const handleAddFilterWord = useCallback((word: string) => {
+    const clean = word.trim().toLowerCase();
+    if (!clean) return;
+    setContentFilterConfig((prev) => {
+      if (prev.words.includes(clean)) return prev;
+      const nextWords = [...prev.words, clean];
+      saveFilterWords(nextWords);
+      return { ...prev, words: nextWords };
+    });
+  }, []);
+
+  const handleRemoveFilterWord = useCallback((word: string) => {
+    setContentFilterConfig((prev) => {
+      const nextWords = prev.words.filter((w) => w !== word);
+      saveFilterWords(nextWords);
+      return { ...prev, words: nextWords };
+    });
+  }, []);
+
+  const handleClearFilterWords = useCallback(() => {
+    saveFilterWords([]);
+    setContentFilterConfig((prev) => ({ ...prev, words: [] }));
+  }, []);
+
+  const handleAddFilterAuthor = useCallback((author: string) => {
+    const clean = author.trim().toLowerCase().replace(/^@/, '');
+    if (!clean) return;
+    setContentFilterConfig((prev) => {
+      if (prev.authors.includes(clean)) return prev;
+      const nextAuthors = [...prev.authors, clean];
+      saveFilterAuthors(nextAuthors);
+      return { ...prev, authors: nextAuthors };
+    });
+  }, []);
+
+  const handleRemoveFilterAuthor = useCallback((author: string) => {
+    setContentFilterConfig((prev) => {
+      const nextAuthors = prev.authors.filter((a) => a !== author);
+      saveFilterAuthors(nextAuthors);
+      return { ...prev, authors: nextAuthors };
+    });
+  }, []);
+
+  const handleClearFilterAuthors = useCallback(() => {
+    saveFilterAuthors([]);
+    setContentFilterConfig((prev) => ({ ...prev, authors: [] }));
+  }, []);
+
+  const handleToggleContentFilterEnabled = useCallback(() => {
+    setContentFilterConfig((prev) => {
+      const nextEnabled = !prev.enabled;
+      saveFilterEnabled(nextEnabled);
+      return { ...prev, enabled: nextEnabled };
+    });
+  }, []);
 
   // Shorts hashtags & filtering state
   const [shortsHashtags, setShortsHashtags] = useState<{ tag: string; count: number }[]>([]);
@@ -305,13 +379,25 @@ export function App() {
   // Check if user has joined at least one community
   const hasJoinedCommunities = Object.values(joinedCommunities).some(Boolean);
 
-  // Filtered posts taking "Hide Reblogs" setting into account for Following feed
-  const displayedPosts = useMemo(() => {
+  // Filtered posts taking "Hide Reblogs" setting and Content Filters (words & authors) into account
+  const { displayedPosts, filteredOutStats } = useMemo(() => {
+    // 1. Reblogs filter for Following Feed
+    let candidatePosts = posts;
     if (activeNav === 'feed' && hideReblogs && (followingMode === 'root' || followingMode === 'mixed')) {
-      return posts.filter(p => !isReblogPost(p));
+      candidatePosts = posts.filter(p => !isReblogPost(p));
     }
-    return posts;
-  }, [posts, activeNav, hideReblogs, followingMode]);
+
+    // 2. Content Filters (Words and Authors) across Feed, Discover, and Communities
+    const filterRes = applyContentFilter(candidatePosts, contentFilterConfig);
+    return {
+      displayedPosts: filterRes.visiblePosts,
+      filteredOutStats: {
+        total: filterRes.totalHiddenCount,
+        byWord: filterRes.hiddenByWordCount,
+        byAuthor: filterRes.hiddenByAuthorCount
+      }
+    };
+  }, [posts, activeNav, hideReblogs, followingMode, contentFilterConfig]);
 
   // Fetch posts based on feedAuthor OR active sourceTab, sort, tag
   const fetchPosts = useCallback(async (isRefresh = false) => {
@@ -419,44 +505,60 @@ export function App() {
       } else if (activeNav === 'feed') {
         if (currentUser) {
           if (followingMode === 'root') {
-            const more = await getFollowedRootFeed(currentUser.username, posts.length + 20);
-            setPosts(prev => [...prev, ...more.slice(prev.length)]);
+            const lastPost = posts[posts.length - 1];
+            const more = await getFollowedRootFeed(
+              currentUser.username,
+              20,
+              true,
+              lastPost.author,
+              lastPost.permlink
+            );
+            const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+            const newOnes = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+            if (newOnes.length > 0) {
+              setPosts(prev => [...prev, ...newOnes]);
+            }
           } else if (followingMode === 'comments') {
-            const more = await getFollowedCommentsFeed(currentUser.username, true);
+            const more = await getFollowedCommentsFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
             const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
-            const unique = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
-            if (unique.length > 0) {
-              setPosts(prev => [...prev, ...unique]);
+            const newOnes = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+            if (newOnes.length > 0) {
+              setPosts(prev => [...prev, ...newOnes]);
+            } else {
+              //setNoMoreComments(true); // ou algum estado que desabilite o botão / mostre "sem mais posts recentes"
+              }
+            } else {
+              const more = await getFollowedMixedFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
+              const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+              const newOnes = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+              if (newOnes.length > 0) {
+                setPosts(prev => [...prev, ...newOnes]);
+              } else {
+                //setNoMoreComments(true);
+              }
             }
-          } else {
-            const more = await getFollowedMixedFeed(currentUser.username, true);
-            const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
-            const unique = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
-            if (unique.length > 0) {
-              setPosts(prev => [...prev, ...unique]);
-            }
-          }
         }
       } else if (activeNav === 'communities') {
-        let queryTag = tag;
-        const observer = currentUser?.username || '';
-        if (!queryTag) {
-          queryTag = observer ? 'my' : 'hive-125125';
-        }
+          let queryTag = tag;
+          const observer = currentUser?.username || '';
+          if (!queryTag) {
+            queryTag = observer ? 'my' : 'hive-125125';
+          }
 
-        const more = await getRankedPosts(
-          sort,
-          queryTag,
-          20,
-          lastPost.author,
-          lastPost.permlink,
-          observer
-        );
-        const uniqueMore = more.slice(1);
-        const isDiscoverOrCategory = Boolean(tag);
-        const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, isDiscoverOrCategory);
-        setPosts((prev) => [...prev, ...rankedMore]);
-      } else {
+          const more = await getRankedPosts(
+            sort,
+            queryTag,
+            20,
+            lastPost.author,
+            lastPost.permlink,
+            observer
+          );
+          const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+          const uniqueMore = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
+          const isDiscoverOrCategory = Boolean(tag);
+          const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, isDiscoverOrCategory);
+          setPosts((prev) => [...prev, ...rankedMore]);
+        } else {
         // discover
         if (selectedLanguage !== 'global') {
           const currentOffset = posts.length;
@@ -480,7 +582,8 @@ export function App() {
             lastPost.author,
             lastPost.permlink
           );
-          const uniqueMore = more.slice(1);
+          const currentKeys = new Set(posts.map(p => `${p.author}/${p.permlink}`));
+          const uniqueMore = more.filter(p => !currentKeys.has(`${p.author}/${p.permlink}`));
           const rankedMore = sortPostsByCommentsIfApplicable(uniqueMore, sort, true);
           setPosts((prev) => [...prev, ...rankedMore]);
         }
@@ -645,6 +748,11 @@ export function App() {
     setSelectedAuthorProfile(username);
   }, []);
 
+  const openContentFilterModal = useCallback(() => {
+    window.history.pushState({ type: 'modal', modal: 'contentFilter' }, '', window.location.href);
+    setShowContentFilterModal(true);
+  }, []);
+
   const handleSourceTabChange = (newTab: 'following' | 'communities' | 'global') => {
     if (newTab === 'following') {
       setActiveNav('feed');
@@ -694,11 +802,12 @@ export function App() {
       isPopStateRef.current = true;
 
       // 1. If any modal was open, close it on back button
-      if (showStatsModal || showCommunitiesModal || showManageCommunitiesModal || selectedAuthorProfile) {
+      if (showStatsModal || showCommunitiesModal || showManageCommunitiesModal || selectedAuthorProfile || showContentFilterModal) {
         setShowStatsModal(false);
         setShowCommunitiesModal(false);
         setShowManageCommunitiesModal(false);
         setSelectedAuthorProfile(null);
+        setShowContentFilterModal(false);
         setTimeout(() => { isPopStateRef.current = false; }, 50);
         return;
       }
@@ -782,7 +891,7 @@ export function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedPost, posts, showStatsModal, showCommunitiesModal, showManageCommunitiesModal, selectedAuthorProfile]);
+  }, [selectedPost, posts, showStatsModal, showCommunitiesModal, showManageCommunitiesModal, selectedAuthorProfile, showContentFilterModal]);
 
   // Synchronize state changes to URL and browser history so the Back button remembers navigation history
   useEffect(() => {
@@ -1161,8 +1270,29 @@ export function App() {
                     )}
                   </div>
 
-                  {/* Right: Cache Status Badge & Refresh Action */}
-                  <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                  {/* Right: Content Filter Button, Cache Status Badge & Refresh Action */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0 flex-wrap">
+                    {/* Content Filters (Words & Authors) Button */}
+                    <button
+                      onClick={openContentFilterModal}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
+                        contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
+                          ? 'bg-blue-50/90 border-blue-200 text-blue-700 hover:bg-blue-100'
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                      title="Manage muted words and authors filter (saved in cache)"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Filters</span>
+                      {(contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          contentFilterConfig.enabled ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {contentFilterConfig.words.length + contentFilterConfig.authors.length}
+                        </span>
+                      )}
+                    </button>
+
                     {/* Cache Status Badge: shows Live for 'New' tab, Cached for others */}
                     {sort === 'created' && activeNav !== 'feed' ? (
                       <span
@@ -1247,6 +1377,39 @@ export function App() {
               )}
 
               {/* Posts Stream */}
+              {!loading && contentFilterConfig.enabled && filteredOutStats.total > 0 && (
+                <div className="mb-4 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 border border-blue-150/70 text-xs text-blue-900 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldAlert className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span className="truncate">
+                      <strong className="font-bold">{filteredOutStats.total}</strong> {filteredOutStats.total === 1 ? 'post' : 'posts'} hidden by your content filters
+                      {filteredOutStats.byWord > 0 && filteredOutStats.byAuthor > 0 ? (
+                        <span className="text-blue-700/80 ml-1 hidden sm:inline">
+                          ({filteredOutStats.byWord} by word, {filteredOutStats.byAuthor} by author)
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0 text-xs font-semibold">
+                    <button
+                      onClick={openContentFilterModal}
+                      className="text-blue-700 hover:text-blue-900 hover:underline transition cursor-pointer"
+                    >
+                      Manage Filters
+                    </button>
+                    <span className="text-blue-300">•</span>
+                    <button
+                      onClick={handleToggleContentFilterEnabled}
+                      className="text-gray-500 hover:text-gray-800 transition cursor-pointer font-normal text-[11px]"
+                      title="Temporarily pause filters to show all posts"
+                    >
+                      Pause Filter
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {loading ? (
                 <div className="space-y-4">
                   {[...Array(5)].map((_, i) => (
@@ -1350,6 +1513,8 @@ export function App() {
                         onRequireLogin={() => {
                           alert('Please connect Hive Keychain in the top menu to vote, comment, or reblog.');
                         }}
+                        onMuteAuthor={handleAddFilterAuthor}
+                        onBlockWord={handleAddFilterWord}
                       />
                     ))}
 
@@ -1373,7 +1538,40 @@ export function App() {
                       </button>
                     </div>
                   </div>
+                ) : filteredOutStats.total > 0 ? (
+                  /* CONTENT FILTERS EMPTY STATE */
+                  <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150">
+                    <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
+                    <div>
+                      <h3 className="text-base font-bold text-gray-800">All loaded posts are hidden by your filters</h3>
+                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                        {filteredOutStats.total} {filteredOutStats.total === 1 ? 'post' : 'posts'} matched your muted words or authors. You can adjust your filters or temporarily pause them.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
+                      <button
+                        onClick={openContentFilterModal}
+                        className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+                      >
+                        Adjust Content Filters
+                      </button>
+                      <button
+                        onClick={handleToggleContentFilterEnabled}
+                        className="px-4 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                      >
+                        Temporarily Pause Filters
+                      </button>
+                      <button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore}
+                        className="px-4 py-2 text-xs bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                      >
+                        {loadingMore ? 'Loading...' : 'Load More Posts'}
+                      </button>
+                    </div>
+                  </div>
                 ) : (
+                  /* ALL REBLOGS EMPTY STATE */
                   <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
                     <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
                     <div>
@@ -1651,6 +1849,29 @@ export function App() {
           onToggleJoinCommunity={toggleJoinCommunity}
         />
       )}
+
+      {/* Content & Mute Filters Modal (Saved in local cache) */}
+      <ContentFilterModal
+        isOpen={showContentFilterModal}
+        onClose={() => {
+          if (window.history.state?.type === 'modal') {
+            window.history.back();
+          } else {
+            setShowContentFilterModal(false);
+          }
+        }}
+        words={contentFilterConfig.words}
+        authors={contentFilterConfig.authors}
+        enabled={contentFilterConfig.enabled}
+        onAddWord={handleAddFilterWord}
+        onRemoveWord={handleRemoveFilterWord}
+        onClearWords={handleClearFilterWords}
+        onAddAuthor={handleAddFilterAuthor}
+        onRemoveAuthor={handleRemoveFilterAuthor}
+        onClearAuthors={handleClearFilterAuthors}
+        onToggleEnabled={handleToggleContentFilterEnabled}
+        currentHiddenCount={filteredOutStats.total}
+      />
 
       {/* Clean borderless Nebulosa Footer */}
       <footer className="py-6 text-center text-xs text-gray-400 bg-white mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)]">

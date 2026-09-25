@@ -9,7 +9,11 @@ import {
   Bookmark,
   MessageSquare,
   Loader2,
-  Check
+  Check,
+  UserX,
+  Hash,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import {
   HivePost,
@@ -21,13 +25,15 @@ import {
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 
-interface PostCardProps {
+export interface PostCardProps {
   post: HivePost;
   onSelectPost: (post: HivePost, jumpToComments?: boolean) => void;
   onSelectAuthor: (author: string) => void;
   onSelectTag: (tag: string) => void;
   currentUser?: CurrentUser | null;
   onRequireLogin?: () => void;
+  onMuteAuthor?: (author: string) => void;
+  onBlockWord?: (word: string) => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
@@ -36,8 +42,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   onSelectAuthor,
   onSelectTag,
   currentUser,
-  onRequireLogin
+  onRequireLogin,
+  onMuteAuthor,
+  onBlockWord
 }) => {
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Check if current user has already upvoted this post
   const [upvoted, setUpvoted] = useState<boolean>(() => {
     if (currentUser?.username && post.active_votes) {
@@ -429,7 +438,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
 
         {/* Right action icons: Share & More */}
-        <div className="flex items-center gap-2 text-gray-400">
+        <div className="flex items-center gap-2 text-gray-400 relative">
           <button
             onClick={handleShare}
             className="p-1 hover:text-gray-600 rounded transition cursor-pointer"
@@ -437,16 +446,88 @@ export const PostCard: React.FC<PostCardProps> = ({
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectPost(post);
-            }}
-            className="p-1 hover:text-gray-600 rounded transition cursor-pointer"
-            title="Open post reader"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMoreMenu(!showMoreMenu);
+              }}
+              className={`p-1 rounded transition cursor-pointer ${
+                showMoreMenu ? 'text-gray-900 bg-gray-100' : 'hover:text-gray-600'
+              }`}
+              title="More post options"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showMoreMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-20 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMoreMenu(false);
+                  }}
+                />
+                <div
+                  className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-150 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      onSelectPost(post);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Open in Reader</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleShare();
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer font-medium"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Copy Hive Link</span>
+                  </button>
+
+                  {onMuteAuthor && (
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onMuteAuthor(post.author);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer font-semibold border-t border-gray-100"
+                      title={`Mute @${post.author} across Feed & Discover`}
+                    >
+                      <UserX className="w-3.5 h-3.5" />
+                      <span>Mute @{post.author}</span>
+                    </button>
+                  )}
+
+                  {onBlockWord && post.category && (
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onBlockWord(post.category);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-amber-50 text-amber-700 flex items-center gap-2 cursor-pointer font-medium"
+                      title={`Filter #${post.category} posts`}
+                    >
+                      <Hash className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Filter #{post.category}</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </article>

@@ -770,46 +770,51 @@ export async function getFollowedActiveAccounts(
  */
 export async function getFollowedCommentsFeed(
   observer: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  limit: number = 45,
+  maxAgeDays: number = 7
 ): Promise<HivePost[]> {
   const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
   if (!cleanObserver) return [];
 
-  const cacheKey = `followed_comments_feed:${cleanObserver}`;
+  const cacheKey = `followed_comments_feed:${cleanObserver}:${limit}:${maxAgeDays}`;
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
   }
 
+  const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+
   try {
-    // 1. Find active followed accounts (last 7 days)
-    const activeUsers = await getFollowedActiveAccounts(cleanObserver, forceRefresh);
+    const activeUsers = await getFollowedActiveAccounts(cleanObserver, false);
     if (!activeUsers || activeUsers.length === 0) return [];
 
-    // Focus on top 16 most recently active users to keep latency low & memory tight
-    const targetUsers = activeUsers.slice(0, 16);
+    const targetUsers = activeUsers.slice(0, Math.min(activeUsers.length, Math.ceil(limit / 3) + 5));
+    const perUserLimit = Math.min(20, Math.max(5, Math.ceil(limit / targetUsers.length) + 2));
 
-    // 2. Fetch up to 5 recent comments per user in batches of 4
     const commentsList: HivePost[] = [];
     const batchSize = 4;
     for (let i = 0; i < targetUsers.length; i += batchSize) {
       const batch = targetUsers.slice(i, i + batchSize);
       const batchResults = await Promise.all(
         batch.map(user =>
-          getAccountPosts('comments', user, 5, forceRefresh).catch(() => [] as HivePost[])
+          getAccountPosts('comments', user, perUserLimit, forceRefresh).catch(() => [] as HivePost[])
         )
       );
 
       for (const userComments of batchResults) {
         for (const item of userComments || []) {
-          if (item && item.body && item.body.trim().length > 0) {
-            commentsList.push(item);
-          }
+          if (!item || !item.body || !item.body.trim()) continue;
+
+          // 🔑 filtro real de idade — não confiar só no "conta ativa"
+          const t = new Date(item.created.endsWith('Z') ? item.created : item.created + 'Z').getTime();
+          if (isNaN(t) || t < cutoffMs) continue;
+
+          commentsList.push(item);
         }
       }
     }
 
-    // 3. Deduplicate by author/permlink
     const seen = new Set<string>();
     const uniqueComments: HivePost[] = [];
     for (const c of commentsList) {
@@ -820,15 +825,13 @@ export async function getFollowedCommentsFeed(
       }
     }
 
-    // 4. Sort chronologically descending
     uniqueComments.sort((a, b) => {
       const timeA = new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
       const timeB = new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
       return timeB - timeA;
     });
 
-    // 5. Memory guard: keep top 45 comments
-    const finalComments = uniqueComments.slice(0, 45);
+    const finalComments = uniqueComments.slice(0, limit);
     apiCache.set(cacheKey, finalComments, CACHE_TTL.FEED);
     return finalComments;
   } catch (err) {
@@ -870,22 +873,32 @@ export function getRebloggedBy(post: HivePost): string | null {
 export async function getFollowedRootFeed(
   observer: string,
   limit: number = 20,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  startAuthor?: string,
+  startPermlink?: string
 ): Promise<HivePost[]> {
   const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
   if (!cleanObserver) return [];
 
-  const cacheKey = `followed_root_feed:${cleanObserver}:${limit}`;
+  const safeLimit = Math.min(Math.max(limit, 1), 20); // Hivemind hard-caps em 20
+  const cacheKey = `followed_root_feed:${cleanObserver}:${safeLimit}:${startAuthor || ''}:${startPermlink || ''}`;
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
   }
 
   try {
-    // 1. Primary: condenser_api.get_discussions_by_feed (direct Hive blockchain feed)
-    const rawFeed = await hiveRpcCall<any[]>('condenser_api.get_discussions_by_feed', [
-      { tag: cleanObserver, limit }
-    ]);
+    const params: Record<string, any> = {
+      sort: 'feed',
+      account: cleanObserver,
+      limit: safeLimit
+    };
+    if (startAuthor && startPermlink) {
+      params.start_author = startAuthor;
+      params.start_permlink = startPermlink;
+    }
+
+    const rawFeed = await hiveRpcCall<any[]>('bridge.get_account_posts', params);
 
     if (Array.isArray(rawFeed) && rawFeed.length > 0) {
       const normalized: HivePost[] = rawFeed.map((p) => {
@@ -925,16 +938,18 @@ export async function getFollowedRootFeed(
         };
       });
 
-      apiCache.set(cacheKey, normalized, CACHE_TTL.FEED);
+      // Não cacheia páginas com cursor por muito tempo; a primeira página (sem cursor) pode ter TTL maior
+      apiCache.set(cacheKey, normalized, startAuthor ? CACHE_TTL.FEED_PAGE : CACHE_TTL.FEED);
       return normalized;
     }
+    return [];
   } catch (err) {
-    console.warn('condenser_api.get_discussions_by_feed failed, trying fallback:', err);
+    console.warn('bridge.get_account_posts (feed) failed, trying fallback:', err);
   }
 
-  // 2. Fallback: Query recent posts from active followed creators
+  // Fallback continua igual (usa getFollowedActiveAccounts)
   try {
-    const activeUsers = await getFollowedActiveAccounts(cleanObserver, forceRefresh);
+    const activeUsers = await getFollowedActiveAccounts(cleanObserver, false);
     if (!activeUsers || activeUsers.length === 0) return [];
 
     const targetUsers = activeUsers.slice(0, 10);
@@ -961,7 +976,7 @@ export async function getFollowedRootFeed(
       return timeB - timeA;
     });
 
-    const finalPosts = uniquePosts.slice(0, limit);
+    const finalPosts = uniquePosts.slice(0, safeLimit);
     apiCache.set(cacheKey, finalPosts, CACHE_TTL.FEED);
     return finalPosts;
   } catch (fallbackErr) {
@@ -976,33 +991,42 @@ export async function getFollowedRootFeed(
  */
 export async function getFollowedMixedFeed(
   observer: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  limit: number = 45,
+  maxAgeDays: number = 7
 ): Promise<HivePost[]> {
   const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
   if (!cleanObserver) return [];
 
-  const cacheKey = `followed_mixed_feed:${cleanObserver}`;
+  const cacheKey = `followed_mixed_feed:${cleanObserver}:${limit}:${maxAgeDays}`;
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
   }
 
+  const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+
   try {
-    // Concurrently fetch root posts (from condenser_api / active creators) and followed comments
+    // Concurrently fetch root posts (feed sort / fallback active-creator posts) and followed comments
     const [rootPosts, comments] = await Promise.all([
-      getFollowedRootFeed(cleanObserver, 20, forceRefresh).catch(() => [] as HivePost[]),
-      getFollowedCommentsFeed(cleanObserver, forceRefresh).catch(() => [] as HivePost[])
+      getFollowedRootFeed(cleanObserver, Math.min(20, limit), forceRefresh).catch(() => [] as HivePost[]),
+      getFollowedCommentsFeed(cleanObserver, forceRefresh, limit, maxAgeDays).catch(() => [] as HivePost[])
     ]);
 
-    // Merge and deduplicate
+    // Merge, dedupe, and enforce the real age cutoff on BOTH sources
+    // (comments already respect maxAgeDays internally, but root posts — especially
+    // from getFollowedRootFeed's fallback path — are not date-limited, so we filter here too)
     const seen = new Set<string>();
     const merged: HivePost[] = [];
     for (const item of [...rootPosts, ...comments]) {
       const key = `${item.author}/${item.permlink}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push(item);
-      }
+      if (seen.has(key)) continue;
+
+      const t = new Date(item.created.endsWith('Z') ? item.created : item.created + 'Z').getTime();
+      if (isNaN(t) || t < cutoffMs) continue;
+
+      seen.add(key);
+      merged.push(item);
     }
 
     // Sort chronologically descending
@@ -1012,8 +1036,8 @@ export async function getFollowedMixedFeed(
       return timeB - timeA;
     });
 
-    // Memory guard: limit to 45 items
-    const finalMixed = merged.slice(0, 45);
+    // Memory guard: limit final result size
+    const finalMixed = merged.slice(0, limit);
     apiCache.set(cacheKey, finalMixed, CACHE_TTL.FEED);
     return finalMixed;
   } catch (err) {
@@ -1041,7 +1065,7 @@ export async function getSimilarPosts(
   if (cached) return cached;
 
   try {
-    const url = `https://api.hive.blog/hivesense-api/posts/${encodeURIComponent(cleanAuthor)}/${encodeURIComponent(cleanPermlink)}/similar?truncate=200&result_limit=1&full_posts=5&observer=hive.blog`;
+    const url = `https://api.hive.blog/hivesense-api/posts/${encodeURIComponent(cleanAuthor)}/${encodeURIComponent(cleanPermlink)}/similar?truncate=200&result_limit=5&full_posts=5&observer=hive.blog`;
     const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
     if (!res.ok) return [];
 
