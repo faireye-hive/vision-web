@@ -1,11 +1,23 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: #f7f8fa;
     color: #1e293b;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background-color: #0b0f17;
+    color: #f1f5f9;
   }
 
   button, [role="button"], a {
@@ -32,3 +44,216 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 1);
 }
+
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 1);
+}
+
+/* ================= High-Contrast Article Body & Post Reading Typography ================= */
+.article-body,
+.article-content {
+  color: #1e293b;
+  line-height: 1.75;
+}
+
+.article-body p,
+.article-content p {
+  margin-bottom: 1.15rem;
+}
+
+.article-body h1,
+.article-body h2,
+.article-body h3,
+.article-body h4,
+.article-body h5,
+.article-body h6,
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+  font-weight: 700;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.article-body h1 { font-size: 1.75rem; margin-top: 1.75rem; margin-bottom: 0.85rem; }
+.article-body h2 { font-size: 1.45rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+.article-body h3 { font-size: 1.25rem; margin-top: 1.25rem; margin-bottom: 0.65rem; }
+.article-body h4 { font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
+
+.article-body a,
+.article-content a {
+  color: #2563eb;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.article-body a:hover,
+.article-content a:hover {
+  color: #1d4ed8;
+}
+
+.article-body blockquote,
+.article-content blockquote {
+  border-left: 4px solid #3b82f6;
+  padding: 0.65rem 1rem;
+  margin: 1.2rem 0;
+  background-color: rgba(239, 246, 255, 0.6);
+  border-radius: 0 0.75rem 0.75rem 0;
+  font-style: italic;
+  color: #334155;
+}
+
+.article-body table,
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.875rem;
+}
+
+.article-body th,
+.article-content th {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  text-align: left;
+}
+
+.article-body td,
+.article-content td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+/* ================= DARK MODE OVERRIDES FOR POSTS & COMMENTS ================= */
+html.dark .article-body,
+html.dark .article-content,
+html.dark #sanitized-post-body {
+  color: #f8fafc !important; /* ultra-bright crisp slate-50 */
+}
+
+html.dark .article-body p,
+html.dark .article-content p,
+html.dark #sanitized-post-body p {
+  color: #f1f5f9 !important; /* slate-100 */
+}
+
+html.dark .article-body h1,
+html.dark .article-body h2,
+html.dark .article-body h3,
+html.dark .article-body h4,
+html.dark .article-body h5,
+html.dark .article-body h6,
+html.dark .article-content h1,
+html.dark .article-content h2,
+html.dark .article-content h3,
+html.dark .article-content h4,
+html.dark .article-content h5,
+html.dark .article-content h6,
+html.dark #sanitized-post-body h1,
+html.dark #sanitized-post-body h2,
+html.dark #sanitized-post-body h3,
+html.dark #sanitized-post-body h4,
+html.dark #sanitized-post-body h5,
+html.dark #sanitized-post-body h6 {
+  color: #ffffff !important; /* pure white headings */
+}
+
+html.dark .article-body a,
+html.dark .article-content a,
+html.dark #sanitized-post-body a {
+  color: #60a5fa !important; /* bright blue */
+}
+html.dark .article-body a:hover,
+html.dark .article-content a:hover,
+html.dark #sanitized-post-body a:hover {
+  color: #93c5fd !important;
+}
+
+html.dark .article-body strong,
+html.dark .article-content strong,
+html.dark #sanitized-post-body strong,
+html.dark .article-body b,
+html.dark .article-content b,
+html.dark #sanitized-post-body b {
+  color: #ffffff !important;
+}
+
+html.dark .article-body em,
+html.dark .article-content em,
+html.dark #sanitized-post-body em,
+html.dark .article-body i,
+html.dark .article-content i,
+html.dark #sanitized-post-body i {
+  color: #f1f5f9 !important;
+}
+
+html.dark .article-body li,
+html.dark .article-content li,
+html.dark #sanitized-post-body li {
+  color: #f1f5f9 !important;
+}
+
+html.dark .article-body blockquote,
+html.dark .article-content blockquote,
+html.dark #sanitized-post-body blockquote {
+  border-left-color: #60a5fa !important;
+  background-color: rgba(30, 41, 59, 0.7) !important; /* slate-800/70 */
+  color: #f1f5f9 !important;
+}
+
+html.dark .article-body table,
+html.dark .article-content table,
+html.dark #sanitized-post-body table {
+  border-color: #334155 !important;
+}
+
+html.dark .article-body th,
+html.dark .article-content th,
+html.dark #sanitized-post-body th {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #334155 !important;
+}
+
+html.dark .article-body td,
+html.dark .article-content td,
+html.dark #sanitized-post-body td {
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .article-body code,
+html.dark .article-content code,
+html.dark #sanitized-post-body code {
+  color: #fb7185 !important; /* rose-400 */
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html.dark .article-body pre,
+html.dark .article-content pre,
+html.dark #sanitized-post-body pre {
+  background-color: #0f172a !important;
+  border: 1px solid #334155 !important;
+}
+
+html.dark .article-body pre code,
+html.dark .article-content pre code,
+html.dark #sanitized-post-body pre code {
+  color: #34d399 !important; /* emerald-400 */
+  background-color: transparent !important;
+}
+

@@ -76,25 +76,25 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
       onClick={onClose}
     >
       <div
         id="content-filter-modal"
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl p-5 sm:p-7 w-full max-w-lg shadow-2xl border border-gray-150 space-y-5 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 w-full max-w-lg shadow-2xl border border-gray-150 dark:border-slate-800 space-y-5 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="flex items-start justify-between pb-3 border-b border-gray-150">
+        <div className="flex items-start justify-between pb-3 border-b border-gray-150 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-2xs">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 shadow-2xs">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base sm:text-lg text-gray-900 leading-tight">
+              <h3 className="font-extrabold text-base sm:text-lg text-gray-900 dark:text-white leading-tight">
                 Content & Spam Filters
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                 Saved in your local cache for Feed & Discover
               </p>
             </div>
@@ -102,7 +102,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+            className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
             title="Close modal (Esc)"
           >
             <X className="w-5 h-5" />
@@ -112,16 +112,16 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         {/* Master Enabled / Disabled Toggle Banner */}
         <div className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
           enabled
-            ? 'bg-blue-50/70 border-blue-200/80 text-blue-950'
-            : 'bg-gray-50 border-gray-200 text-gray-600'
+            ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-900/60 text-blue-950 dark:text-blue-200'
+            : 'bg-gray-50 dark:bg-slate-800/60 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300'
         }`}>
           <div className="flex items-center gap-2.5">
-            <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-blue-600 animate-pulse' : 'bg-gray-400'}`} />
+            <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-blue-600 animate-pulse' : 'bg-gray-400 dark:bg-slate-600'}`} />
             <div>
-              <span className="font-bold text-xs block">
+              <span className="font-bold text-xs block text-gray-900 dark:text-white">
                 {enabled ? 'Content Filter is Active' : 'Content Filter is Paused'}
               </span>
-              <span className="text-[11px] text-gray-500">
+              <span className="text-[11px] text-gray-500 dark:text-slate-400">
                 {enabled
                   ? `${currentHiddenCount} posts currently filtered from this view`
                   : 'Filters are paused. All posts are visible.'}
@@ -135,7 +135,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1.5 ${
               enabled
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
+                : 'bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700'
             }`}
           >
             {enabled ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -144,19 +144,19 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 p-1 bg-gray-100/90 rounded-2xl text-xs font-bold">
+        <div className="flex items-center gap-2 p-1 bg-gray-100/90 dark:bg-slate-800/80 rounded-2xl text-xs font-bold">
           <button
             type="button"
             onClick={() => setActiveTab('words')}
             className={`flex-1 py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'words'
-                ? 'bg-white text-gray-900 shadow-2xs'
-                : 'text-gray-500 hover:text-gray-900'
+                ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xs'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Blocked Words</span>
-            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-gray-100 text-gray-600 font-semibold">
+            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 font-semibold">
               {words.length}
             </span>
           </button>
@@ -166,13 +166,13 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             onClick={() => setActiveTab('authors')}
             className={`flex-1 py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'authors'
-                ? 'bg-white text-gray-900 shadow-2xs'
-                : 'text-gray-500 hover:text-gray-900'
+                ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-2xs'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
             <UserX className="w-3.5 h-3.5" />
             <span>Muted Authors</span>
-            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-gray-100 text-gray-600 font-semibold">
+            <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 font-semibold">
               {authors.length}
             </span>
           </button>
@@ -182,7 +182,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         {activeTab === 'words' && (
           <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-[220px]">
             <div>
-              <p className="text-xs text-gray-600 leading-relaxed mb-3">
+              <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed mb-3">
                 Hide posts containing these words or phrases in their title, body, or tags.
               </p>
 
@@ -192,7 +192,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                   value={wordInput}
                   onChange={(e) => setWordInput(e.target.value)}
                   placeholder="Type word or phrase (e.g. giveaway, casino)..."
-                  className="flex-1 min-w-0 px-3.5 py-2.5 text-xs bg-gray-50 rounded-2xl text-gray-800 placeholder-gray-400 border border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs"
+                  className="flex-1 min-w-0 px-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-850 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs"
                 />
                 <button
                   type="submit"
@@ -207,7 +207,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
 
             {/* Quick Presets */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1 text-[11px] text-gray-400 font-semibold">
+              <div className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-slate-500 font-semibold">
                 <Sparkles className="w-3 h-3 text-amber-500" />
                 <span>Quick spam presets:</span>
               </div>
@@ -222,8 +222,8 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                       onClick={() => handleAddPreset(preset)}
                       className={`text-[11px] px-2.5 py-1 rounded-xl transition cursor-pointer font-medium ${
                         isAdded
-                          ? 'bg-gray-100 text-gray-400 cursor-default'
-                          : 'bg-blue-50/70 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200/60'
+                          ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-600 cursor-default'
+                          : 'bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-900 border border-blue-200/60 dark:border-blue-900/40'
                       }`}
                     >
                       {isAdded ? `✓ ${preset}` : `+ ${preset}`}
@@ -234,14 +234,14 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             </div>
 
             {/* Words Chips List */}
-            <div className="space-y-2 pt-2 border-t border-gray-150">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-500">
+            <div className="space-y-2 pt-2 border-t border-gray-150 dark:border-slate-800">
+              <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-slate-400">
                 <span>Active Blocked Words ({words.length})</span>
                 {words.length > 0 && (
                   <button
                     type="button"
                     onClick={onClearWords}
-                    className="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline transition cursor-pointer"
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 text-xs font-semibold hover:underline transition cursor-pointer"
                   >
                     Clear All
                   </button>
@@ -253,13 +253,13 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                   {words.map((w) => (
                     <span
                       key={w}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200/80 text-gray-800 text-xs font-medium transition shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700/80 text-gray-800 dark:text-slate-200 text-xs font-medium transition shadow-2xs"
                     >
-                      <span className="font-semibold text-gray-900">{w}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">{w}</span>
                       <button
                         type="button"
                         onClick={() => onRemoveWord(w)}
-                        className="text-gray-400 hover:text-rose-600 transition cursor-pointer p-0.5"
+                        className="text-gray-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer p-0.5"
                         title={`Remove "${w}"`}
                       >
                         <X className="w-3 h-3" />
@@ -268,7 +268,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-gray-50 text-center text-xs text-gray-400">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/40 text-center text-xs text-gray-400 dark:text-slate-500">
                   No blocked words yet. Add keywords above to filter unwanted topics.
                 </div>
               )}
@@ -280,19 +280,19 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         {activeTab === 'authors' && (
           <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-[220px]">
             <div>
-              <p className="text-xs text-gray-600 leading-relaxed mb-3">
+              <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed mb-3">
                 Completely hide posts authored by these Hive accounts across Feed and Discover.
               </p>
 
               <form onSubmit={handleAddAuthorSubmit} className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">@</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-xs font-bold">@</span>
                   <input
                     type="text"
                     value={authorInput}
                     onChange={(e) => setAuthorInput(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ''))}
                     placeholder="username (e.g. spammer123)"
-                    className="w-full pl-7 pr-3.5 py-2.5 text-xs bg-gray-50 rounded-2xl text-gray-800 placeholder-gray-400 border border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs font-medium"
+                    className="w-full pl-7 pr-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-850 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs font-medium"
                   />
                 </div>
                 <button
@@ -307,14 +307,14 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             </div>
 
             {/* Authors List */}
-            <div className="space-y-2 pt-2 border-t border-gray-150">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-500">
+            <div className="space-y-2 pt-2 border-t border-gray-150 dark:border-slate-800">
+              <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-slate-400">
                 <span>Muted Authors ({authors.length})</span>
                 {authors.length > 0 && (
                   <button
                     type="button"
                     onClick={onClearAuthors}
-                    className="text-rose-600 hover:text-rose-700 text-xs font-semibold hover:underline transition cursor-pointer"
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 text-xs font-semibold hover:underline transition cursor-pointer"
                   >
                     Unmute All
                   </button>
@@ -328,21 +328,21 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                     return (
                       <span
                         key={author}
-                        className="inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200/80 text-gray-800 text-xs font-medium transition shadow-2xs"
+                        className="inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700/80 text-gray-800 dark:text-slate-200 text-xs font-medium transition shadow-2xs"
                       >
                         <img
                           src={avatar}
                           alt={author}
-                          className="w-5 h-5 rounded-full object-cover bg-gray-300 ring-1 ring-gray-300"
+                          className="w-5 h-5 rounded-full object-cover bg-gray-300 dark:bg-slate-700 ring-1 ring-gray-300 dark:ring-slate-700"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                           }}
                         />
-                        <span className="font-bold text-gray-900">@{author}</span>
+                        <span className="font-bold text-gray-900 dark:text-white">@{author}</span>
                         <button
                           type="button"
                           onClick={() => onRemoveAuthor(author)}
-                          className="text-gray-400 hover:text-rose-600 transition cursor-pointer p-0.5 ml-0.5"
+                          className="text-gray-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer p-0.5 ml-0.5"
                           title={`Unmute @${author}`}
                         >
                           <X className="w-3 h-3" />
@@ -352,7 +352,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                   })}
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-gray-50 text-center text-xs text-gray-400">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/40 text-center text-xs text-gray-400 dark:text-slate-500">
                   No authors muted yet. Add spammers or unwanted accounts above.
                 </div>
               )}
@@ -361,8 +361,8 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="pt-3 border-t border-gray-150 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+        <div className="pt-3 border-t border-gray-150 dark:border-slate-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-slate-500">
             <Info className="w-3.5 h-3.5 text-blue-500" />
             <span>Changes take effect immediately on your feed</span>
           </div>

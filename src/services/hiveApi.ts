@@ -115,7 +115,7 @@ export interface HiveCommunity {
   avatar_url?: string;
 }
 
-export const PUBLIC_HIVE_NODES = [
+export const DEFAULT_HIVE_NODES = [
   'https://api.hive.blog',
   'https://api.deathwing.me',
   'https://rpc.ecency.com',
@@ -123,15 +123,121 @@ export const PUBLIC_HIVE_NODES = [
   'https://techcoderx.com'
 ];
 
-let activeNode = PUBLIC_HIVE_NODES[0];
+export const STORAGE_KEY_CUSTOM_NODES = 'nebulosa_custom_rpc_nodes';
+export const STORAGE_KEY_ACTIVE_NODE = 'nebulosa_active_rpc_node';
+
+export function getCustomHiveNodes(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_NODES);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((n): n is string => typeof n === 'string' && (n.startsWith('https://') || n.startsWith('http://')))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getAllHiveNodes(): string[] {
+  const custom = getCustomHiveNodes();
+  const all = [...DEFAULT_HIVE_NODES];
+  for (const c of custom) {
+    if (!all.includes(c)) {
+      all.push(c);
+    }
+  }
+  return all;
+}
+
+// Kept for backward compatibility with existing code
+export const PUBLIC_HIVE_NODES = DEFAULT_HIVE_NODES;
+
+// Initialize activeNode from cache if valid
+let activeNode = (() => {
+  if (typeof window === 'undefined') return DEFAULT_HIVE_NODES[0];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_NODE);
+    if (saved && typeof saved === 'string') {
+      const all = getAllHiveNodes();
+      if (all.includes(saved)) return saved;
+    }
+  } catch {}
+  return DEFAULT_HIVE_NODES[0];
+})();
 
 export function getActiveNode(): string {
   return activeNode;
 }
 
 export function setActiveNode(node: string) {
-  if (PUBLIC_HIVE_NODES.includes(node)) {
+  const all = getAllHiveNodes();
+  if (all.includes(node)) {
     activeNode = node;
+    try {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_NODE, node);
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nebulosa:node_changed', { detail: { activeNode: node } }));
+    }
+  }
+}
+
+export function addCustomHiveNode(nodeUrl: string): { success: boolean; error?: string } {
+  const trimmed = nodeUrl.trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    return { success: false, error: 'RPC node URL cannot be empty.' };
+  }
+  if (!trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
+    return { success: false, error: 'RPC node URL must start with https:// or http://' };
+  }
+  try {
+    new URL(trimmed);
+  } catch {
+    return { success: false, error: 'Invalid URL format.' };
+  }
+
+  const all = getAllHiveNodes();
+  if (all.includes(trimmed)) {
+    return { success: false, error: 'This RPC node is already in your node list.' };
+  }
+
+  const currentCustom = getCustomHiveNodes();
+  const updatedCustom = [...currentCustom, trimmed];
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_NODES, JSON.stringify(updatedCustom));
+    // Auto-select the newly added node
+    setActiveNode(trimmed);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to save node to storage.' };
+  }
+}
+
+export function removeCustomHiveNode(nodeUrl: string): void {
+  const currentCustom = getCustomHiveNodes();
+  const updatedCustom = currentCustom.filter((n) => n !== nodeUrl);
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_NODES, JSON.stringify(updatedCustom));
+  } catch {}
+
+  // If the active node was removed, fallback to the default node
+  if (activeNode === nodeUrl) {
+    setActiveNode(DEFAULT_HIVE_NODES[0]);
+  } else if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('nebulosa:node_changed', { detail: { activeNode } }));
+  }
+}
+
+export function resetHiveNodesToDefault(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_CUSTOM_NODES);
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_NODE);
+  } catch {}
+  activeNode = DEFAULT_HIVE_NODES[0];
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('nebulosa:node_changed', { detail: { activeNode } }));
   }
 }
 
@@ -172,8 +278,9 @@ export async function hiveRpcCall<T = any>(
     return json.result as T;
   } catch (err: any) {
     // Attempt fallback to secondary node if primary failed and wasn't manually specified
-    if (nodeUrl === activeNode && PUBLIC_HIVE_NODES.length > 1) {
-      const nextNode = PUBLIC_HIVE_NODES.find(n => n !== activeNode) || PUBLIC_HIVE_NODES[0];
+    const allNodes = getAllHiveNodes();
+    if (nodeUrl === activeNode && allNodes.length > 1) {
+      const nextNode = allNodes.find(n => n !== activeNode) || allNodes[0];
       try {
         const fallbackRes = await fetch(nextNode, {
           method: 'POST',

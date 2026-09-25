@@ -362,24 +362,24 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
       {/* ================= CARD 1: LEFT SORT & FILTER NAVBAR (COMMUNITIES ONLY) ================= */}
       {activeNav === 'communities' && (
-        <div className="bg-white rounded-3xl p-4 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
 
           {/* Header */}
-          <div className="flex items-center justify-between pb-2.5 px-1 border-b border-gray-100">
+          <div className="flex items-center justify-between pb-2.5 px-1 border-b border-gray-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-              <h3 className="font-bold text-xs text-gray-700 tracking-wide uppercase">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <h3 className="font-bold text-xs text-gray-700 dark:text-slate-300 tracking-wide uppercase">
                 Sort Feed
               </h3>
             </div>
 
             {currentSort === 'created' ? (
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live
               </span>
             ) : (
-              <span className="text-[11px] font-semibold text-gray-500 capitalize bg-gray-50 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-semibold text-gray-500 dark:text-slate-400 capitalize bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
                 {currentSort}
               </span>
             )}
@@ -399,13 +399,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   title={item.description}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-semibold transition cursor-pointer group ${
                     isSelected
-                      ? 'bg-blue-50 text-blue-700 shadow-xs'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 shadow-xs'
+                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                      isSelected ? 'text-blue-600' : `${item.color} group-hover:scale-110`
+                      isSelected ? 'text-blue-600 dark:text-blue-400' : `${item.color} group-hover:scale-110`
                     }`} />
                     <span className="truncate">{item.label}</span>
                   </div>
@@ -415,7 +415,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     )}
                     {isSelected && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400" />
                     )}
                   </div>
                 </button>
@@ -427,32 +427,32 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
       {/* ================= CARD 2: CONTEXTUAL DISCOVERY ================= */}
       {activeNav === 'shorts' ? (
-        <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600">
+              <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
                 <Hash className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-gray-900 leading-tight">Shorts Hashtags</h3>
-                <p className="text-[10px] text-gray-400">Popular in snaps</p>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">Shorts Hashtags</h3>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Popular in snaps</p>
               </div>
             </div>
-            <span className="text-[11px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
               {rankedShortsTags.length} {rankedShortsTags.length === 1 ? 'tag' : 'tags'}
             </span>
           </div>
 
           {/* Search Bar */}
           <div className="my-2.5 relative">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               id="sidebar-shorts-tag-search"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search #hashtags..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:bg-white transition"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-xl text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition"
             />
           </div>
 
@@ -462,11 +462,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             onClick={() => onSelectShortTag && onSelectShortTag('')}
             title="Show all shorts without hashtag filter"
             className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1.5 text-left cursor-pointer ${
-              !selectedShortTag ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+              !selectedShortTag
+                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
             }`}
           >
             <div className="flex items-center gap-2">
-              <div className={`p-1 rounded-lg ${!selectedShortTag ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              <div className={`p-1 rounded-lg ${!selectedShortTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                 <Compass className="w-3 h-3" />
               </div>
               <span>All Shorts</span>
@@ -487,12 +489,12 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     title={`Filter snaps with #${item.tag}`}
                     className={`w-full group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer text-left ${
                       isSelected
-                        ? 'bg-blue-50 text-blue-700 font-bold'
-                        : 'hover:bg-gray-50 text-gray-700'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                        : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                     }`}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className={`font-bold ${isSelected ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`}>
+                      <span className={`font-bold ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>
                         #
                       </span>
                       <span className="truncate">{item.tag}</span>
@@ -500,12 +502,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                        isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
+                        isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 group-hover:bg-gray-200 dark:group-hover:bg-slate-700'
                       }`}>
                         {item.count}
                       </span>
                       {isSelected && (
-                        <span className="text-[10px] text-blue-600 font-bold">
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
                           ✓
                         </span>
                       )}
@@ -514,7 +518,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 );
               })
             ) : (
-              <div className="p-4 text-center text-xs text-gray-400">
+              <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
                 {searchQuery ? 'No matching hashtags.' : 'Scanning snaps for #hashtags...'}
               </div>
             )}
@@ -526,23 +530,23 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           onSelectTag={onSelectTag}
         />
       ) : (
-        <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
 
         {/* Dynamic Header */}
-        <div className="flex items-center justify-between pb-3">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            {activeTab === 'following' && <Users className="w-4 h-4 text-blue-600" />}
-            {activeTab === 'communities' && <Layers className="w-4 h-4 text-emerald-600" />}
-            {activeTab === 'global' && <Hash className="w-4 h-4 text-indigo-600" />}
+            {activeTab === 'following' && <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+            {activeTab === 'communities' && <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+            {activeTab === 'global' && <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
 
-            <h3 className="font-bold text-sm text-gray-900 capitalize">
+            <h3 className="font-bold text-sm text-gray-900 dark:text-white capitalize">
               {activeTab === 'following' && 'Followed Creators'}
               {activeTab === 'communities' && 'Communities'}
               {activeTab === 'global' && 'Trending Topics'}
             </h3>
           </div>
 
-          <span className="text-[11px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
             {activeTab === 'following' && `${rankedFollowing.length} users`}
             {activeTab === 'communities' && `${rankedCommunities.length}`}
             {activeTab === 'global' && `${rankedTopics.length} tags`}
@@ -551,7 +555,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
         {/* Search Bar */}
         <div className="my-2.5 relative">
-          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             id="sidebar-search-input"
             type="text"
@@ -564,14 +568,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   ? 'Filter communities...'
                   : 'Search topics...'
             }
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:bg-white transition"
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-xl text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition"
           />
         </div>
 
         {/* SECTION A: Following Authors */}
         {activeTab === 'following' && (
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 px-1 py-1">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1 py-1">
               <span>Creators</span>
               <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
@@ -591,7 +595,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       onClick={() => onSelectAuthor(author)}
                       title={`Filter feed by @${author}`}
                       className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
-                        isFav ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-gray-50'
+                        isFav
+                          ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-900 dark:text-slate-100'
+                          : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -599,22 +605,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <img
                             src={getHiveAvatarUrl(author, 'small')}
                             alt={author}
-                            className="w-6 h-6 rounded-full object-cover bg-gray-100"
+                            className="w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-slate-800"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                             }}
                           />
                           {timeBadge && (
-                            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                           )}
                         </div>
 
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-800 group-hover:text-blue-600 truncate text-xs">
+                          <p className="font-semibold text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate text-xs">
                             @{author}
                           </p>
                           {timeBadge && (
-                            <p className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
                               <Clock className="w-2.5 h-2.5 flex-shrink-0" />
                               <span>Active {timeBadge} ago</span>
                             </p>
@@ -625,7 +631,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <button
                         onClick={(e) => toggleFavAuthor(author, e)}
                         className={`p-1 rounded-lg transition cursor-pointer ${
-                          isFav ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                          isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'
                         }`}
                         title={isFav ? 'Remove favorite' : 'Pin to top'}
                       >
@@ -635,7 +641,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   );
                 })
               ) : (
-                <div className="p-4 text-center text-xs text-gray-400">
+                <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
                   {currentUser
                     ? 'No followed creators matching search.'
                     : 'Connect Keychain to see your followed creators.'}
@@ -648,7 +654,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* SECTION B: Communities */}
         {activeTab === 'communities' && (
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 px-1 py-1">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1 py-1">
               <span>Communities</span>
               <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
@@ -660,11 +666,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               onClick={() => onSelectTag('')}
               title="Show posts from all communities"
               className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
-                !currentTag ? 'bg-emerald-50 text-emerald-800 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                !currentTag
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                  : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
               }`}
             >
               <div className="flex items-center gap-2">
-                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                   <FolderOpen className="w-3 h-3" />
                 </div>
                 <span>All Communities</span>
@@ -685,17 +693,17 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       title={`Filter posts by ${comm.title || comm.name}`}
                       className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
                         isSelected
-                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
                           : isFav
-                            ? 'bg-amber-50/50 hover:bg-amber-50'
-                            : 'hover:bg-gray-50 text-gray-700'
+                            ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
+                            : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <img
                           src={`https://images.ecency.com/u/${comm.name}/avatar/small`}
                           alt={comm.title}
-                          className="w-5 h-5 rounded-lg object-cover bg-gray-100 flex-shrink-0"
+                          className="w-5 h-5 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                           }}
@@ -712,7 +720,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <button
                           onClick={(e) => toggleFavCommunity(comm.name, e)}
                           className={`p-1 rounded-lg transition cursor-pointer ${
-                            isFav ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                            isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'
                           }`}
                           title={isFav ? 'Remove favorite' : 'Pin to top'}
                         >
@@ -723,7 +731,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   );
                 })
               ) : (
-                <div className="p-4 text-center text-xs text-gray-400">
+                <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
                   No communities found.
                 </div>
               )}
@@ -734,7 +742,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* SECTION C: Trending Topics (In Discover mode) */}
         {activeTab === 'global' && (
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 px-1 py-1">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1 py-1">
               <span>Topics</span>
               <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
@@ -746,11 +754,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               onClick={() => onSelectTag('')}
               title="Show posts from all topics"
               className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
-                !currentTag ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                !currentTag
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                  : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
               }`}
             >
               <div className="flex items-center gap-2">
-                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                   <Compass className="w-3 h-3" />
                 </div>
                 <span>All Topics</span>
@@ -771,14 +781,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       title={`Filter posts tagged #${topic}`}
                       className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
                         isSelected
-                          ? 'bg-blue-50 text-blue-700 font-bold'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
                           : isFav
-                            ? 'bg-amber-50/50 hover:bg-amber-50'
-                            : 'hover:bg-gray-50 text-gray-700'
+                            ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
+                            : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <span className={`font-bold ${isSelected ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`}>
+                        <span className={`font-bold ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>
                           #
                         </span>
                         <span className="truncate">{topic}</span>
@@ -793,7 +803,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <button
                           onClick={(e) => toggleFavTopic(topic, e)}
                           className={`p-1 rounded-lg transition cursor-pointer ${
-                            isFav ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                            isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'
                           }`}
                           title={isFav ? 'Remove favorite' : 'Pin to top'}
                         >
@@ -804,7 +814,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   );
                 })
               ) : (
-                <div className="p-4 text-center text-xs text-gray-400">
+                <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
                   No topics found.
                 </div>
               )}
@@ -817,20 +827,20 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
       {/* Manage Communities Button */}
       {activeNav === 'communities' && (
-        <div className="bg-white rounded-3xl p-3 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-3 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800">
           <button
             id="manage-communities-sidebar-btn"
             onClick={onOpenManageCommunities}
             title="Open community manager to discover and join communities"
-            className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-gray-50 hover:bg-emerald-50/60 text-emerald-900 transition cursor-pointer group"
+            className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30 text-emerald-900 dark:text-emerald-300 transition cursor-pointer group"
           >
             <div className="flex items-center gap-2.5 text-left">
               <div className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-xs">
                 <Settings className="w-3.5 h-3.5" />
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-900 group-hover:text-emerald-700">Manage Communities</p>
-                <p className="text-[10px] text-gray-400">Discover, join & organize</p>
+                <p className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300">Manage Communities</p>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Discover, join & organize</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-emerald-500 group-hover:translate-x-0.5 transition-transform" />

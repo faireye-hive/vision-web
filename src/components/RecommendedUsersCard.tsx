@@ -146,20 +146,20 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
   };
 
   return (
-    <div id="recommended-users-card" className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+    <div id="recommended-users-card" className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600">
+          <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
             <UserPlus className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-sm text-gray-900">Who to follow</h3>
+          <h3 className="font-bold text-sm text-gray-900 dark:text-white">Who to follow</h3>
         </div>
 
         <button
           onClick={loadRecommendations}
           disabled={loading}
-          className="text-gray-400 hover:text-blue-600 p-1 rounded-lg transition cursor-pointer disabled:opacity-50"
+          className="text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-lg transition cursor-pointer disabled:opacity-50"
           title="Refresh recommendations"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
@@ -176,14 +176,14 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
             <div
               key={user.username}
               onClick={() => onSelectAuthor(user.username)}
-              className="flex items-center justify-between gap-3 p-1.5 -mx-1.5 rounded-2xl hover:bg-gray-50/80 transition cursor-pointer group"
+              className="flex items-center justify-between gap-3 p-1.5 -mx-1.5 rounded-2xl hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition cursor-pointer group"
             >
               {/* Avatar + Info */}
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <img
                   src={getHiveAvatarUrl(user.username, 'small')}
                   alt={user.username}
-                  className="w-9 h-9 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                  className="w-9 h-9 rounded-full object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 ring-1 ring-gray-100 dark:ring-slate-800"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                   }}
@@ -191,15 +191,15 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-xs text-gray-900 group-hover:text-blue-600 truncate">
+                    <span className="font-semibold text-xs text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
                       @{user.username}
                     </span>
-                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1 py-0.2 rounded-sm flex-shrink-0">
+                    <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1 py-0.2 rounded-sm flex-shrink-0">
                       {user.reputation}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-gray-500 truncate leading-tight mt-0.5">
+                  <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate leading-tight mt-0.5">
                     {user.tagline || 'Hive Creator'}
                   </p>
                 </div>
@@ -212,7 +212,7 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
                 disabled={isBusy}
                 className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition flex-shrink-0 cursor-pointer ${
                   isFollowing
-                    ? 'bg-gray-100 text-gray-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 border border-gray-200'
+                    ? 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800 border border-gray-200 dark:border-slate-700'
                     : 'bg-blue-600 text-white hover:bg-blue-700 shadow-xs'
                 }`}
                 title={isFollowing ? 'Click to unfollow' : 'Follow this creator'}
@@ -221,7 +221,7 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
                   <RefreshCw className="w-3 h-3 animate-spin" />
                 ) : isFollowing ? (
                   <>
-                    <UserCheck className="w-3 h-3 text-emerald-600" />
+                    <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                     <span>Following</span>
                   </>
                 ) : (

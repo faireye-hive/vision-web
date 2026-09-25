@@ -266,7 +266,15 @@ export function extractSnapImages(body: string, jsonMetadata?: any): string[] {
     if (match[1]) images.add(match[1]);
   }
 
-  return Array.from(images);
+  // Filter out invalid, deceptive or tracking URLs
+  return Array.from(images).filter((url) => {
+    if (!url || typeof url !== 'string') return false;
+    const lower = url.toLowerCase().trim();
+    if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
+    // Exclude tracking pixels, badges, spacer gifs and small icons
+    if (lower.includes('1x1') || lower.includes('pixel') || lower.includes('spacer.gif') || lower.includes('badge')) return false;
+    return true;
+  });
 }
 
 /**

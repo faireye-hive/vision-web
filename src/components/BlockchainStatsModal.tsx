@@ -12,14 +12,24 @@ import {
   Layers,
   Zap,
   Trash2,
-  Database
+  Database,
+  Plus,
+  RotateCcw,
+  Globe,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { 
   HiveGlobalProps, 
   getDynamicGlobalProperties, 
-  PUBLIC_HIVE_NODES, 
+  getAllHiveNodes, 
+  getCustomHiveNodes,
+  DEFAULT_HIVE_NODES,
   getActiveNode, 
   setActiveNode, 
+  addCustomHiveNode,
+  removeCustomHiveNode,
+  resetHiveNodesToDefault,
   pingNode, 
   hiveRpcCall,
   apiCache
@@ -34,6 +44,14 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   const [loading, setLoading] = useState(true);
   const [activeNodeUrl, setActiveNodeUrl] = useState(getActiveNode());
   const [nodePings, setNodePings] = useState<Record<string, number>>({});
+  const [allNodes, setAllNodes] = useState<string[]>(() => getAllHiveNodes());
+  const [customNodes, setCustomNodes] = useState<string[]>(() => getCustomHiveNodes());
+
+  // Add custom RPC node form state
+  const [newRpcUrl, setNewRpcUrl] = useState('');
+  const [addingNode, setAddingNode] = useState(false);
+  const [nodeAddError, setNodeAddError] = useState<string | null>(null);
+  const [nodeAddSuccess, setNodeAddSuccess] = useState<string | null>(null);
 
   // Interactive Live RPC playground
   const [rpcMethod, setRpcMethod] = useState('condenser_api.get_dynamic_global_properties');
@@ -59,6 +77,14 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
     setTimeout(() => setCacheClearedMsg(false), 2500);
   };
 
+  const pingAllNodes = (nodesList: string[]) => {
+    nodesList.forEach((node) => {
+      pingNode(node).then((ms) => {
+        setNodePings((prev) => ({ ...prev, [node]: ms }));
+      });
+    });
+  };
+
   const fetchStats = () => {
     setLoading(true);
     getDynamicGlobalProperties()
@@ -68,12 +94,77 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
       })
       .catch(() => setLoading(false));
 
-    // Ping all nodes
-    PUBLIC_HIVE_NODES.forEach((node) => {
-      pingNode(node).then((ms) => {
-        setNodePings((prev) => ({ ...prev, [node]: ms }));
-      });
-    });
+    // Ping all nodes (defaults + custom)
+    const currentNodes = getAllHiveNodes();
+    setAllNodes(currentNodes);
+    setCustomNodes(getCustomHiveNodes());
+    pingAllNodes(currentNodes);
+  };
+
+  const handleSelectNode = (node: string) => {
+    setActiveNode(node);
+    setActiveNodeUrl(node);
+  };
+
+  const handleAddCustomNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNodeAddError(null);
+    setNodeAddSuccess(null);
+    const trimmed = newRpcUrl.trim().replace(/\/+$/, '');
+    if (!trimmed) {
+      setNodeAddError('Please enter an RPC node URL.');
+      return;
+    }
+
+    setAddingNode(true);
+    try {
+      // Test connectivity first
+      const pingMs = await pingNode(trimmed);
+      if (pingMs < 0) {
+        setNodeAddError('Could not reach RPC node or response timed out. Verify the URL is a valid Hive JSON-RPC endpoint.');
+        setAddingNode(false);
+        return;
+      }
+
+      const res = addCustomHiveNode(trimmed);
+      if (res.success) {
+        setNewRpcUrl('');
+        const updatedCustom = getCustomHiveNodes();
+        const updatedAll = getAllHiveNodes();
+        setCustomNodes(updatedCustom);
+        setAllNodes(updatedAll);
+        setActiveNodeUrl(trimmed);
+        setNodePings((prev) => ({ ...prev, [trimmed]: pingMs }));
+        setNodeAddSuccess(`Connected! Active node set to ${trimmed} (${pingMs}ms). Saved to cache.`);
+        setTimeout(() => setNodeAddSuccess(null), 3500);
+      } else {
+        setNodeAddError(res.error || 'Failed to add custom RPC node.');
+      }
+    } catch (err: any) {
+      setNodeAddError(err.message || 'Error validating RPC node.');
+    } finally {
+      setAddingNode(false);
+    }
+  };
+
+  const handleRemoveCustomNode = (node: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    removeCustomHiveNode(node);
+    const updatedCustom = getCustomHiveNodes();
+    const updatedAll = getAllHiveNodes();
+    setCustomNodes(updatedCustom);
+    setAllNodes(updatedAll);
+    setActiveNodeUrl(getActiveNode());
+  };
+
+  const handleResetNodes = () => {
+    if (confirm('Reset RPC nodes to default public nodes?')) {
+      resetHiveNodesToDefault();
+      setCustomNodes([]);
+      setAllNodes(DEFAULT_HIVE_NODES);
+      setActiveNodeUrl(DEFAULT_HIVE_NODES[0]);
+      pingAllNodes(DEFAULT_HIVE_NODES);
+    }
   };
 
   useEffect(() => {
@@ -194,44 +285,149 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
             </div>
           )}
 
-          {/* Public Hive Nodes Health & Ping */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <Server className="w-4 h-4 text-rose-400" />
-              <span>Public RPC Nodes Status</span>
-            </h3>
+          {/* Public & Custom Hive RPC Nodes Manager */}
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <Server className="w-4 h-4 text-rose-400" />
+                <span>Hive RPC Nodes ({allNodes.length})</span>
+                {customNodes.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    {customNodes.length} custom
+                  </span>
+                )}
+              </h3>
+
+              <div className="flex items-center gap-2">
+                {customNodes.length > 0 && (
+                  <button
+                    onClick={handleResetNodes}
+                    className="text-[11px] text-slate-400 hover:text-rose-400 flex items-center gap-1 transition px-2 py-1 rounded bg-slate-950/60 border border-slate-800 hover:border-rose-900/60 cursor-pointer"
+                    title="Remove all custom nodes and restore defaults"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset Defaults</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Add Custom RPC Form */}
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Add Custom Hive RPC Node</span>
+                </span>
+                <span className="text-[11px] text-slate-500">Saved in browser cache</span>
+              </div>
+
+              <form onSubmit={handleAddCustomNode} className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                    <Globe className="w-3.5 h-3.5" />
+                  </div>
+                  <input
+                    type="url"
+                    value={newRpcUrl}
+                    onChange={(e) => {
+                      setNewRpcUrl(e.target.value);
+                      if (nodeAddError) setNodeAddError(null);
+                    }}
+                    placeholder="https://your-custom-rpc.example.com"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-900 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition font-mono"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={addingNode || !newRpcUrl.trim()}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition flex-shrink-0 cursor-pointer disabled:cursor-not-allowed shadow-xs"
+                >
+                  {addingNode ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Testing Node...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Test & Add RPC</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {nodeAddError && (
+                <div className="text-[11px] text-rose-400 flex items-center gap-1.5 pt-1 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{nodeAddError}</span>
+                </div>
+              )}
+
+              {nodeAddSuccess && (
+                <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-1 animate-in fade-in">
+                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{nodeAddSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Nodes List */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              {PUBLIC_HIVE_NODES.map((node) => {
+              {allNodes.map((node) => {
                 const isActive = node === activeNodeUrl;
+                const isCustom = customNodes.includes(node);
                 const ping = nodePings[node];
 
                 return (
                   <div 
                     key={node}
-                    onClick={() => {
-                      setActiveNode(node);
-                      setActiveNodeUrl(node);
-                    }}
-                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between ${
+                    onClick={() => handleSelectNode(node)}
+                    className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between group ${
                       isActive 
-                        ? 'bg-rose-950/30 border-rose-500 text-white' 
-                        : 'bg-slate-950/40 border-slate-800 text-slate-300 hover:border-slate-700'
+                        ? 'bg-rose-950/30 border-rose-500 text-white shadow-xs' 
+                        : 'bg-slate-950/40 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950/60'
                     }`}
                   >
                     <div className="truncate pr-2">
-                      <p className="text-xs font-mono font-semibold truncate">{node.replace('https://', '')}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{isActive ? 'Current Node' : 'Click to activate'}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-mono font-semibold truncate">
+                          {node.replace(/^https?:\/\//, '')}
+                        </p>
+                        {isCustom && (
+                          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex-shrink-0">
+                            Custom
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {isActive ? 'Active Node (Saved)' : 'Click to activate'}
+                      </p>
                     </div>
+
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {ping !== undefined && (
                         <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
-                          ping > 0 && ping < 200 ? 'text-emerald-400 bg-emerald-950/50' :
-                          ping >= 200 ? 'text-amber-400 bg-amber-950/50' : 'text-rose-400 bg-rose-950/50'
+                          ping > 0 && ping < 250 ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-900/40' :
+                          ping >= 250 ? 'text-amber-400 bg-amber-950/50 border border-amber-900/40' :
+                          'text-rose-400 bg-rose-950/50 border border-rose-900/40'
                         }`}>
                           {ping > 0 ? `${ping}ms` : 'offline'}
                         </span>
                       )}
-                      {isActive && <Check className="w-4 h-4 text-rose-400" />}
+
+                      {isActive && <Check className="w-4 h-4 text-rose-400 flex-shrink-0" />}
+
+                      {isCustom && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveCustomNode(node, e)}
+                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition ml-0.5"
+                          title="Remove custom RPC node"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

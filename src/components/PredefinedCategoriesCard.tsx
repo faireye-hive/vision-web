@@ -223,38 +223,38 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
   }, [searchQuery, favCategories]);
 
   return (
-    <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60 space-y-4">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pb-1">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-blue-50 text-blue-600">
+          <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-gray-900">Explore Categories</h3>
-            <p className="text-[11px] text-gray-400">Curated discovery topics</p>
+            <h3 className="font-bold text-sm text-gray-900 dark:text-white">Explore Categories</h3>
+            <p className="text-[11px] text-gray-400 dark:text-slate-500">Curated discovery topics</p>
           </div>
         </div>
 
-        <span className="text-[11px] font-medium text-gray-500 bg-gray-50 px-2.5 py-0.5 rounded-full">
+        <span className="text-[11px] font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
           {PREDEFINED_CATEGORIES.length} topics
         </span>
       </div>
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Filter categories..."
-          className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition"
+          className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
         />
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -267,12 +267,12 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
         title="Show all categories without filter"
         className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition cursor-pointer ${
           !currentTag
-            ? 'bg-blue-50 text-blue-700 font-bold shadow-xs'
-            : 'hover:bg-gray-50 text-gray-700'
+            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold shadow-xs'
+            : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <div className={`p-1.5 rounded-xl ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+          <div className={`p-1.5 rounded-xl ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
             <Compass className="w-3.5 h-3.5" />
           </div>
           <span className="font-semibold">All Categories</span>
@@ -299,26 +299,26 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
                 title={`${category.name}: ${category.description}`}
                 className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
                   isSelected
-                    ? 'bg-blue-50 text-blue-700 font-bold shadow-xs'
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
                     : isFav
-                      ? 'bg-amber-50/40 hover:bg-amber-50 text-gray-800'
-                      : 'hover:bg-gray-50 text-gray-700'
+                      ? 'bg-amber-50/40 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`p-1.5 rounded-xl bg-gray-50 group-hover:bg-white transition-colors flex-shrink-0 ${category.color}`}>
+                  <div className={`p-1.5 rounded-xl bg-gray-50 dark:bg-slate-800 group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors flex-shrink-0 ${category.color}`}>
                     <Icon className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-gray-900 truncate">
+                      <span className="font-semibold text-gray-900 dark:text-slate-100 truncate">
                         {category.name}
                       </span>
-                      <span className="text-[10px] text-gray-400 font-normal">
+                      <span className="text-[10px] text-gray-400 dark:text-slate-500 font-normal">
                         #{category.tag}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-400 font-normal truncate mt-0.2">
+                    <p className="text-[10px] text-gray-400 dark:text-slate-500 font-normal truncate mt-0.2">
                       {category.description}
                     </p>
                   </div>
@@ -355,7 +355,7 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
       {currentTag && (
         <button
           onClick={() => onSelectTag('')}
-          className="w-full py-1.5 text-xs text-blue-600 hover:underline font-semibold text-center block cursor-pointer border-t border-gray-100 pt-3"
+          className="w-full py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold text-center block cursor-pointer border-t border-gray-100 dark:border-slate-800 pt-3"
         >
           Clear category filter (#{currentTag})
         </button>

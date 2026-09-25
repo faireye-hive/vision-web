@@ -24,6 +24,7 @@ import {
   buildCommentTree,
   ThreadCommentNode
 } from '../services/shortsApi';
+import { SafeSnapImage } from './SafeSnapImage';
 
 interface ShortDetailModalProps {
   snap: HivePost;
@@ -265,21 +266,21 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100"
+        className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 dark:border-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-white/90 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-            <h2 className="text-sm font-bold text-gray-900 tracking-tight">Short Thread</h2>
-            <span className="text-xs text-gray-400 font-medium ml-1">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white tracking-tight">Short Thread</h2>
+            <span className="text-xs text-gray-400 dark:text-slate-500 font-medium ml-1">
               ({totalCommentsCount} {totalCommentsCount === 1 ? 'comment' : 'comments'})
             </span>
           </div>
@@ -288,7 +289,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
             <button
               onClick={() => fetchFreshDiscussion(true)}
               disabled={isRefreshing}
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               title="Refresh discussion"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
@@ -297,14 +298,14 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
               href={`https://peakd.com/@${snap.author}/${snap.permlink}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               title="Open Snap on PeakD"
             >
               <ExternalLink className="w-4 h-4" />
             </a>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition cursor-pointer ml-1"
+              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer ml-1"
               title="Close (Esc)"
             >
               <X className="w-5 h-5" />
@@ -313,7 +314,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
         </div>
 
         {/* Modal Scrollable Content */}
-        <div className="overflow-y-auto flex-1 p-5 space-y-5 divide-y divide-gray-100">
+        <div className="overflow-y-auto flex-1 p-5 space-y-5 divide-y divide-gray-100 dark:divide-slate-800 custom-scrollbar">
           {/* Main Snap Section */}
           <div className="space-y-4">
             {/* Author Profile Row */}
@@ -327,7 +328,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                   <img
                     src={avatarUrl}
                     alt={snap.author}
-                    className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-100 group-hover:ring-blue-400 transition"
+                    className="w-11 h-11 rounded-full object-cover ring-2 ring-gray-100 dark:ring-slate-800 group-hover:ring-blue-400 transition"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
                     }}
@@ -338,22 +339,22 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onSelectAuthor(snap.author)}
-                      className="font-bold text-sm text-gray-900 hover:text-blue-600 transition truncate cursor-pointer"
+                      className="font-bold text-sm text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer"
                     >
                       @{snap.author}
                     </button>
-                    <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
+                    <span className="text-[11px] font-semibold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
                       {rep}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400">{timeAgo}</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500">{timeAgo}</p>
                 </div>
               </div>
             </div>
 
             {/* Snap Text Content */}
             <div
-              className="text-base text-gray-900 leading-relaxed break-words prose prose-sm max-w-none prose-p:my-1.5 prose-a:text-blue-600 hover:prose-a:underline select-text"
+              className="text-base text-gray-900 dark:text-slate-100 leading-relaxed break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
               dangerouslySetInnerHTML={{ __html: safeHtml }}
             />
 
@@ -368,7 +369,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                       if (onSelectTag) onSelectTag(t);
                       onClose();
                     }}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 px-2.5 py-1 rounded-xl transition cursor-pointer"
+                    className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2.5 py-1 rounded-xl transition cursor-pointer"
                   >
                     #{t}
                   </button>
@@ -383,15 +384,15 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                   <div
                     key={i}
                     onClick={() => setSelectedImage(img)}
-                    className="relative rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 cursor-pointer group max-h-96"
+                    className="relative rounded-2xl overflow-hidden border border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/50 cursor-pointer group max-h-96"
                   >
-                    <img
+                    <SafeSnapImage
                       src={img}
                       alt="Snap attachment"
-                      className="w-full h-auto max-h-96 object-contain mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
-                      loading="lazy"
+                      className="w-full h-auto max-h-96"
+                      imgClassName="w-full h-auto max-h-96 object-contain mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
                     />
-                    <div className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition">
+                    <div className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition pointer-events-none">
                       <Maximize2 className="w-4 h-4" />
                     </div>
                   </div>
@@ -400,7 +401,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
             )}
 
             {/* Stats & Actions Bar */}
-            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-slate-800">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -408,8 +409,8 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                   disabled={voteLoading || upvoted}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition cursor-pointer ${
                     upvoted
-                      ? 'bg-rose-50 text-rose-600'
-                      : 'bg-gray-100 text-gray-700 hover:bg-rose-50 hover:text-rose-600'
+                      ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400'
                   }`}
                   title={currentUser ? (upvoted ? 'Upvoted' : 'Upvote with Keychain') : 'Log in to vote'}
                 >
@@ -417,7 +418,7 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                   <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
                 </button>
 
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400 font-medium">
                   <MessageCircle className="w-4 h-4 text-blue-500" />
                   <span>{totalCommentsCount} comments</span>
                 </div>
@@ -426,10 +427,10 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 p-1.5 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 title="Copy snap link"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="w-4 h-4" />}
                 <span className="hidden sm:inline">{copied ? 'Copied' : 'Share'}</span>
               </button>
             </div>
@@ -437,13 +438,13 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
 
           {/* Primary Reply Box */}
           <div className="pt-4 space-y-3">
-            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Leave a comment</h3>
+            <h3 className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Leave a comment</h3>
             <form onSubmit={handleSubmitMainReply} className="space-y-2">
               <div className="flex gap-2.5 items-start">
                 <img
                   src={getHiveAvatarUrl(currentUser?.username || 'hive-125125', 'small')}
                   alt={currentUser?.username || 'guest'}
-                  className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5 bg-gray-100"
+                  className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5 bg-gray-100 dark:bg-slate-800"
                 />
                 <div className="flex-1">
                   <textarea
@@ -456,10 +457,10 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                     }
                     disabled={!currentUser || mainReplying}
                     rows={2}
-                    className="w-full text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded-2xl p-3 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none transition"
+                    className="w-full text-xs text-gray-800 dark:text-slate-100 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-2xl p-3 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none transition placeholder-gray-400 dark:placeholder-slate-500"
                   />
                   {replyError && (
-                    <p className="text-[11px] text-rose-600 flex items-center gap-1 mt-1">
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
                       <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                       {replyError}
                     </p>
@@ -483,11 +484,11 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
           {/* Recursive Comments Stream */}
           <div className="pt-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <h3 className="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
                 Comments ({totalCommentsCount})
               </h3>
               {commentTree.length === 0 && (
-                <span className="text-xs text-gray-400">Be the first to reply!</span>
+                <span className="text-xs text-gray-400 dark:text-slate-500">Be the first to reply!</span>
               )}
             </div>
 
@@ -506,10 +507,10 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="py-8 text-center text-gray-400 space-y-1 bg-gray-50/60 rounded-2xl border border-dashed border-gray-200">
-                <MessageCircle className="w-8 h-8 mx-auto text-gray-300" />
-                <p className="text-xs font-medium text-gray-500">No comments on this short yet</p>
-                <p className="text-[11px] text-gray-400">Share your thoughts above</p>
+              <div className="py-8 text-center text-gray-400 dark:text-slate-500 space-y-1 bg-gray-50/60 dark:bg-slate-800/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                <MessageCircle className="w-8 h-8 mx-auto text-gray-300 dark:text-slate-600" />
+                <p className="text-xs font-medium text-gray-500 dark:text-slate-400">No comments on this short yet</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500">Share your thoughts above</p>
               </div>
             )}
           </div>
@@ -685,35 +686,35 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
           <img
             src={avatarUrl}
             alt={comment.author}
-            className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-100 hover:ring-blue-400 transition bg-gray-100"
+            className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-100 dark:ring-slate-800 hover:ring-blue-400 transition bg-gray-100 dark:bg-slate-800"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
             }}
           />
         </button>
 
-        <div className="flex-1 min-w-0 bg-gray-50/80 hover:bg-gray-50 rounded-2xl p-3 border border-gray-100 transition space-y-1.5">
+        <div className="flex-1 min-w-0 bg-gray-50/80 dark:bg-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-2xl p-3 border border-gray-100 dark:border-slate-700/80 transition space-y-1.5">
           {/* Header */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
               <button
                 type="button"
                 onClick={() => onSelectAuthor(comment.author)}
-                className="font-bold text-xs text-gray-900 hover:text-blue-600 transition truncate cursor-pointer"
+                className="font-bold text-xs text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer"
               >
                 @{comment.author}
               </button>
-              <span className="text-[10px] text-gray-500 bg-white px-1.5 py-0.2 rounded-md font-semibold border border-gray-100">
+              <span className="text-[10px] text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-1.5 py-0.2 rounded-md font-semibold border border-gray-100 dark:border-slate-700">
                 {rep}
               </span>
-              <span className="text-[11px] text-gray-400">· {timeAgo}</span>
+              <span className="text-[11px] text-gray-400 dark:text-slate-500">· {timeAgo}</span>
             </div>
 
             {hasReplies && (
               <button
                 type="button"
                 onClick={() => setCollapsed(!collapsed)}
-                className="text-[11px] text-gray-400 hover:text-blue-600 flex items-center gap-0.5 cursor-pointer font-medium"
+                className="text-[11px] text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-0.5 cursor-pointer font-medium"
               >
                 {collapsed ? (
                   <>
@@ -734,7 +735,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
           {!collapsed && (
             <>
               <div
-                className="text-xs text-gray-800 leading-relaxed break-words prose prose-sm max-w-none prose-p:my-0.5 prose-a:text-blue-600 select-text"
+                className="text-xs text-gray-800 dark:text-slate-200 leading-relaxed break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
                 dangerouslySetInnerHTML={{ __html: safeHtml }}
               />
 
@@ -742,12 +743,12 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
               {images.length > 0 && (
                 <div className="flex gap-2 flex-wrap pt-1">
                   {images.map((img, i) => (
-                    <img
+                    <SafeSnapImage
                       key={i}
                       src={img}
                       alt="attachment"
-                      className="h-20 w-auto rounded-lg object-cover border border-gray-200"
-                      loading="lazy"
+                      className="h-20 w-24 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden"
+                      imgClassName="h-20 w-24 object-cover"
                     />
                   ))}
                 </div>
@@ -760,7 +761,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                   onClick={handleVote}
                   disabled={voteLoading || upvoted}
                   className={`flex items-center gap-1 font-semibold transition cursor-pointer ${
-                    upvoted ? 'text-rose-600' : 'text-gray-500 hover:text-rose-600'
+                    upvoted ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-rose-500 text-rose-500' : ''}`} />
@@ -770,7 +771,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowReplyBox(!showReplyBox)}
-                  className="flex items-center gap-1 text-gray-500 hover:text-blue-600 font-semibold transition cursor-pointer"
+                  className="flex items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold transition cursor-pointer"
                 >
                   <CornerDownRight className="w-3.5 h-3.5" />
                   <span>Reply</span>
@@ -787,7 +788,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder={`Reply to @${comment.author}...`}
                       disabled={!currentUser || submittingReply}
-                      className="flex-1 text-xs bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="flex-1 text-xs bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       autoFocus
                     />
                     <button
@@ -800,13 +801,13 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowReplyBox(false)}
-                      className="px-2 py-1 text-gray-400 hover:text-gray-600 text-xs font-medium cursor-pointer"
+                      className="px-2 py-1 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 text-xs font-medium cursor-pointer"
                     >
                       Cancel
                     </button>
                   </div>
                   {replyError && (
-                    <p className="text-[10px] text-rose-600">{replyError}</p>
+                    <p className="text-[10px] text-rose-600 dark:text-rose-400">{replyError}</p>
                   )}
                 </form>
               )}
@@ -817,7 +818,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
 
       {/* Recursive Subcomments ("comentário do comentário") */}
       {!collapsed && hasReplies && (
-        <div className="border-l-2 border-gray-100 hover:border-blue-200 transition-colors ml-3.5 pl-3 sm:pl-4 space-y-2.5 mt-2">
+        <div className="border-l-2 border-gray-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-700 transition-colors ml-3.5 pl-3 sm:pl-4 space-y-2.5 mt-2">
           {replies.map((childNode) => (
             <ThreadCommentItem
               key={`${childNode.comment.author}-${childNode.comment.permlink}`}

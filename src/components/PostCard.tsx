@@ -210,8 +210,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     }
   };
 
-  const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleShare = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (navigator.clipboard) {
       navigator.clipboard.writeText(`https://ecency.com/@${post.author}/${post.permlink}`);
       alert('Post link copied to clipboard!');
@@ -222,26 +222,26 @@ export const PostCard: React.FC<PostCardProps> = ({
     <article
       id={`post-card-${post.post_id || post.permlink}`}
       onClick={() => onSelectPost(post)}
-      className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-200 cursor-pointer mb-4 group"
+      className="bg-white dark:bg-slate-900 border border-transparent dark:border-slate-800/80 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] dark:hover:border-slate-700 transition-all duration-200 cursor-pointer mb-4 group"
     >
       {/* Reblog Activity Banner */}
       {!isComment && rebloggedBy && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-purple-50/80 border border-purple-100 text-xs text-purple-900 overflow-hidden">
-          <Repeat className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-300 overflow-hidden">
+          <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
           <div className="truncate flex-1">
-            <span className="text-purple-700">Reblogged by</span>
+            <span className="text-purple-700 dark:text-purple-400">Reblogged by</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectAuthor(rebloggedBy);
               }}
-              className="font-bold text-purple-950 hover:underline ml-1 cursor-pointer"
+              className="font-bold text-purple-950 dark:text-purple-200 hover:underline ml-1 cursor-pointer"
             >
               @{rebloggedBy}
             </button>
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100/80 text-purple-800 flex-shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 flex-shrink-0">
             Reblog
           </span>
         </div>
@@ -249,11 +249,11 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Comment Activity Context Banner */}
       {isComment && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-blue-50/80 border border-blue-100 text-xs text-blue-900 overflow-hidden">
-          <MessageSquare className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-300 overflow-hidden">
+          <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
           <div className="truncate flex-1">
-            <span className="font-semibold text-blue-950">@{post.author}</span>
-            <span className="text-blue-700 ml-1">commented on</span>
+            <span className="font-semibold text-blue-950 dark:text-blue-200">@{post.author}</span>
+            <span className="text-blue-700 dark:text-blue-400 ml-1">commented on</span>
             {post.parent_author && (
               <button
                 type="button"
@@ -261,18 +261,18 @@ export const PostCard: React.FC<PostCardProps> = ({
                   e.stopPropagation();
                   onSelectAuthor(post.parent_author!);
                 }}
-                className="font-semibold text-blue-900 hover:text-blue-950 hover:underline mx-1 cursor-pointer"
+                className="font-semibold text-blue-900 dark:text-blue-300 hover:text-blue-950 dark:hover:text-blue-200 hover:underline mx-1 cursor-pointer"
               >
                 @{post.parent_author}
               </button>
             )}
             {post.parent_permlink && (
-              <span className="text-blue-700/80 text-[11px] truncate hidden sm:inline">
+              <span className="text-blue-700/80 dark:text-blue-400/80 text-[11px] truncate hidden sm:inline">
                 • <span className="italic font-normal">"{post.parent_permlink.replace(/[-_]/g, ' ')}"</span>
               </span>
             )}
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 text-blue-800 flex-shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex-shrink-0">
             Comment
           </span>
         </div>
@@ -305,33 +305,33 @@ export const PostCard: React.FC<PostCardProps> = ({
                 e.stopPropagation();
                 onSelectAuthor(post.author);
               }}
-              className="font-bold text-gray-900 hover:text-blue-600 truncate focus:outline-none transition-colors"
+              className="font-bold text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate focus:outline-none transition-colors"
             >
               {post.author}
             </button>
 
-            <span className="text-[10px] text-gray-400 font-medium">
+            <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
               ({rep})
             </span>
 
             {(post.community_title || post.category) && (
               <>
-                <span className="text-gray-400">•</span>
+                <span className="text-gray-400 dark:text-slate-600">•</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (post.community) onSelectTag(post.community);
                     else if (post.category) onSelectTag(post.category);
                   }}
-                  className="font-medium text-gray-600 hover:text-gray-900 truncate hidden sm:inline"
+                  className="font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 truncate hidden sm:inline"
                 >
                   {post.community_title || post.category}
                 </button>
               </>
             )}
 
-            <span className="text-gray-400">•</span>
-            <span className="text-gray-400 font-normal">
+            <span className="text-gray-400 dark:text-slate-600">•</span>
+            <span className="text-gray-400 dark:text-slate-500 font-normal">
               {formatTime(post.created)}
             </span>
           </div>
@@ -339,7 +339,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         <button
           onClick={toggleBookmark}
-          className={`p-1.5 rounded-full hover:bg-gray-100 transition ${isBookmarked ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+          className={`p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition ${isBookmarked ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
             }`}
           title={isBookmarked ? 'Bookmarked' : 'Save post'}
         >
@@ -350,7 +350,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Middle Row: Thumbnail on LEFT, Title + Snippet on RIGHT */}
       <div className="flex gap-4 items-start">
         {thumbnail && (
-          <div className="flex-shrink-0 w-32 h-20 sm:w-40 sm:h-24 rounded-2xl overflow-hidden bg-gray-100">
+          <div className="flex-shrink-0 w-32 h-20 sm:w-40 sm:h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-slate-800">
             <img
               src={thumbnail}
               alt=""
@@ -364,26 +364,26 @@ export const PostCard: React.FC<PostCardProps> = ({
         )}
 
         <div className="flex-1 min-w-0">
-          <h2 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug">
+          <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug">
             {displayTitle}
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500 line-clamp-2 leading-relaxed mt-1.5">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 line-clamp-2 leading-relaxed mt-1.5">
             {snippet}
           </p>
         </div>
       </div>
 
-      {/* Footer: Upvote Button, Comments, Reblog, Share, More (payout and like count hidden as requested) */}
-      <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-gray-50 text-xs text-gray-500">
+      {/* Footer: Upvote Button, Comments, Reblog, Share, More */}
+      <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-gray-100 dark:border-slate-800/80 text-xs text-gray-500 dark:text-slate-400">
         <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
 
-          {/* Upvote Button (Ecency circle chevron with Keychain vote) */}
+          {/* Upvote Button */}
           <button
             onClick={handleUpvote}
             disabled={isVoting}
             className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${upvoted
                 ? 'bg-rose-500 text-white shadow-xs'
-                : 'bg-gray-100 text-gray-600 hover:text-rose-600 hover:bg-rose-50'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
               } disabled:opacity-60`}
             title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
           >
@@ -394,17 +394,17 @@ export const PostCard: React.FC<PostCardProps> = ({
             )}
           </button>
 
-          {/* Comments Counter (children from Hive API) */}
+          {/* Comments Counter */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onSelectPost(post, true);
             }}
-            className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 transition group/comm cursor-pointer"
+            className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition group/comm cursor-pointer"
             title={`${childrenCount} comments - click to view and discuss`}
           >
-            <MessageSquare className="w-3.5 h-3.5 text-gray-400 group-hover/comm:text-blue-600 transition-colors" />
+            <MessageSquare className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 group-hover/comm:text-blue-600 dark:group-hover/comm:text-blue-400 transition-colors" />
             <span className="font-semibold text-xs">{childrenCount}</span>
           </button>
 
@@ -416,32 +416,32 @@ export const PostCard: React.FC<PostCardProps> = ({
               disabled={isReblogging || hasReblogged}
               className={`flex items-center gap-1.5 transition cursor-pointer ${
                 hasReblogged
-                  ? 'text-purple-600 font-bold'
-                  : 'text-gray-600 hover:text-purple-600'
+                  ? 'text-purple-600 dark:text-purple-400 font-bold'
+                  : 'text-gray-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400'
               } disabled:cursor-not-allowed`}
               title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
             >
               {isReblogging ? (
                 <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
               ) : (
-                <Repeat className={`w-3.5 h-3.5 ${hasReblogged ? 'text-purple-600' : 'text-gray-400'}`} />
+                <Repeat className={`w-3.5 h-3.5 ${hasReblogged ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-slate-500'}`} />
               )}
               <span className="text-xs">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
             </button>
           )}
 
           {reblogSuccessToast && (
-            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full animate-in fade-in">
+            <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full animate-in fade-in">
               Reblogged!
             </span>
           )}
         </div>
 
         {/* Right action icons: Share & More */}
-        <div className="flex items-center gap-2 text-gray-400 relative">
+        <div className="flex items-center gap-2 text-gray-400 dark:text-slate-500 relative">
           <button
             onClick={handleShare}
-            className="p-1 hover:text-gray-600 rounded transition cursor-pointer"
+            className="p-1 hover:text-gray-600 dark:hover:text-slate-300 rounded transition cursor-pointer"
             title="Share post"
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 setShowMoreMenu(!showMoreMenu);
               }}
               className={`p-1 rounded transition cursor-pointer ${
-                showMoreMenu ? 'text-gray-900 bg-gray-100' : 'hover:text-gray-600'
+                showMoreMenu ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-slate-800' : 'hover:text-gray-600 dark:hover:text-slate-300'
               }`}
               title="More post options"
             >
@@ -472,7 +472,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   }}
                 />
                 <div
-                  className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-150 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700"
+                  className="absolute right-0 bottom-full mb-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-150 dark:border-slate-800 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -480,9 +480,9 @@ export const PostCard: React.FC<PostCardProps> = ({
                       setShowMoreMenu(false);
                       onSelectPost(post);
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer font-medium"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
                   >
-                    <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span>Open in Reader</span>
                   </button>
 
@@ -491,9 +491,9 @@ export const PostCard: React.FC<PostCardProps> = ({
                       setShowMoreMenu(false);
                       handleShare();
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 cursor-pointer font-medium"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
                   >
-                    <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                    <Share2 className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
                     <span>Copy Hive Link</span>
                   </button>
 
@@ -503,7 +503,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         setShowMoreMenu(false);
                         onMuteAuthor(post.author);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 cursor-pointer font-semibold border-t border-gray-100"
+                      className="w-full text-left px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-semibold border-t border-gray-100 dark:border-slate-800"
                       title={`Mute @${post.author} across Feed & Discover`}
                     >
                       <UserX className="w-3.5 h-3.5" />
@@ -517,10 +517,10 @@ export const PostCard: React.FC<PostCardProps> = ({
                         setShowMoreMenu(false);
                         onBlockWord(post.category);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-amber-50 text-amber-700 flex items-center gap-2 cursor-pointer font-medium"
+                      className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-300 flex items-center gap-2 cursor-pointer font-medium"
                       title={`Filter #${post.category} posts`}
                     >
-                      <Hash className="w-3.5 h-3.5 text-amber-600" />
+                      <Hash className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                       <span>Filter #{post.category}</span>
                     </button>
                   )}

@@ -64,6 +64,7 @@ import {
   applyContentFilter,
   ContentFilterConfig
 } from './utils/contentFilter';
+import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 
 function getInitialUrlParams() {
   if (typeof window === 'undefined') return {};
@@ -238,6 +239,17 @@ export function App() {
   const [showManageCommunitiesModal, setShowManageCommunitiesModal] = useState<boolean>(false);
   const [showContentFilterModal, setShowContentFilterModal] = useState<boolean>(false);
 
+  // Dark Mode (Night Mode) state with localStorage caching
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
+
   // Persistent Content Filters for Feed & Discover (Words & Authors saved in cache)
   const [contentFilterConfig, setContentFilterConfig] = useState<ContentFilterConfig>(() => loadFilterConfig());
 
@@ -379,7 +391,8 @@ export function App() {
   // Check if user has joined at least one community
   const hasJoinedCommunities = Object.values(joinedCommunities).some(Boolean);
 
-  // Filtered posts taking "Hide Reblogs" setting and Content Filters (words & authors) into account
+  // Filtered posts taking "Hide Reblogs" setting and Content Filters (words & authors) into account,
+  // strictly deduplicated so children keys are always unique
   const { displayedPosts, filteredOutStats } = useMemo(() => {
     // 1. Reblogs filter for Following Feed
     let candidatePosts = posts;
@@ -389,8 +402,20 @@ export function App() {
 
     // 2. Content Filters (Words and Authors) across Feed, Discover, and Communities
     const filterRes = applyContentFilter(candidatePosts, contentFilterConfig);
+
+    // 3. Strictly deduplicate visible posts to prevent React duplicate key warnings and UI duplicates
+    const seen = new Set<string>();
+    const uniquePosts: HivePost[] = [];
+    for (const post of filterRes.visiblePosts) {
+      const key = `${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePosts.push(post);
+      }
+    }
+
     return {
-      displayedPosts: filterRes.visiblePosts,
+      displayedPosts: uniquePosts,
       filteredOutStats: {
         total: filterRes.totalHiddenCount,
         byWord: filterRes.hiddenByWordCount,
@@ -988,7 +1013,7 @@ export function App() {
   }, [activeNav, sort, tag, sourceTab, feedAuthor, selectedLanguage]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f8fa] text-gray-900 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#f7f8fa] dark:bg-[#0b0f17] text-gray-900 dark:text-slate-100 font-sans transition-colors duration-200">
 
       {/* Top Navbar */}
       <Navbar
@@ -1014,6 +1039,8 @@ export function App() {
           setFeedAuthor(null);
           if (selectedPost) handleClosePost();
         }}
+        isDark={theme === 'dark'}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main Container */}
@@ -1096,29 +1123,29 @@ export function App() {
                 <>
                   {/* Author Feed Filter Banner (When an author is clicked) */}
                   {feedAuthor && (
-                <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] mb-4 flex items-center justify-between gap-3 animate-in fade-in">
+                <div className="bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={getHiveAvatarUrl(feedAuthor, 'medium')}
                       alt={feedAuthor}
-                      className="w-11 h-11 rounded-full object-cover shadow-xs"
+                      className="w-11 h-11 rounded-full object-cover shadow-xs border border-gray-100 dark:border-slate-800"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
                       }}
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900 text-sm sm:text-base">@{feedAuthor}</span>
-                        <span className="text-xs text-gray-400">on feed</span>
+                        <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">@{feedAuthor}</span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">on feed</span>
                       </div>
 
                       {/* Author Feed Mode Switcher: Posts vs Comments */}
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           onClick={() => setAuthorFeedMode('posts')}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition ${authorFeedMode === 'posts'
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${authorFeedMode === 'posts'
                             ? 'bg-blue-600 text-white shadow-xs'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                             }`}
                         >
                           <FileText className="w-3 h-3" />
@@ -1127,9 +1154,9 @@ export function App() {
 
                         <button
                           onClick={() => setAuthorFeedMode('comments')}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition ${authorFeedMode === 'comments'
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${authorFeedMode === 'comments'
                             ? 'bg-blue-600 text-white shadow-xs'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                             }`}
                         >
                           <MessageSquare className="w-3 h-3" />
@@ -1142,13 +1169,13 @@ export function App() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setSelectedAuthorProfile(feedAuthor)}
-                      className="text-xs text-blue-600 hover:underline hidden sm:inline"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline hidden sm:inline"
                     >
                       Wallet & Profile
                     </button>
                     <button
                       onClick={() => setFeedAuthor(null)}
-                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
+                      className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 transition cursor-pointer"
                       title="Clear author filter"
                     >
                       <X className="w-5 h-5" />
@@ -1158,11 +1185,11 @@ export function App() {
               )}
 
               {/* Feed Controls Header */}
-              <div className="bg-white rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] mb-4">
+              <div className="bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 text-gray-900 dark:text-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   {/* Left: Feed Title & Active Filters */}
                   <div className="flex items-center flex-wrap gap-2.5">
-                    <span className="font-bold text-gray-900 text-sm sm:text-base capitalize">
+                    <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize">
                       {activeNav === 'feed' ? 'Your Feed' : activeNav === 'discover' ? 'Discover' : activeNav === 'communities' ? 'Communities' : 'Waves'}
                     </span>
 
@@ -1213,14 +1240,14 @@ export function App() {
                                 localStorage.setItem('hive_following_mode', mode);
                               } catch {}
                             }}
-                            className="appearance-none bg-gray-100 hover:bg-gray-200/80 text-gray-800 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
+                            className="appearance-none bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
                             title="Filter following feed mode"
                           >
                             <option value="root">Root Posts</option>
                             <option value="comments">Comments</option>
                             <option value="mixed">Mixed</option>
                           </select>
-                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600">
+                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 dark:text-blue-400">
                             {followingMode === 'root' ? (
                               <FileText className="w-3.5 h-3.5" />
                             ) : followingMode === 'comments' ? (
@@ -1229,7 +1256,7 @@ export function App() {
                               <Shuffle className="w-3.5 h-3.5" />
                             )}
                           </div>
-                          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500" />
+                          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-slate-400" />
                         </div>
 
                         {/* Reblogs Checkmark Toggle */}
@@ -1237,8 +1264,8 @@ export function App() {
                           <label
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
                               !hideReblogs
-                                ? 'bg-purple-50/80 border-purple-200 text-purple-800 hover:bg-purple-100/70'
-                                : 'bg-white border-gray-200/80 text-gray-500 hover:bg-gray-50'
+                                ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100/70'
+                                : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
                             }`}
                             title={!hideReblogs ? 'Reblogs are visible. Uncheck to hide.' : 'Reblogs are hidden. Check to show.'}
                           >
@@ -1246,9 +1273,9 @@ export function App() {
                               type="checkbox"
                               checked={!hideReblogs}
                               onChange={handleToggleHideReblogs}
-                              className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 cursor-pointer accent-purple-600"
+                              className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
                             />
-                            <Repeat className="w-3.5 h-3.5 text-purple-600" />
+                            <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                             <span>Reblogs</span>
                           </label>
                         )}
@@ -1257,11 +1284,11 @@ export function App() {
 
                     {/* Tag filter chip (if any) */}
                     {tag && (
-                      <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                      <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full text-xs font-semibold">
                         <span>{activeCategory?.icon ? `${activeCategory.icon} ` : ''}#{tag}</span>
                         <button
                           onClick={() => setTag('')}
-                          className="hover:text-blue-900 font-bold ml-1 cursor-pointer"
+                          className="hover:text-blue-900 dark:hover:text-blue-100 font-bold ml-1 cursor-pointer"
                           title="Clear topic filter"
                         >
                           <X className="w-3 h-3" />
@@ -1277,16 +1304,16 @@ export function App() {
                       onClick={openContentFilterModal}
                       className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
                         contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
-                          ? 'bg-blue-50/90 border-blue-200 text-blue-700 hover:bg-blue-100'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+                          : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                       }`}
                       title="Manage muted words and authors filter (saved in cache)"
                     >
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       <span>Filters</span>
                       {(contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                          contentFilterConfig.enabled ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                          contentFilterConfig.enabled ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
                         }`}>
                           {contentFilterConfig.words.length + contentFilterConfig.authors.length}
                         </span>
@@ -1502,9 +1529,9 @@ export function App() {
               ) : posts.length > 0 ? (
                 displayedPosts.length > 0 ? (
                   <div className="space-y-4">
-                    {displayedPosts.map((post) => (
+                    {displayedPosts.map((post, index) => (
                       <PostCard
-                        key={post.post_id || `${post.author}/${post.permlink}`}
+                        key={`${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}-${post.post_id || index}`}
                         post={post}
                         onSelectPost={(p, jump) => handleSelectPost(p, true, jump)}
                         onSelectAuthor={handleSelectAuthor}
@@ -1525,11 +1552,11 @@ export function App() {
                         onClick={handleLoadMore}
                         disabled={loadingMore}
                         title="Fetch older posts from the blockchain"
-                        className="px-6 py-2.5 rounded-full bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
+                        className="px-6 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
                       >
                         {loadingMore ? (
                           <span className="flex items-center gap-2">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
                             Loading more stories...
                           </span>
                         ) : (
@@ -1540,11 +1567,11 @@ export function App() {
                   </div>
                 ) : filteredOutStats.total > 0 ? (
                   /* CONTENT FILTERS EMPTY STATE */
-                  <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150">
+                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                     <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
                     <div>
-                      <h3 className="text-base font-bold text-gray-800">All loaded posts are hidden by your filters</h3>
-                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                      <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are hidden by your filters</h3>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
                         {filteredOutStats.total} {filteredOutStats.total === 1 ? 'post' : 'posts'} matched your muted words or authors. You can adjust your filters or temporarily pause them.
                       </p>
                     </div>
@@ -1557,14 +1584,14 @@ export function App() {
                       </button>
                       <button
                         onClick={handleToggleContentFilterEnabled}
-                        className="px-4 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                        className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
                       >
                         Temporarily Pause Filters
                       </button>
                       <button
                         onClick={handleLoadMore}
                         disabled={loadingMore}
-                        className="px-4 py-2 text-xs bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                        className="px-4 py-2 text-xs bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
                       >
                         {loadingMore ? 'Loading...' : 'Load More Posts'}
                       </button>
@@ -1572,11 +1599,11 @@ export function App() {
                   </div>
                 ) : (
                   /* ALL REBLOGS EMPTY STATE */
-                  <div className="p-12 text-center space-y-4 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                     <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
                     <div>
-                      <h3 className="text-base font-bold text-gray-800">All loaded posts are reblogs</h3>
-                      <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                      <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are reblogs</h3>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
                         You unchecked "Reblogs". Check the box or load more posts to view them.
                       </p>
                     </div>
@@ -1590,7 +1617,7 @@ export function App() {
                       <button
                         onClick={handleLoadMore}
                         disabled={loadingMore}
-                        className="px-4 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full font-semibold transition cursor-pointer"
+                        className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
                       >
                         {loadingMore ? 'Loading...' : 'Load More'}
                       </button>
@@ -1598,9 +1625,9 @@ export function App() {
                   </div>
                 )
               ) : (
-                <div className="p-16 text-center space-y-3 bg-white rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
-                  <Compass className="w-10 h-10 text-gray-300 mx-auto" />
-                  <p className="text-sm text-gray-500 font-medium">
+                <div className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+                  <Compass className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto" />
+                  <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
                     {selectedLanguage !== 'global' && activeNav === 'discover'
                       ? `No recent posts found for this language filter.`
                       : 'No posts found in this feed.'}
@@ -1637,37 +1664,37 @@ export function App() {
                     hiddenCount={shortsHiddenCount}
                   />
 
-                  <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] space-y-3">
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <h3 className="font-bold text-sm text-gray-900">About Shorts</h3>
+                      <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <h3 className="font-bold text-sm text-gray-900 dark:text-white">About Shorts</h3>
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      Shorts brings decentralized microblogging to Hive. Snaps are published by community members directly as comments under container posts by <span className="font-semibold text-gray-800">@peak.snaps</span>.
+                    <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed">
+                      Shorts brings decentralized microblogging to Hive. Snaps are published by community members directly as comments under container posts by <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>.
                     </p>
-                    <div className="pt-2 border-t border-gray-100 space-y-2 text-xs text-gray-500">
+                    <div className="pt-2 border-t border-gray-100 dark:border-slate-800 space-y-2 text-xs text-gray-500 dark:text-slate-400">
                       <div className="flex items-center justify-between">
                         <span>Protocol</span>
-                        <span className="font-semibold text-gray-800">PeakD Snaps</span>
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">PeakD Snaps</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Source</span>
-                        <span className="font-semibold text-gray-800">@peak.snaps</span>
+                        <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Feed Type</span>
-                        <span className="font-semibold text-blue-600">Twitter-like Stream</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">Twitter-like Stream</span>
                       </div>
                     </div>
                   </div>
                 </>
               ) : activeNav === 'communities' ? (
-                <div className="bg-white rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100/60">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-sm text-gray-900">Discover communities</h3>
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">Discover communities</h3>
                     <button
                       onClick={() => setShowManageCommunitiesModal(true)}
-                      className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
                     >
                       Manage
                     </button>
@@ -1690,12 +1717,12 @@ export function App() {
                               <img
                                 src={comm.avatar}
                                 alt={comm.title}
-                                className="w-7 h-7 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                                className="w-7 h-7 rounded-full object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
                                 }}
                               />
-                              <span className="font-bold text-xs sm:text-sm text-gray-900 hover:text-blue-600 truncate">
+                              <span className="font-bold text-xs sm:text-sm text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate">
                                 {comm.title}
                               </span>
                             </button>
@@ -1704,19 +1731,19 @@ export function App() {
                               onClick={() => toggleJoinCommunity(comm.name)}
                               className={`text-xs px-3 py-1 rounded-full font-semibold transition flex-shrink-0 cursor-pointer ${
                                 isJoined
-                                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                                  : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400'
                               }`}
                             >
                               {isJoined ? 'Joined' : 'Join'}
                             </button>
                           </div>
 
-                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                             {comm.about}
                           </p>
 
-                          <p className="text-[11px] text-gray-400">
+                          <p className="text-[11px] text-gray-400 dark:text-slate-500">
                             {comm.subscribers.toLocaleString()} members
                           </p>
                         </div>
@@ -1874,14 +1901,14 @@ export function App() {
       />
 
       {/* Clean borderless Nebulosa Footer */}
-      <footer className="py-6 text-center text-xs text-gray-400 bg-white mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)]">
+      <footer className="py-6 text-center text-xs text-gray-400 dark:text-slate-500 bg-white dark:bg-slate-900 border-t border-gray-150 dark:border-slate-800 mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)] transition-colors">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <img src="/assets/logo-circle.svg" alt="Nebulosa" className="w-5 h-5" />
-            <span className="font-semibold text-gray-700">Nebulosa Vision</span>
+            <span className="font-semibold text-gray-700 dark:text-slate-200">Nebulosa Vision</span>
             <span>• Direct Hive Blockchain Client with Keychain Support</span>
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-[11px] text-gray-400 dark:text-slate-500">
             Zero Server Backend • No Secrets • 100% Client-Side JSON-RPC & DOMPurify XSS Protection
           </p>
         </div>

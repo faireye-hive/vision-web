@@ -117,26 +117,26 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
         title={`Language filter: currently ${currentOption.name}. Click to change language.`}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
           selectedLanguage !== 'global'
-            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-xs'
+            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-xs'
             : isOpen
-              ? 'bg-gray-200/90 text-gray-800 border-gray-300'
-              : 'bg-gray-100 hover:bg-gray-200/80 text-gray-700 border-transparent'
+              ? 'bg-gray-200/90 dark:bg-slate-700 text-gray-800 dark:text-slate-100 border-gray-300 dark:border-slate-600'
+              : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
         {selectedLanguage === 'global' ? (
-          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+          <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
         ) : (
           <span className="text-xs leading-none">{currentOption.flag}</span>
         )}
         <span>{currentOption.name}</span>
         {selectedLanguage !== 'global' && (
-          <span className="text-[10px] font-mono px-1 py-0.2 bg-indigo-100/70 rounded text-indigo-800 uppercase font-bold">
+          <span className="text-[10px] font-mono px-1 py-0.2 bg-indigo-100/70 dark:bg-indigo-900/60 rounded text-indigo-800 dark:text-indigo-300 uppercase font-bold">
             {selectedLanguage}
           </span>
         )}
         <ChevronDown
-          className={`w-3 h-3 text-gray-400 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-indigo-600' : ''
+          className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
+            isOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
           }`}
         />
       </button>
@@ -145,24 +145,24 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
       {isOpen && (
         <div
           role="listbox"
-          className="absolute left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-64 rounded-2xl bg-white shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 p-2 z-40 focus:outline-none animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-150 dark:border-slate-800 p-2 z-40 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
         >
           {/* Search bar */}
           <div className="relative mb-2">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search 20+ languages..."
-              className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition"
+              className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 transition"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -171,7 +171,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
 
           {/* Option: Global */}
           {(!searchQuery || 'global'.includes(searchQuery.toLowerCase())) && (
-            <div className="mb-1 pb-1 border-b border-gray-100">
+            <div className="mb-1 pb-1 border-b border-gray-100 dark:border-slate-800">
               <button
                 type="button"
                 role="option"
@@ -179,36 +179,36 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                 onClick={() => handleSelect('global')}
                 className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer group ${
                   selectedLanguage === 'global'
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'hover:bg-gray-50 text-gray-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold'
+                    : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className={`p-1 rounded-lg ${selectedLanguage === 'global' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <div className={`p-1 rounded-lg ${selectedLanguage === 'global' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                     <Globe className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5 font-bold text-gray-900">
+                    <div className="flex items-center gap-1.5 font-bold text-gray-900 dark:text-white">
                       <span>Global Feed</span>
-                      <span className="text-[10px] text-gray-400 font-normal">All languages</span>
+                      <span className="text-[10px] text-gray-400 dark:text-slate-500 font-normal">All languages</span>
                     </div>
-                    <p className="text-[11px] text-gray-400 font-normal">
+                    <p className="text-[11px] text-gray-400 dark:text-slate-500 font-normal">
                       Standard worldwide Hive blockchain feed
                     </p>
                   </div>
                 </div>
 
                 {selectedLanguage === 'global' && (
-                  <Check className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                 )}
               </button>
             </div>
           )}
 
           {/* Header */}
-          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
             <span>Top 20 Popular (Combflow)</span>
-            <span className="text-[9px] font-normal text-indigo-500 flex items-center gap-1">
+            <span className="text-[9px] font-normal text-indigo-500 dark:text-indigo-400 flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5" />
               AI Indexed
             </span>
@@ -230,19 +230,19 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                     title={`Filter Hive posts published in ${lang.name} (${lang.formattedCount || ''} posts)`}
                     className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer group ${
                       isCurrent
-                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                        : 'hover:bg-gray-50 text-gray-700'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                        : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-base leading-none flex-shrink-0">{lang.flag}</span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-gray-900 truncate">{lang.name}</span>
-                          <span className="text-[10px] text-gray-400 font-mono">({lang.code})</span>
+                          <span className="font-semibold text-gray-900 dark:text-white truncate">{lang.name}</span>
+                          <span className="text-[10px] text-gray-400 dark:text-slate-500 font-mono">({lang.code})</span>
                         </div>
                         {lang.nativeName && lang.nativeName !== lang.name && (
-                          <span className="text-[11px] text-gray-400 font-normal truncate block">
+                          <span className="text-[11px] text-gray-400 dark:text-slate-500 font-normal truncate block">
                             {lang.nativeName}
                           </span>
                         )}
@@ -251,19 +251,19 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
 
                     <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                       {lang.formattedCount && (
-                        <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-mono">
+                        <span className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-mono">
                           {lang.formattedCount}
                         </span>
                       )}
                       {isCurrent && (
-                        <Check className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                        <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                       )}
                     </div>
                   </button>
                 );
               })
             ) : (
-              <div className="p-3 text-center text-xs text-gray-400">
+              <div className="p-3 text-center text-xs text-gray-400 dark:text-slate-500">
                 No language found matching "{searchQuery}"
               </div>
             )}

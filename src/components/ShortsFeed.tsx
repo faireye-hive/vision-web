@@ -453,7 +453,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   return (
     <div id={id} className="max-w-2xl mx-auto space-y-4">
       {/* ================= SHORTS HEADER ================= */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-xs space-y-3.5">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs space-y-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
@@ -461,15 +461,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white tracking-tight">
                   Shorts
                 </h1>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
                   Microblogging
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Community snaps from Hive blockchain via <span className="font-semibold text-gray-700">@peak.snaps</span>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Community snaps from Hive blockchain via <span className="font-semibold text-gray-700 dark:text-slate-300">@peak.snaps</span>
               </p>
             </div>
           </div>
@@ -479,17 +479,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             type="button"
             onClick={() => loadInitialFeed(true)}
             disabled={loading}
-            className="flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 text-xs font-semibold text-gray-700 dark:text-slate-300 transition cursor-pointer disabled:opacity-50"
             title="Refresh latest snaps"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
             <span>Refresh</span>
           </button>
         </div>
 
         {/* Live Container Tracking Info */}
         {activeContainer && (
-          <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-[11px] text-gray-400">
+          <div className="pt-2 border-t border-gray-50 dark:border-slate-800 flex items-center justify-between text-[11px] text-gray-400 dark:text-slate-500">
             <span className="truncate">
               Container {currentContainerIndex + 1} of {containers.length || 1} &bull;{' '}
               {new Date(activeContainer.created + 'Z').toLocaleDateString(undefined, {
@@ -499,7 +499,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 minute: '2-digit'
               })}
             </span>
-            <span className="font-medium text-gray-500 flex-shrink-0">
+            <span className="font-medium text-gray-500 dark:text-slate-400 flex-shrink-0">
               {snaps.length} snaps loaded
             </span>
           </div>
@@ -507,16 +507,16 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       </div>
 
       {/* ================= SHORTS COMPOSER (POST TO COMMUNITY) ================= */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs space-y-3">
         {postSuccessMessage && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-850 text-emerald-800 dark:text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
               <span>{postSuccessMessage}</span>
             </div>
             <button
               onClick={() => setPostSuccessMessage(null)}
-              className="text-emerald-500 hover:text-emerald-700 transition cursor-pointer"
+              className="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -524,14 +524,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
 
         {postErrorMessage && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
+          <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-850 text-rose-800 dark:text-rose-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
               <span>{postErrorMessage}</span>
             </div>
             <button
               onClick={() => setPostErrorMessage(null)}
-              className="text-rose-500 hover:text-rose-700 transition cursor-pointer"
+              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 transition cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -542,7 +542,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <img
             src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : 'https://images.ecency.com/u/hive/avatar/small'}
             alt={currentUser?.username || 'Guest'}
-            className="w-10 h-10 rounded-full object-cover border border-gray-200 flex-shrink-0 bg-gray-100"
+            className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-slate-700 flex-shrink-0 bg-gray-100 dark:bg-slate-800"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
             }}
@@ -558,20 +558,20 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   : "Connect Keychain to post snaps directly to the Hive community..."
               }
               rows={3}
-              className="w-full text-sm text-gray-800 placeholder-gray-400 bg-gray-50/80 hover:bg-gray-50 focus:bg-white rounded-xl p-3 border border-transparent focus:border-blue-500 focus:outline-none transition resize-none leading-relaxed"
+              className="w-full text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 bg-gray-50/80 dark:bg-slate-800/80 hover:bg-gray-50 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-850 rounded-xl p-3 border border-transparent dark:border-slate-700/60 focus:border-blue-500 focus:outline-none transition resize-none leading-relaxed"
             />
           </div>
         </div>
 
         {/* Image Attachment Helper */}
         {showImageInput && (
-          <div className="bg-gray-50 rounded-xl p-2.5 flex items-center gap-2 animate-in fade-in">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-2.5 flex items-center gap-2 animate-in fade-in">
             <input
               type="text"
               value={imageUrlInput}
               onChange={(e) => setImageUrlInput(e.target.value)}
               placeholder="Paste direct image URL (https://...)"
-              className="flex-1 min-w-0 px-3 py-1.5 text-xs bg-white rounded-lg border border-gray-200 focus:border-blue-500 focus:outline-none"
+              className="flex-1 min-w-0 px-3 py-1.5 text-xs bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-lg border border-gray-200 dark:border-slate-700 focus:border-blue-500 focus:outline-none"
             />
             <button
               type="button"
@@ -584,7 +584,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             <button
               type="button"
               onClick={() => setShowImageInput(false)}
-              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition cursor-pointer"
+              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg transition cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -593,15 +593,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
         {/* Tag helper drawer */}
         {showTagHelper && (
-          <div className="bg-gray-50/80 rounded-xl p-2.5 space-y-1.5 animate-in fade-in">
-            <div className="flex items-center justify-between text-[11px] text-gray-500">
+          <div className="bg-gray-50/80 dark:bg-slate-800/80 rounded-xl p-2.5 space-y-1.5 animate-in fade-in">
+            <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
               <span>Click to add hashtag to snap:</span>
               <button
                 type="button"
                 onClick={() => setShowTagHelper(false)}
-                className="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition cursor-pointer"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -610,7 +610,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   key={t}
                   type="button"
                   onClick={() => handleInsertTag(t)}
-                  className="px-2 py-0.5 rounded-lg bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-xs text-gray-700 transition cursor-pointer"
+                  className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-xs text-gray-700 dark:text-slate-300 transition cursor-pointer"
                 >
                   #{t}
                 </button>
@@ -620,17 +620,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
 
         {/* Composer Action Toolbar */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+        <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-slate-800">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowImageInput(!showImageInput)}
               className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showImageInput ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                showImageInput ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
               title="Attach image via URL"
             >
-              <Image className="w-4 h-4 text-blue-600" />
+              <Image className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <span className="hidden sm:inline">Image</span>
             </button>
 
@@ -638,11 +638,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               type="button"
               onClick={() => setShowTagHelper(!showTagHelper)}
               className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showTagHelper ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                showTagHelper ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
               title="Add #hashtag"
             >
-              <Hash className="w-4 h-4 text-indigo-600" />
+              <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span className="hidden sm:inline">Hashtags</span>
             </button>
 
@@ -650,11 +650,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               type="button"
               onClick={() => setShowSearch(!showSearch)}
               className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showSearch || searchQuery ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                showSearch || searchQuery ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
               title="Search snaps"
             >
-              <Search className="w-4 h-4 text-amber-600" />
+              <Search className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span className="hidden sm:inline">Search</span>
             </button>
           </div>
@@ -662,7 +662,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <div className="flex items-center gap-3">
             <span
               className={`text-[11px] font-mono ${
-                composerText.length > 500 ? 'text-rose-500 font-bold' : 'text-gray-400'
+                composerText.length > 500 ? 'text-rose-500 font-bold' : 'text-gray-400 dark:text-slate-500'
               }`}
             >
               {composerText.length}/500
@@ -691,19 +691,19 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
         {/* Optional Collapsible Search Bar */}
         {(showSearch || searchQuery) && (
-          <div className="pt-2 border-t border-gray-100 relative animate-in fade-in">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="pt-2 border-t border-gray-100 dark:border-slate-800 relative animate-in fade-in">
+            <Search className="w-4 h-4 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Search snaps by text, author, or #hashtag..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl bg-gray-50 border border-gray-200 focus:border-blue-500 focus:bg-white focus:outline-none transition"
+              className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-850 focus:outline-none transition"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600 font-bold"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 font-bold"
               >
                 &times;
               </button>
@@ -714,15 +714,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= ACTIVE FILTER BANNER ================= */}
       {(selectedTag || (hiddenCount > 0 && filterEnabled)) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-2xl px-4 py-2.5 border border-gray-100 shadow-2xs text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-gray-100 dark:border-slate-800 shadow-2xs text-xs">
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             {selectedTag && (
-              <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 font-medium px-2.5 py-1 rounded-xl">
+              <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-medium px-2.5 py-1 rounded-xl">
                 <Hash className="w-3.5 h-3.5" />
                 <span>#{selectedTag}</span>
                 <button
                   onClick={() => onSelectTag && onSelectTag('')}
-                  className="ml-1 hover:text-blue-900 font-bold text-sm leading-none"
+                  className="ml-1 hover:text-blue-900 dark:hover:text-blue-100 font-bold text-sm leading-none"
                   title="Clear hashtag filter"
                 >
                   &times;
@@ -730,8 +730,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               </div>
             )}
             {hiddenCount > 0 && filterEnabled && (
-              <div className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl font-medium">
-                <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+              <div className="flex items-center gap-1 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-xl font-medium">
+                <EyeOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>
                   {hiddenCount} {hiddenCount === 1 ? 'short' : 'shorts'} hidden by spam filter
                 </span>
@@ -742,7 +742,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           {selectedTag && (
             <button
               onClick={() => onSelectTag && onSelectTag('')}
-              className="text-xs text-blue-600 hover:underline font-semibold"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
             >
               Show all
             </button>
@@ -772,18 +772,18 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-100 shadow-xs animate-pulse space-y-3"
+              className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs animate-pulse space-y-3"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-200" />
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-800" />
                 <div className="space-y-1.5 flex-1">
-                  <div className="h-3.5 bg-gray-200 rounded-md w-28" />
-                  <div className="h-2.5 bg-gray-100 rounded-md w-16" />
+                  <div className="h-3.5 bg-gray-200 dark:bg-slate-800 rounded-md w-28" />
+                  <div className="h-2.5 bg-gray-100 dark:bg-slate-850 rounded-md w-16" />
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="h-3 bg-gray-200 rounded-md w-full" />
-                <div className="h-3 bg-gray-200 rounded-md w-4/5" />
+                <div className="h-3 bg-gray-200 dark:bg-slate-800 rounded-md w-full" />
+                <div className="h-3 bg-gray-200 dark:bg-slate-800 rounded-md w-4/5" />
               </div>
             </div>
           ))}
@@ -792,12 +792,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= EMPTY STATE ================= */}
       {!loading && visibleSnaps.length === 0 && (
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 border border-gray-100 dark:border-slate-800 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
             <MessageCircle className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-gray-900 text-base">No snaps found</h3>
-          <p className="text-xs text-gray-500 max-w-sm mx-auto">
+          <h3 className="font-bold text-gray-900 dark:text-white text-base">No snaps found</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400 max-w-sm mx-auto">
             {selectedTag
               ? `No snaps found with hashtag #${selectedTag}. Try selecting another topic or clearing your filter.`
               : searchQuery
@@ -842,10 +842,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <button
             type="button"
             onClick={handleShowMoreDisplay}
-            className="px-5 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 rounded-full transition shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+            className="px-5 py-2 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-semibold text-gray-700 dark:text-slate-300 rounded-full transition shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center gap-1.5"
           >
             <span>Show more shorts</span>
-            <span className="text-gray-400 font-normal">
+            <span className="text-gray-400 dark:text-slate-500 font-normal">
               ({visibleSnaps.length - displayLimit} remaining)
             </span>
           </button>

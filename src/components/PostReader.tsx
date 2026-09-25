@@ -394,7 +394,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
   return (
     <article
       id="in-place-post-reader"
-      className="bg-white rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col w-full animate-in fade-in duration-200 relative"
+      className="bg-white dark:bg-slate-900 rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-150/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
     >
       {/* Top Reading Progress Line */}
       <div
@@ -403,14 +403,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
       />
 
       {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-white/95 backdrop-blur-md sticky top-16 z-20 border-b border-gray-100 gap-3">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-16 z-20 border-b border-gray-100 dark:border-slate-800 gap-3">
 
         {/* Left: Back button + Author details */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             id="back-to-feed-btn"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
             title="Back to Feed (Esc)"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -426,7 +426,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <img
               src={avatarUrl}
               alt={post.author}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs bg-gray-100 dark:bg-slate-800"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
               }}
@@ -437,35 +437,35 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <div className="min-w-0 flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
             <button
               onClick={() => onSelectAuthor(post.author)}
-              className="font-bold text-gray-900 hover:text-blue-600 transition truncate cursor-pointer text-xs sm:text-sm"
+              className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer text-xs sm:text-sm"
             >
               @{post.author}
             </button>
-            <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700">
+            <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
               {rep}
             </span>
 
             {isComment && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
                 Comment
               </span>
             )}
 
-            <span className="text-gray-300 hidden xs:inline">•</span>
-            <span className="text-gray-500 hidden sm:flex items-center gap-1" title={postDate.full}>
-              <Clock className="w-3 h-3 text-gray-400" />
+            <span className="text-gray-300 dark:text-slate-600 hidden xs:inline">•</span>
+            <span className="text-gray-500 dark:text-slate-400 hidden sm:flex items-center gap-1" title={postDate.full}>
+              <Clock className="w-3 h-3 text-gray-400 dark:text-slate-500" />
               <span>{postDate.relative}</span>
             </span>
 
             {(post.community_title || post.community) && (
               <>
-                <span className="text-gray-300 hidden md:inline">•</span>
+                <span className="text-gray-300 dark:text-slate-600 hidden md:inline">•</span>
                 <button
                   onClick={() => {
                     onSelectTag(post.community || post.category);
                     onClose();
                   }}
-                  className="hidden md:flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 hover:underline transition truncate cursor-pointer text-xs"
+                  className="hidden md:flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition truncate cursor-pointer text-xs"
                   title="View Community"
                 >
                   <Layers className="w-3 h-3 text-blue-500 flex-shrink-0" />
@@ -481,27 +481,27 @@ export const PostReader: React.FC<PostReaderProps> = ({
           {/* Header Shortcut to Comments */}
           <button
             onClick={scrollToComments}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 text-xs font-bold transition border border-blue-200/60 shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer"
             title={`Jump directly to ${totalCommentsCount} comments`}
           >
-            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+            <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span>{totalCommentsCount}</span>
-            <span className="hidden lg:inline text-[11px] font-medium text-blue-600/80">Comments</span>
+            <span className="hidden lg:inline text-[11px] font-medium text-blue-600/80 dark:text-blue-400/80">Comments</span>
           </button>
 
           <button
             onClick={handleCopyLink}
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
             title="Copy Hive link"
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="w-4 h-4" />}
           </button>
 
           <a
             href={`https://ecency.com/@${post.author}/${post.permlink}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
             title="View on Ecency.com"
           >
             <ExternalLink className="w-4 h-4" />
@@ -509,7 +509,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
             title="Close post (Esc)"
           >
             <X className="w-4 h-4" />
@@ -522,7 +522,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         {/* ================= COMMENT PARENT CONTEXT BANNER ================= */}
         {isComment && (
-          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-blue-50/40 border border-blue-100/90 shadow-2xs space-y-3">
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 dark:from-blue-950/40 via-indigo-50/70 dark:via-indigo-950/30 to-blue-50/40 dark:to-slate-900 border border-blue-100/90 dark:border-blue-900/40 shadow-2xs space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
@@ -530,22 +530,22 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                    <span className="text-[11px] font-bold uppercase tracking-wider bg-blue-100/80 text-blue-800 px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] font-bold uppercase tracking-wider bg-blue-100/80 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
                       {parentPost?.depth && parentPost.depth > 0 ? 'Nested Comment Reply' : 'Comment on Root Post'}
                     </span>
-                    <span className="text-gray-500">In response to</span>
+                    <span className="text-gray-500 dark:text-slate-400">In response to</span>
                     {post.parent_author && (
                       <button
                         type="button"
                         onClick={() => onSelectAuthor(post.parent_author!)}
-                        className="font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+                        className="font-bold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline cursor-pointer"
                       >
                         @{post.parent_author}
                       </button>
                     )}
                   </div>
                   {parentPost && (
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-gray-400 dark:text-slate-500">
                       Original discussion published {formatPostDate(parentPost.created).relative}
                     </span>
                   )}
@@ -557,7 +557,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectPost(parentPost)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs shadow-2xs border border-blue-200 hover:border-blue-600 transition cursor-pointer group/parent flex-shrink-0"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 text-blue-700 dark:text-blue-300 hover:text-white dark:hover:text-white font-bold text-xs shadow-2xs border border-blue-200 dark:border-blue-800 hover:border-blue-600 transition cursor-pointer group/parent flex-shrink-0"
                   title="Open and read the parent post or comment"
                 >
                   <span>Open Parent {parentPost.depth && parentPost.depth > 0 ? 'Comment' : 'Post'}</span>
@@ -568,23 +568,23 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
             {/* Parent Content Preview */}
             {parentPost ? (
-              <div className="bg-white/95 p-3.5 sm:p-4 rounded-2xl border border-blue-150/80 text-xs sm:text-sm text-gray-700 space-y-1.5">
+              <div className="bg-white/95 dark:bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-blue-150/80 dark:border-blue-900/40 text-xs sm:text-sm text-gray-700 dark:text-slate-200 space-y-1.5">
                 {parentPost.title && !parentPost.title.startsWith('Re: ') && (
-                  <div className="font-bold text-gray-900 text-sm sm:text-base line-clamp-1">
+                  <div className="font-bold text-gray-900 dark:text-white text-sm sm:text-base line-clamp-1">
                     {parentPost.title}
                   </div>
                 )}
-                <p className="line-clamp-3 text-gray-600 leading-relaxed italic text-xs sm:text-sm">
+                <p className="line-clamp-3 text-gray-600 dark:text-slate-300 leading-relaxed italic text-xs sm:text-sm">
                   "{getPostSnippet(parentPost.body, 250)}"
                 </p>
               </div>
             ) : loadingParent ? (
-              <div className="flex items-center gap-2 text-xs text-blue-600 animate-pulse py-1">
+              <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 animate-pulse py-1">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 <span>Fetching parent post context from Hive...</span>
               </div>
             ) : post.parent_permlink ? (
-              <div className="text-xs text-gray-500 italic bg-white/70 p-2.5 rounded-xl border border-blue-100">
+              <div className="text-xs text-gray-500 dark:text-slate-400 italic bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
                 Replying to discussion thread: "{post.parent_permlink.replace(/[-_]/g, ' ')}"
               </div>
             ) : null}
@@ -592,17 +592,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
         {/* Big, Clear Post Title */}
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white leading-tight">
           {isComment && (!post.title || post.title.startsWith('Re:'))
             ? `Comment by @${post.author}`
             : post.title}
         </h1>
 
         {/* Author details on mobile / tags row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-xs text-gray-500 sm:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gray-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 sm:hidden">
             <span className="flex items-center gap-1" title={postDate.full}>
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
+              <Clock className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
               <span>{postDate.relative}</span>
             </span>
             {(post.community_title || post.community) && (
@@ -613,7 +613,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     onSelectTag(post.community || post.category);
                     onClose();
                   }}
-                  className="font-semibold text-blue-600 hover:underline"
+                  className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                 >
                   {post.community_title || post.community}
                 </button>
@@ -631,9 +631,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     onSelectTag(t);
                     onClose();
                   }}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-100 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium border border-gray-200/60 shadow-2xs transition cursor-pointer"
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium border border-gray-200/60 dark:border-slate-700 shadow-2xs transition cursor-pointer"
                 >
-                  <Hash className="w-2.5 h-2.5 text-gray-400" />
+                  <Hash className="w-2.5 h-2.5 text-gray-400 dark:text-slate-500" />
                   <span>{t}</span>
                 </button>
               ))}
@@ -644,14 +644,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
         {/* Main Article Body (DOMPurify protected) */}
         <div
           id="sanitized-post-body"
-          className="article-body prose prose-slate max-w-none text-gray-800 leading-relaxed break-words pt-2"
+          className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg"
           dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
         />
 
         {/* Full Tags Section at bottom of post */}
         {postTags.length > 0 && (
-          <div className="pt-4 pb-2 border-t border-gray-100 space-y-2">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+          <div className="pt-4 pb-2 border-t border-gray-100 dark:border-slate-800 space-y-2">
+            <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
               Topics & Tags
             </span>
             <div className="flex flex-wrap gap-2">
@@ -662,9 +662,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     onSelectTag(t);
                     onClose();
                   }}
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-medium border border-gray-200 transition cursor-pointer"
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium border border-gray-200 dark:border-slate-700 transition cursor-pointer"
                 >
-                  <Hash className="w-3 h-3 text-gray-400" />
+                  <Hash className="w-3 h-3 text-gray-400 dark:text-slate-500" />
                   <span>{t}</span>
                 </button>
               ))}
@@ -674,11 +674,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         {/* Beneficiaries if present */}
         {post.beneficiaries && post.beneficiaries.length > 0 && (
-          <div className="p-3.5 rounded-2xl bg-gray-50/80 text-xs text-gray-500 space-y-1">
-            <span className="font-semibold text-gray-700">Beneficiaries:</span>
+          <div className="p-3.5 rounded-2xl bg-gray-50/80 dark:bg-slate-800/60 text-xs text-gray-500 dark:text-slate-400 space-y-1">
+            <span className="font-semibold text-gray-700 dark:text-slate-300">Beneficiaries:</span>
             <div className="flex flex-wrap gap-2 pt-1">
               {post.beneficiaries.map(b => (
-                <span key={b.account} className="bg-white px-2.5 py-0.5 rounded-lg text-gray-600 shadow-xs">
+                <span key={b.account} className="bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-lg text-gray-600 dark:text-slate-300 border border-gray-150 dark:border-slate-700 shadow-xs">
                   @{b.account} ({(b.weight / 100).toFixed(1)}%)
                 </span>
               ))}
@@ -686,17 +686,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* ================= BOTTOM ENGAGEMENT & VOTING BAR (payout and vote counts hidden as requested) ================= */}
-        <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+        {/* ================= BOTTOM ENGAGEMENT & VOTING BAR ================= */}
+        <div className="pt-6 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
 
           {/* Tip Button */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowTipModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold text-xs transition cursor-pointer"
               title="Send tip to author"
             >
-              <Coins className="w-4 h-4 text-amber-600" />
+              <Coins className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span>Send Tip</span>
             </button>
           </div>
@@ -712,7 +712,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 disabled={voteLoading}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${hasVoted
                     ? 'bg-rose-500 text-white'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-600'
+                    : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400'
                   }`}
                 title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
               >
@@ -722,10 +722,10 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
               {/* Vote weight selector */}
               {showVoteSlider && (
-                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white rounded-3xl shadow-xl p-4 z-30 animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-4 z-30 animate-in fade-in zoom-in-95 border border-gray-150 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-900">Vote Weight</span>
-                    <span className="text-xs font-mono font-bold text-rose-600">{voteWeight}%</span>
+                    <span className="text-xs font-bold text-gray-900 dark:text-white">Vote Weight</span>
+                    <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{voteWeight}%</span>
                   </div>
 
                   <input
@@ -734,7 +734,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     max="100"
                     value={voteWeight}
                     onChange={(e) => setVoteWeight(Number(e.target.value))}
-                    className="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-rose-600 mb-3"
+                    className="w-full h-1.5 bg-gray-100 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-600 mb-3"
                   />
 
                   <div className="flex items-center justify-between gap-1 mb-3">
@@ -742,7 +742,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                       <button
                         key={pct}
                         onClick={() => setVoteWeight(pct)}
-                        className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700"
+                        className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 cursor-pointer"
                       >
                         {pct}%
                       </button>
@@ -764,7 +764,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             {/* Comments Counter Shortcut */}
             <button
               onClick={scrollToComments}
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded-full transition cursor-pointer"
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 px-3 py-2 rounded-full transition cursor-pointer"
               title="Jump to Comments"
             >
               <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
@@ -776,25 +776,25 @@ export const PostReader: React.FC<PostReaderProps> = ({
         </div>
 
         {/* ================= DISCUSSION & COMMENTS ================= */}
-        <section id="comments-section" className="pt-8 border-t border-gray-150 space-y-6">
+        <section id="comments-section" className="pt-8 border-t border-gray-150 dark:border-slate-800 space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-blue-600" />
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <span>Discussion ({totalCommentsCount})</span>
             </h3>
             {loadingDiscussion && (
-              <span className="text-xs text-gray-400 animate-pulse">Loading discussion...</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500 animate-pulse">Loading discussion...</span>
             )}
           </div>
 
           {/* New Comment Box */}
-          <form onSubmit={handleAddComment} className="bg-gray-50/80 p-4 sm:p-5 rounded-2xl space-y-3">
+          <form onSubmit={handleAddComment} className="bg-gray-50/80 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl space-y-3 border border-gray-100 dark:border-slate-800">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-gray-700">Leave a reply</span>
+              <span className="font-semibold text-gray-700 dark:text-slate-300">Leave a reply</span>
               {currentUser ? (
-                <span className="text-emerald-600 font-medium">Replying as @{currentUser.username}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Replying as @{currentUser.username}</span>
               ) : (
-                <span className="text-amber-600 font-medium">Connect Keychain to reply</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">Connect Keychain to reply</span>
               )}
             </div>
 
@@ -803,12 +803,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
               value={newCommentBody}
               onChange={(e) => setNewCommentBody(e.target.value)}
               placeholder={currentUser ? 'Write your response in Markdown...' : 'Connect Hive Keychain in the top menu to comment...'}
-              className="w-full p-3 bg-white rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-xs"
+              className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl text-xs sm:text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-xs"
             />
 
             {commentSuccess && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 text-xs text-emerald-700 flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600" />
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span>Comment published successfully to the Hive blockchain!</span>
               </div>
             )}
@@ -817,7 +817,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
               <button
                 type="submit"
                 disabled={commentLoading || !newCommentBody.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-xs"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-xs cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
@@ -842,7 +842,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
               ))}
             </div>
           ) : (
-            <div className="p-8 rounded-2xl bg-gray-50/60 text-center text-xs text-gray-400">
+            <div className="p-8 rounded-2xl bg-gray-50/60 dark:bg-slate-800/40 text-center text-xs text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-800">
               {loadingDiscussion ? 'Syncing comments from Hive...' : 'No comments yet on this post.'}
             </div>
           )}
@@ -852,27 +852,27 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
       {/* ================= TIP MODAL ================= */}
       {showTipModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 border border-gray-150 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Coins className="w-5 h-5 text-amber-500" />
-                <h3 className="font-bold text-base text-gray-900">Send Tip to @{post.author}</h3>
+                <h3 className="font-bold text-base text-gray-900 dark:text-white">Send Tip to @{post.author}</h3>
               </div>
-              <button onClick={() => setShowTipModal(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg">
+              <button onClick={() => setShowTipModal(false)} className="p-1 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {tipNotice && (
-              <div className="p-3 bg-emerald-50 rounded-xl text-xs text-emerald-700 font-semibold">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 font-semibold">
                 {tipNotice}
               </div>
             )}
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-gray-700 block mb-1">Amount & Currency</label>
+                <label className="font-semibold text-gray-700 dark:text-slate-300 block mb-1">Amount & Currency</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -880,12 +880,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     min="0.001"
                     value={tipAmount}
                     onChange={(e) => setTipAmount(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-gray-50 rounded-xl font-mono text-sm focus:outline-none focus:bg-white"
+                    className="flex-1 px-3 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl font-mono text-sm text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none focus:bg-white dark:focus:bg-slate-800"
                   />
                   <select
                     value={tipCurrency}
                     onChange={(e) => setTipCurrency(e.target.value as 'HIVE' | 'HBD')}
-                    className="px-3 py-2 bg-gray-50 rounded-xl font-bold text-xs focus:outline-none focus:bg-white"
+                    className="px-3 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl font-bold text-xs text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none focus:bg-white dark:focus:bg-slate-800 cursor-pointer"
                   >
                     <option value="HIVE">HIVE</option>
                     <option value="HBD">HBD</option>
@@ -894,16 +894,16 @@ export const PostReader: React.FC<PostReaderProps> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-gray-700 block mb-1">Memo</label>
+                <label className="font-semibold text-gray-700 dark:text-slate-300 block mb-1">Memo</label>
                 <input
                   type="text"
                   value={tipMemo}
                   onChange={(e) => setTipMemo(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-50 rounded-xl text-xs focus:outline-none focus:bg-white"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl text-xs text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 focus:outline-none focus:bg-white dark:focus:bg-slate-800"
                 />
               </div>
 
-              <p className="text-[11px] text-gray-500 bg-amber-50/70 p-2.5 rounded-xl">
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 bg-amber-50/70 dark:bg-amber-950/30 p-2.5 rounded-xl border border-amber-200/50 dark:border-amber-900/40">
                 Signed safely through your Hive Keychain extension.
               </p>
             </div>
@@ -911,14 +911,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowTipModal(false)}
-                className="px-4 py-2 rounded-full text-xs font-semibold text-gray-600 hover:bg-gray-100"
+                className="px-4 py-2 rounded-full text-xs font-semibold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSendTip}
                 disabled={tipLoading}
-                className="px-5 py-2 rounded-full text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-xs"
+                className="px-5 py-2 rounded-full text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-xs cursor-pointer"
               >
                 {tipLoading ? 'Signing...' : `Send ${tipAmount} ${tipCurrency}`}
               </button>
@@ -931,53 +931,53 @@ export const PostReader: React.FC<PostReaderProps> = ({
       <button
         id="floating-comments-shortcut-btn"
         onClick={scrollToComments}
-        className="fixed right-5 sm:right-7 bottom-24 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 backdrop-blur-md shadow-lg border border-gray-200/90 hover:border-blue-400 text-gray-800 hover:text-blue-600 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
+        className="fixed right-5 sm:right-7 bottom-24 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg border border-gray-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 text-gray-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
         title={`Jump directly to comments (${totalCommentsCount})`}
       >
         <div className="relative flex items-center justify-center">
-          <MessageSquare className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+          <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
           {totalCommentsCount > 0 && (
             <span className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center leading-tight shadow-2xs">
               {totalCommentsCount}
             </span>
           )}
         </div>
-        <span className="text-xs font-bold hidden sm:inline text-gray-700 group-hover:text-blue-600">
+        <span className="text-xs font-bold hidden sm:inline text-gray-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
           {totalCommentsCount} {totalCommentsCount === 1 ? 'Comment' : 'Comments'}
         </span>
       </button>
 
       {/* ================= FLOATING SCROLL NAVIGATION (FOLLOWS USER DOWN THE PAGE) ================= */}
       <div
-        className={`fixed bottom-6 right-5 sm:right-7 z-40 flex items-center gap-2 bg-white/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 transition-all duration-300 ${
+        className={`fixed bottom-6 right-5 sm:right-7 z-40 flex items-center gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 dark:border-slate-700 transition-all duration-300 ${
           scrolledDown ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer shadow-2xs"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition cursor-pointer shadow-2xs"
           title="Back to Feed (Esc)"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back</span>
         </button>
 
-        <div className="h-4 w-px bg-gray-200" />
+        <div className="h-4 w-px bg-gray-200 dark:bg-slate-700" />
 
         <button
           onClick={scrollToComments}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-blue-50 text-gray-700 hover:text-blue-600 text-xs font-bold transition cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/50 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold transition cursor-pointer"
           title={`Jump to ${totalCommentsCount} Comments`}
         >
-          <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+          <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span>{totalCommentsCount}</span>
         </button>
 
-        <div className="h-4 w-px bg-gray-200" />
+        <div className="h-4 w-px bg-gray-200 dark:bg-slate-700" />
 
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
           title="Scroll to Top"
         >
           <ArrowUp className="w-3.5 h-3.5" />
@@ -1120,7 +1120,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
   return (
     <div className={`p-3.5 sm:p-4 rounded-2xl transition-all ${
-      depth === 0 ? 'bg-gray-50/80 border border-gray-150/70 shadow-2xs' : 'bg-white/90 border border-blue-100 shadow-2xs'
+      depth === 0 ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-150/70 dark:border-slate-700/60 shadow-2xs' : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
     }`}>
       {/* Author Header */}
       <div className="flex items-center justify-between text-xs mb-2">
@@ -1128,52 +1128,52 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           <img
             src={avatar}
             alt={comment.author}
-            className="w-6 h-6 rounded-full object-cover bg-gray-200 ring-1 ring-gray-200"
+            className="w-6 h-6 rounded-full object-cover bg-gray-200 dark:bg-slate-700 ring-1 ring-gray-200 dark:ring-slate-700"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
             }}
           />
           <button
             onClick={() => onSelectAuthor(comment.author)}
-            className="font-bold text-gray-900 hover:text-blue-600 transition cursor-pointer"
+            className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
           >
             @{comment.author}
           </button>
-          <span className="text-[10px] text-gray-400 font-medium">({rep})</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">({rep})</span>
           {depth > 0 && (
-            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded-full">
+            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded-full">
               Reply
             </span>
           )}
         </div>
 
-        <span className="text-[11px] text-gray-400" title={postDate.full}>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500" title={postDate.full}>
           {postDate.relative}
         </span>
       </div>
 
       {/* Comment Body */}
       <div
-        className="text-xs sm:text-sm text-gray-800 leading-relaxed pl-8 break-words prose prose-slate max-w-none mb-2"
+        className="article-body text-xs sm:text-sm text-gray-800 dark:text-slate-100 leading-relaxed pl-8 break-words max-w-none mb-2"
         dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
       />
 
-      {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies (payout and vote counts hidden as requested) */}
-      <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-gray-500 pl-8 pt-1 flex-wrap">
+      {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
+      <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-gray-500 dark:text-slate-400 pl-8 pt-1 flex-wrap">
         {/* Upvote */}
         <button
           type="button"
           onClick={handleVote}
           disabled={isVoting}
           className={`flex items-center gap-1 transition cursor-pointer ${
-            upvoted ? 'text-rose-600 font-bold' : 'hover:text-rose-600'
+            upvoted ? 'text-rose-600 dark:text-rose-400 font-bold' : 'hover:text-rose-600 dark:hover:text-rose-400'
           }`}
           title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
         >
           {isVoting ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
           ) : (
-            <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-rose-600' : ''}`} />
+            <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-rose-600 dark:fill-rose-400' : ''}`} />
           )}
           <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
         </button>
@@ -1182,7 +1182,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         <button
           type="button"
           onClick={() => setShowReplyBox(!showReplyBox)}
-          className="flex items-center gap-1 font-semibold text-gray-600 hover:text-blue-600 transition cursor-pointer"
+          className="flex items-center gap-1 font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
           title="Write a reply to this comment"
         >
           <CornerDownRight className="w-3.5 h-3.5" />
@@ -1194,7 +1194,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-2 py-0.5 rounded-full transition cursor-pointer"
+            className="flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 px-2 py-0.5 rounded-full transition cursor-pointer"
             title={isExpanded ? 'Hide replies' : 'Show replies'}
           >
             <MessageSquare className="w-3 h-3 text-blue-500" />
@@ -1207,12 +1207,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       {/* In-line Reply Box */}
       {showReplyBox && (
         <form onSubmit={handleSendReply} className="mt-3 pl-8 space-y-2 animate-in fade-in">
-          <div className="flex items-center justify-between text-[11px] text-gray-500">
+          <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
             <span>Replying to @{comment.author}</span>
             <button
               type="button"
               onClick={() => setShowReplyBox(false)}
-              className="text-gray-400 hover:text-gray-600 font-medium cursor-pointer"
+              className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 font-medium cursor-pointer"
             >
               Cancel
             </button>
@@ -1222,11 +1222,11 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             placeholder={`Write your reply to @${comment.author}...`}
-            className="w-full p-2.5 bg-white rounded-xl text-xs text-gray-800 placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-2xs"
+            className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl text-xs text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-2xs"
           />
 
           {replySuccess && (
-            <div className="p-2 rounded-lg bg-emerald-50 text-[11px] text-emerald-700 flex items-center gap-1.5 font-medium">
+            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 font-medium">
               <Check className="w-3.5 h-3.5 text-emerald-600" />
               <span>Reply published to the Hive blockchain!</span>
             </div>
@@ -1247,7 +1247,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
       {/* Recursive Child Replies Tree */}
       {childReplies.length > 0 && isExpanded && (
-        <div className="mt-3 pl-3 sm:pl-5 border-l-2 border-blue-200/90 hover:border-blue-400 space-y-3 transition-colors">
+        <div className="mt-3 pl-3 sm:pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-3 transition-colors">
           {childReplies.map((child) => (
             <CommentThreadItem
               key={child.post_id || `${child.author}/${child.permlink}`}

@@ -64,34 +64,34 @@ export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string
     // Escape dangerous raw script tags first
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     // Images: ![alt](url)
-    .replace(/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/g, '<img src="$2" alt="$1" class="rounded-xl max-h-[550px] w-auto max-w-full my-4 border border-gray-200" />')
+    .replace(/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" class="rounded-xl max-h-[550px] w-auto max-w-full my-4 border border-gray-200 dark:border-slate-700" />')
     // Standard links: [text](url)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" class="text-blue-600 font-semibold hover:underline">$1</a>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" class="text-blue-600 dark:text-blue-400 font-semibold hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
     // Bold: **text** or __text__
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>')
+    .replace(/__(.*?)__/g, '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>')
     // Italics: *text* or _text_
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/_(.*?)_/g, '<em>$1</em>')
-    // Headers (h1-h6)
-    .replace(/^###### (.*$)/gim, '<h6 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h6>')
-    .replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h5>')
-    .replace(/^#### (.*$)/gim, '<h4 class="text-base font-bold text-gray-900 mt-5 mb-2">$1</h4>')
-    .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-gray-900 mt-6 mb-2">$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-900 mt-8 mb-3">$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-900 mt-8 mb-4">$1</h1>')
-    // Blockquotes
-    .replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-blue-500 pl-4 py-2 my-3 italic text-gray-700 bg-blue-50/40 rounded-r-lg">$1</blockquote>')
+    .replace(/\*(.*?)\*/g, '<em class="italic text-gray-800 dark:text-slate-200">$1</em>')
+    .replace(/_(.*?)_/g, '<em class="italic text-gray-800 dark:text-slate-200">$1</em>')
+    // Headers (h1-h6) with bright white text in dark mode
+    .replace(/^###### (.*$)/gim, '<h6 class="text-sm font-bold text-gray-900 dark:text-white mt-4 mb-2">$1</h6>')
+    .replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-gray-900 dark:text-white mt-4 mb-2">$1</h5>')
+    .replace(/^#### (.*$)/gim, '<h4 class="text-base font-bold text-gray-900 dark:text-white mt-5 mb-2">$1</h4>')
+    .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-gray-900 dark:text-white mt-6 mb-2">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-900 dark:text-white mt-8 mb-3">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-8 mb-4">$1</h1>')
+    // Blockquotes with clear high-contrast dark styling
+    .replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-blue-500 dark:border-blue-400 pl-4 py-2 my-3 italic text-gray-700 dark:text-slate-200 bg-blue-50/40 dark:bg-slate-800/60 rounded-r-lg">$1</blockquote>')
     // Code blocks
-    .replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre class="bg-gray-900 text-emerald-400 p-4 rounded-xl font-mono text-xs overflow-x-auto my-4 border border-gray-800"><code>$2</code></pre>')
+    .replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre class="bg-gray-900 dark:bg-slate-950 text-emerald-400 p-4 rounded-xl font-mono text-xs overflow-x-auto my-4 border border-gray-800 dark:border-slate-800"><code>$2</code></pre>')
     // Inline code
-    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 text-rose-600 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>')
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-slate-800 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded text-xs font-mono border border-transparent dark:border-slate-700">$1</code>')
     // Unordered lists
-    .replace(/^\s*[-*+]\s+(.*$)/gim, '<li class="ml-4 list-disc text-gray-700">$1</li>')
+    .replace(/^\s*[-*+]\s+(.*$)/gim, '<li class="ml-4 list-disc text-gray-800 dark:text-slate-200">$1</li>')
     // Paragraphs / newlines
-    .replace(/\n\s*\n/g, '</p><p class="mb-4 leading-relaxed text-gray-800">');
+    .replace(/\n\s*\n/g, '</p><p class="mb-4 leading-relaxed text-gray-800 dark:text-slate-100">');
 
-  html = `<div class="prose prose-slate max-w-none text-sm sm:text-base leading-relaxed"><p class="mb-4 leading-relaxed text-gray-800">${html}</p></div>`;
+  html = `<div class="article-content max-w-none text-sm sm:text-base leading-relaxed text-gray-800 dark:text-slate-100"><p class="mb-4 leading-relaxed text-gray-800 dark:text-slate-100">${html}</p></div>`;
 
   // Inject unique IDs into all <h1-6> headings (from markdown or raw HTML in post body)
   html = html.replace(/<h([1-6])([^>]*)>(.*?)<\/h\1>/gi, (match, levelStr, attrs, innerContent) => {
