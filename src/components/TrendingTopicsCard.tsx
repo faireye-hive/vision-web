@@ -34,6 +34,27 @@ const DEFAULT_BACKUP_TAGS = [
   'sports'
 ];
 
+// Lista de tags de ruído / ignoradas
+const NOISE_TAGS = new Set([
+  'neoxian',
+  'proofofbrain',
+  'pimp',
+  'archon',
+  'vyb',
+  'cent',
+  'appreciator',
+  'palnet',
+  'pob',
+  'waiv',
+  'arcadecolony',
+  'bbh',
+  'qurator',
+  'alive', 
+  'leofinance', 
+  'inleo', 
+  'creativecoin',
+]);
+
 export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
   currentTag,
   onSelectTag,
@@ -83,7 +104,9 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
     feedPosts.forEach((p) => {
       if (p.category && !p.category.startsWith('hive-')) {
         const cat = p.category.toLowerCase().trim();
-        counts[cat] = (counts[cat] || 0) + 2;
+        if (!NOISE_TAGS.has(cat)) {
+          counts[cat] = (counts[cat] || 0) + 2;
+        }
       }
       let metadataTags: string[] = [];
       if (typeof p.json_metadata === 'object' && p.json_metadata && Array.isArray((p.json_metadata as any).tags)) {
@@ -100,7 +123,13 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
       metadataTags.forEach((t: string) => {
         if (typeof t === 'string') {
           const clean = t.toLowerCase().trim();
-          if (clean && !clean.startsWith('hive-') && clean.length > 2 && clean.length < 24) {
+          if (
+            clean &&
+            !clean.startsWith('hive-') &&
+            clean.length > 2 &&
+            clean.length < 24 &&
+            !NOISE_TAGS.has(clean)
+          ) {
             counts[clean] = (counts[clean] || 0) + 1;
           }
         }
@@ -114,7 +143,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
         ...favTopics,
         ...DEFAULT_BACKUP_TAGS
       ])
-    );
+    ).filter((topic) => !NOISE_TAGS.has(topic.toLowerCase().trim()));
 
     let filtered = pool;
     if (searchQuery.trim()) {
