@@ -261,6 +261,41 @@ export class KeychainService {
   }
 
   /**
+   * Subscribe or unsubscribe a Hive community.
+   * Broadcasts custom_json id "community" with the posting key.
+   */
+  static async subscribeCommunity(
+    username: string,
+    community: string,
+    subscribe: boolean = true
+  ): Promise<KeychainResponse> {
+    const json = JSON.stringify([
+      subscribe ? 'subscribe' : 'unsubscribe',
+      { community }
+    ]);
+
+    if (!this.isInstalled()) {
+      return {
+        success: false,
+        message: 'Hive Keychain is required to subscribe on chain.'
+      };
+    }
+
+    return new Promise((resolve) => {
+      window.hive_keychain!.requestCustomJson!(
+        username,
+        'community',
+        'Posting',
+        json,
+        `${subscribe ? 'Subscribe' : 'Unsubscribe'} ${community}`,
+        (response) => {
+          resolve(response);
+        }
+      );
+    });
+  }
+
+  /**
    * Follow or unfollow a user via Keychain custom_json
    */
   static async followUser(

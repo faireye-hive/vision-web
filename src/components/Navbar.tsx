@@ -36,7 +36,6 @@ import {
   removeCustomHiveNode
 } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { WritePostModal } from './WritePostModal';
 
 interface NavbarProps {
   currentSort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
@@ -47,6 +46,7 @@ interface NavbarProps {
   onOpenStats: () => void;
   onOpenCommunities: () => void;
   onOpenManageCommunities?: () => void;
+  onOpenWrite?: () => void;
   activeNav?: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
   onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
   currentUser: CurrentUser | null;
@@ -65,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenStats,
   onOpenCommunities,
   onOpenManageCommunities,
+  onOpenWrite,
   activeNav = 'discover',
   onNavChange,
   currentUser,
@@ -80,7 +81,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [pings, setPings] = useState<Record<string, number>>({});
-  const [showWriteModal, setShowWriteModal] = useState(false);
 
   // Custom RPC addition inside Navbar
   const [customNodeInput, setCustomNodeInput] = useState('');
@@ -104,6 +104,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     window.addEventListener('nebulosa:node_changed', handleNodeChange);
     return () => window.removeEventListener('nebulosa:node_changed', handleNodeChange);
+  }, []);
+
+  useEffect(() => {
+    const openLogin = () => setShowLoginModal(true);
+    window.addEventListener('nebulosa:open-login', openLogin);
+    return () => window.removeEventListener('nebulosa:open-login', openLogin);
   }, []);
 
   useEffect(() => {
@@ -373,12 +379,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Write Button */}
             <button
               id="write-btn"
-              onClick={() => setShowWriteModal(true)}
-              title="Write and publish a new post to the Hive blockchain"
-              className="hidden sm:flex items-center gap-1.5 bg-[#3577f1] hover:bg-blue-600 text-white text-xs sm:text-sm font-semibold px-4 py-1.5 rounded-full shadow-sm transition cursor-pointer"
+              onClick={() => onOpenWrite?.()}
+              title="Write a post. Press N from anywhere outside a text field."
+              className="flex items-center gap-1.5 bg-[#3577f1] hover:bg-blue-600 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-1.5 rounded-full shadow-sm transition cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Write</span>
+              <span className="hidden sm:inline">Write</span>
             </button>
 
             {/* Keychain Login Button OR User Profile Avatar */}
@@ -390,7 +396,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 <Key className="w-3.5 h-3.5 text-rose-600" />
-                <span>Keychain Login</span>
+                <span className="hidden md:inline">Keychain Login</span>
               </button>
             ) : (
               <div className="relative">
@@ -457,7 +463,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
 
                       <button
-                        onClick={() => { if (onNavChange) onNavChange('communities'); setShowUserMenu(false); }}
+                        onClick={() => { onOpenCommunities(); setShowUserMenu(false); }}
                         className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2"
                       >
                         <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -737,6 +743,34 @@ export const Navbar: React.FC<NavbarProps> = ({
               {activeNav === 'communities' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400" />}
             </button>
 
+            <button
+              onClick={() => {
+                onOpenWrite?.();
+                setShowMobileMenu(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              Write a post
+            </button>
+            <button
+              onClick={() => {
+                onOpenCommunities();
+                setShowMobileMenu(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              Explore Communities
+            </button>
+            <button
+              onClick={() => {
+                onOpenManageCommunities?.();
+                setShowMobileMenu(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              Manage Communities
+            </button>
+
             <div className="pt-2 mt-2 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between px-3">
               <button
                 type="button"
@@ -871,17 +905,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      {/* Robust Write Post Modal */}
-      {showWriteModal && (
-        <WritePostModal
-          onClose={() => setShowWriteModal(false)}
-          currentUser={currentUser}
-          onRequireLogin={() => {
-            setShowWriteModal(false);
-            setShowLoginModal(true);
-          }}
-        />
-      )}
     </header>
   );
 };

@@ -32,6 +32,7 @@ import {
   getFollowedMixedFeed,
   getFollowedRootFeed,
   getFollowing,
+  getSubscriptions,
   isReblogPost
 } from './services/hiveApi';
 import { KeychainService, CurrentUser } from './services/keychain';
@@ -42,11 +43,11 @@ import { RecommendedUsersCard } from './components/RecommendedUsersCard';
 import { PostReader } from './components/PostReader';
 import { PostSidebar } from './components/PostSidebar';
 import { PostHeading } from './utils/sanitize';
-import { AccountModal } from './components/AccountModal';
 import { BlockchainStatsModal } from './components/BlockchainStatsModal';
-import { CommunitiesModal } from './components/CommunitiesModal';
-import { ManageCommunitiesModal } from './components/ManageCommunitiesModal';
+import { CommunitiesPage } from './components/CommunitiesPage';
 import { ContentFilterModal } from './components/ContentFilterModal';
+import { ProfilePage } from './components/ProfilePage';
+import { WritePage } from './components/WritePage';
 import { SortDropdown } from './components/SortDropdown';
 import { LanguageDropdown } from './components/LanguageDropdown';
 import { CategoryDropdown } from './components/CategoryDropdown';
@@ -87,6 +88,22 @@ function getInitialUrlParams() {
   } catch {
     return {};
   }
+}
+
+type StandalonePage = 'write' | 'profile' | 'explore' | 'manage';
+
+function readStandalonePage(): { page: StandalonePage | null; user: string | null } {
+  if (typeof window === 'undefined') return { page: null, user: null };
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const page = params.get('page');
+    if (page === 'write' || page === 'profile' || page === 'explore' || page === 'manage') {
+      return { page, user: params.get('user') };
+    }
+  } catch {
+    // Ignore malformed URLs and stay on the feed.
+  }
+  return { page: null, user: null };
 }
 
 const DEFAULT_TOP_COMMUNITIES = [
@@ -220,23 +237,16 @@ export function App() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Communities joined by user
-  const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('hive_joined_communities');
-      return saved ? JSON.parse(saved) : { 'hive-125125': true, 'hive-193816': true, 'hive-163772': true };
-    } catch {
-      return { 'hive-125125': true, 'hive-193816': true, 'hive-163772': true };
-    }
-  });
+  // On-chain community subscriptions for the signed-in account.
+  const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({});
 
-  // Modals & Inspection states
+  // Modals, full pages, and the open post
   const [selectedPost, setSelectedPost] = useState<HivePost | null>(null);
   const [postHeadings, setPostHeadings] = useState<PostHeading[]>([]);
-  const [selectedAuthorProfile, setSelectedAuthorProfile] = useState<string | null>(null);
+  const initialStandalone = useRef(readStandalonePage()).current;
+  const [standalonePage, setStandalonePage] = useState<StandalonePage | null>(initialStandalone.page);
+  const [profileUser, setProfileUser] = useState<string | null>(initialStandalone.user);
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
-  const [showCommunitiesModal, setShowCommunitiesModal] = useState<boolean>(false);
-  const [showManageCommunitiesModal, setShowManageCommunitiesModal] = useState<boolean>(false);
   const [showContentFilterModal, setShowContentFilterModal] = useState<boolean>(false);
 
   // Dark Mode (Night Mode) state with localStorage caching
@@ -376,20 +386,46 @@ export function App() {
   const feedScrollPositionRef = useRef<number>(0);
   const isPopStateRef = useRef<boolean>(false);
 
-  // Toggle join community
-  const toggleJoinCommunity = (communityName: string) => {
-    setJoinedCommunities(prev => {
-      const updated = {
-        ...prev,
-        [communityName]: !prev[communityName]
-      };
-      localStorage.setItem('hive_joined_communities', JSON.stringify(updated));
-      return updated;
-    });
-  };
+  useEffect(() => {
+    if (!currentUser?.username) {
+      setJoinedCommunities({});
+      return;
+    }
+    let mounted = true;
+    getSubscriptions(currentUser.username, true)
+      .then((rows) => {
+        if (!mounted) return;
+        const next: Record<string, boolean> = {};
+        rows.forEach(([name]) => {
+          if (name) next[name] = true;
+        });
+        setJoinedCommunities(next);
+      })
+      .catch(() => {
+        if (mounted) setJoinedCommunities({});
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser?.username]);
 
-  // Check if user has joined at least one community
-  const hasJoinedCommunities = Object.values(joinedCommunities).some(Boolean);
+  const setCommunitySubscription = useCallback((communityName: string, subscribed: boolean) => {
+    setJoinedCommunities((prev) => ({ ...prev, [communityName]: subscribed }));
+  }, []);
+
+  const toggleJoinCommunity = useCallback(async (communityName: string) => {
+    if (!currentUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return 'Connect Hive Keychain to subscribe on chain.';
+    }
+    const next = !joinedCommunities[communityName];
+    const response = await KeychainService.subscribeCommunity(currentUser.username, communityName, next);
+    if (!response.success) {
+      return response.message || response.error || 'Hive did not accept this subscription.';
+    }
+    setCommunitySubscription(communityName, next);
+    return null;
+  }, [currentUser, joinedCommunities, setCommunitySubscription]);
 
   // Filtered posts taking "Hide Reblogs" setting and Content Filters (words & authors) into account,
   // strictly deduplicated so children keys are always unique
@@ -629,8 +665,12 @@ export function App() {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
 
+    setStandalonePage(null);
+
     if (pushHistory) {
       const params = new URLSearchParams(window.location.search);
+      params.delete('page');
+      params.delete('user');
       params.set('post', `@${post.author}/${post.permlink}`);
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.pushState(
@@ -704,6 +744,7 @@ export function App() {
     setTag('');
     setSelectedPost(null);
     setPostHeadings([]);
+    setStandalonePage(null);
 
     const params = new URLSearchParams();
     if (newNav !== 'discover') {
@@ -758,20 +799,76 @@ export function App() {
     setShowStatsModal(true);
   }, []);
 
-  const openCommunitiesModal = useCallback(() => {
-    window.history.pushState({ type: 'modal', modal: 'communities' }, '', window.location.href);
-    setShowCommunitiesModal(true);
+  const openStandalonePage = useCallback((page: StandalonePage, user?: string) => {
+    const cleanUser = user?.replace(/^@/, '').trim().toLowerCase() || null;
+    setStandalonePage(page);
+    if (page === 'profile') setProfileUser(cleanUser);
+    setSelectedPost(null);
+    setPostHeadings([]);
+
+    const params = new URLSearchParams(window.location.search);
+    params.delete('post');
+    params.delete('author');
+    params.set('page', page);
+    if (page === 'profile' && cleanUser) params.set('user', cleanUser);
+    else params.delete('user');
+
+    const query = params.toString();
+    window.history.pushState(
+      { type: 'page', page, user: cleanUser },
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`
+    );
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
+
+  const closeStandalonePage = useCallback(() => {
+    if (window.history.state?.type === 'page') {
+      window.history.back();
+      return;
+    }
+    setStandalonePage(null);
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');
+    params.delete('user');
+    const query = params.toString();
+    window.history.replaceState(
+      { tab: activeNav, sort, tag, source: sourceTab, author: feedAuthor },
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`
+    );
+  }, [activeNav, feedAuthor, sort, sourceTab, tag]);
+
+  const openCommunitiesModal = useCallback(() => {
+    openStandalonePage('explore');
+  }, [openStandalonePage]);
 
   const openManageCommunitiesModal = useCallback(() => {
-    window.history.pushState({ type: 'modal', modal: 'manageCommunities' }, '', window.location.href);
-    setShowManageCommunitiesModal(true);
-  }, []);
+    openStandalonePage('manage');
+  }, [openStandalonePage]);
 
   const openAuthorProfile = useCallback((username: string) => {
-    window.history.pushState({ type: 'modal', modal: 'account', username }, '', window.location.href);
-    setSelectedAuthorProfile(username);
-  }, []);
+    openStandalonePage('profile', username);
+  }, [openStandalonePage]);
+
+  const openWritePage = useCallback(() => {
+    openStandalonePage('write');
+  }, [openStandalonePage]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.toLowerCase() !== 'n') return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || target?.isContentEditable) return;
+      if (standalonePage) return;
+      event.preventDefault();
+      openWritePage();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openWritePage, standalonePage]);
 
   const openContentFilterModal = useCallback(() => {
     window.history.pushState({ type: 'modal', modal: 'contentFilter' }, '', window.location.href);
@@ -793,15 +890,10 @@ export function App() {
     }
   };
 
-  // Clicking an author filters their posts directly in the feed!
+  // Clicking an author opens their profile page.
   const handleSelectAuthor = useCallback((author: string) => {
-    setFeedAuthor(author);
-    setAuthorFeedMode('posts');
-    if (selectedPost) {
-      handleClosePost();
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [selectedPost, handleClosePost]);
+    openStandalonePage('profile', author);
+  }, [openStandalonePage]);
 
   // If initial URL had a direct post link, load that discussion
   useEffect(() => {
@@ -826,12 +918,13 @@ export function App() {
     const handlePopState = (event: PopStateEvent) => {
       isPopStateRef.current = true;
 
+      const nextPage = readStandalonePage();
+      setStandalonePage(nextPage.page);
+      if (nextPage.user) setProfileUser(nextPage.user);
+
       // 1. If any modal was open, close it on back button
-      if (showStatsModal || showCommunitiesModal || showManageCommunitiesModal || selectedAuthorProfile || showContentFilterModal) {
+      if (showStatsModal || showContentFilterModal) {
         setShowStatsModal(false);
-        setShowCommunitiesModal(false);
-        setShowManageCommunitiesModal(false);
-        setSelectedAuthorProfile(null);
         setShowContentFilterModal(false);
         setTimeout(() => { isPopStateRef.current = false; }, 50);
         return;
@@ -916,12 +1009,12 @@ export function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedPost, posts, showStatsModal, showCommunitiesModal, showManageCommunitiesModal, selectedAuthorProfile, showContentFilterModal]);
+  }, [selectedPost, posts, showStatsModal, showContentFilterModal]);
 
   // Synchronize state changes to URL and browser history so the Back button remembers navigation history
   useEffect(() => {
     if (isPopStateRef.current) return;
-    if (selectedPost) return; // Never sync feed URL while viewing a post
+    if (selectedPost || standalonePage) return; // Never sync feed URL while viewing a post or a full page
 
     const params = new URLSearchParams(window.location.search);
     params.delete('post'); // Guarantee no post query parameter in feed history state
@@ -1010,7 +1103,7 @@ export function App() {
         newUrl
       );
     }
-  }, [activeNav, sort, tag, sourceTab, feedAuthor, selectedLanguage]);
+  }, [activeNav, sort, tag, sourceTab, feedAuthor, selectedLanguage, selectedPost, standalonePage]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f8fa] dark:bg-[#0b0f17] text-gray-900 dark:text-slate-100 font-sans transition-colors duration-200">
@@ -1025,6 +1118,7 @@ export function App() {
         onOpenStats={openStatsModal}
         onOpenCommunities={openCommunitiesModal}
         onOpenManageCommunities={openManageCommunitiesModal}
+        onOpenWrite={openWritePage}
         activeNav={activeNav}
         onNavChange={handleNavChange}
         currentUser={currentUser}
@@ -1046,8 +1140,72 @@ export function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
 
+        {standalonePage === 'write' && (
+          <WritePage
+            onClose={closeStandalonePage}
+            currentUser={currentUser}
+            onRequireLogin={() => {
+              window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+            }}
+            defaultCommunity={tag.startsWith('hive-') ? tag : ''}
+            joinedCommunities={joinedCommunities}
+          />
+        )}
+
+        {standalonePage === 'profile' && (
+          <ProfilePage
+            username={profileUser || currentUser?.username || ''}
+            onClose={closeStandalonePage}
+            onSelectPost={(post) => handleSelectPost(post)}
+            onOpenUser={(user) => openStandalonePage('profile', user)}
+            onOpenCommunity={(communityName) => {
+              setTag(communityName);
+              setActiveNav('communities');
+              setFeedAuthor(null);
+              setStandalonePage(null);
+              const params = new URLSearchParams();
+              params.set('tab', 'communities');
+              params.set('tag', communityName);
+              params.set('source', 'communities');
+              window.history.pushState(
+                { tab: 'communities', tag: communityName, source: 'communities' },
+                '',
+                `${window.location.pathname}?${params.toString()}`
+              );
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
+          />
+        )}
+
+        {(standalonePage === 'explore' || standalonePage === 'manage') && (
+          <CommunitiesPage
+            mode={standalonePage}
+            onClose={closeStandalonePage}
+            onSwitchMode={(mode) => openStandalonePage(mode)}
+            joinedCommunities={joinedCommunities}
+            onToggleJoinCommunity={toggleJoinCommunity}
+            account={currentUser?.username || null}
+            onSelectCommunity={(communityName) => {
+              setTag(communityName);
+              setActiveNav('communities');
+              setFeedAuthor(null);
+              setStandalonePage(null);
+              const params = new URLSearchParams();
+              params.set('tab', 'communities');
+              params.set('tag', communityName);
+              params.set('source', 'communities');
+              window.history.pushState(
+                { tab: 'communities', tag: communityName, source: 'communities' },
+                '',
+                `${window.location.pathname}?${params.toString()}`
+              );
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
+          />
+        )}
+
         {/* ================= IN-PLACE POST READER (BOOKMARKS OUTLINE & SIMILAR STORIES SIDEBAR) ================= */}
-        {selectedPost && (
+        {selectedPost && !standalonePage && (
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start animate-in fade-in duration-150">
             <aside className="hidden lg:block sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
               <PostSidebar
@@ -1079,7 +1237,7 @@ export function App() {
         {/* ================= FEED LAYOUT (KEPT IN DOM TO PRESERVE SCROLL POSITION) ================= */}
         <div
           className={`grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_300px] gap-6 items-start ${
-            selectedPost ? 'hidden' : 'grid'
+            selectedPost || standalonePage ? 'hidden' : 'grid'
           }`}
         >
 
@@ -1095,7 +1253,7 @@ export function App() {
             onSelectAuthor={handleSelectAuthor}
             feedPosts={posts}
             currentUser={currentUser}
-            onOpenManageCommunities={() => setShowManageCommunitiesModal(true)}
+            onOpenManageCommunities={openManageCommunitiesModal}
             joinedCommunities={joinedCommunities}
             shortsHashtags={shortsHashtags}
             selectedShortTag={selectedShortTag}
@@ -1168,7 +1326,7 @@ export function App() {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setSelectedAuthorProfile(feedAuthor)}
+                      onClick={() => feedAuthor && openAuthorProfile(feedAuthor)}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline hidden sm:inline"
                     >
                       Wallet & Profile
@@ -1515,12 +1673,12 @@ export function App() {
                   <div>
                     <h3 className="text-base font-bold text-gray-800">You haven't joined any community yet</h3>
                     <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                      Join communities to follow specialized topics, discussions, and local groups.
+                      Subscribe to Hive communities to follow their posts in this feed.
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowManageCommunitiesModal(true)}
-                    title="Open community manager to discover and join communities"
+                    onClick={openCommunitiesModal}
+                    title="Open the community directory"
                     className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
                   >
                     Explore Communities
@@ -1693,7 +1851,7 @@ export function App() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-bold text-sm text-gray-900 dark:text-white">Discover communities</h3>
                     <button
-                      onClick={() => setShowManageCommunitiesModal(true)}
+                      onClick={openManageCommunitiesModal}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
                     >
                       Manage
@@ -1728,14 +1886,18 @@ export function App() {
                             </button>
 
                             <button
-                              onClick={() => toggleJoinCommunity(comm.name)}
+                              onClick={() => {
+                                toggleJoinCommunity(comm.name).then((message) => {
+                                  if (message) window.alert(message);
+                                });
+                              }}
                               className={`text-xs px-3 py-1 rounded-full font-semibold transition flex-shrink-0 cursor-pointer ${
                                 isJoined
                                   ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
                                   : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400'
                               }`}
                             >
-                              {isJoined ? 'Joined' : 'Join'}
+                              {isJoined ? 'Subscribed' : 'Subscribe'}
                             </button>
                           </div>
 
@@ -1752,7 +1914,7 @@ export function App() {
                   </div>
 
                   <button
-                    onClick={() => setShowManageCommunitiesModal(true)}
+                    onClick={openManageCommunitiesModal}
                     className="text-xs font-semibold text-blue-600 hover:underline mt-4 block cursor-pointer"
                   >
                     Manage all communities
@@ -1761,10 +1923,10 @@ export function App() {
                   <hr className="border-gray-100 my-3" />
 
                   <button
-                    onClick={() => setShowCommunitiesModal(true)}
+                    onClick={openCommunitiesModal}
                     className="text-xs font-semibold text-blue-600 hover:underline block cursor-pointer"
                   >
-                    Create your community
+                    Explore all communities
                   </button>
                 </div>
               ) : activeNav === 'discover' ? (
@@ -1801,22 +1963,6 @@ export function App() {
 
       </main>
 
-      {/* Account Profile Modal */}
-      {selectedAuthorProfile && (
-        <AccountModal
-          username={selectedAuthorProfile}
-          onClose={() => {
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setSelectedAuthorProfile(null);
-            }
-          }}
-          onSelectPost={(p) => handleSelectPost(p)}
-          onSelectAuthor={handleSelectAuthor}
-        />
-      )}
-
       {/* Blockchain Stats Modal */}
       {showStatsModal && (
         <BlockchainStatsModal
@@ -1827,53 +1973,6 @@ export function App() {
               setShowStatsModal(false);
             }
           }}
-        />
-      )}
-
-      {/* Communities Directory Modal */}
-      {showCommunitiesModal && (
-        <CommunitiesModal
-          onClose={() => {
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setShowCommunitiesModal(false);
-            }
-          }}
-          onSelectCommunity={(comm) => {
-            setTag(comm);
-            setActiveNav('communities');
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setShowCommunitiesModal(false);
-            }
-          }}
-          activeCommunity={tag}
-        />
-      )}
-
-      {/* Manage Communities Dedicated Modal */}
-      {showManageCommunitiesModal && (
-        <ManageCommunitiesModal
-          onClose={() => {
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setShowManageCommunitiesModal(false);
-            }
-          }}
-          onSelectCommunity={(comm) => {
-            setTag(comm);
-            setActiveNav('communities');
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setShowManageCommunitiesModal(false);
-            }
-          }}
-          joinedCommunities={joinedCommunities}
-          onToggleJoinCommunity={toggleJoinCommunity}
         />
       )}
 

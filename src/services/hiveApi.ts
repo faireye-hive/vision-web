@@ -108,11 +108,13 @@ export interface HiveCommunity {
   name: string;
   title: string;
   about: string;
+  lang?: string;
   subscribers: number;
   num_pending: number;
   num_authors: number;
   is_nsfw: boolean;
   avatar_url?: string;
+  created_at?: string;
 }
 
 export const DEFAULT_HIVE_NODES = [
@@ -508,27 +510,36 @@ export async function getAccountPosts(
   sort: 'posts' | 'blog' | 'comments' | 'replies' = 'posts',
   account: string,
   limit: number = 20,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  startAuthor?: string,
+  startPermlink?: string
 ): Promise<HivePost[]> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
-  const cacheKey = `account_posts:${sort}:${cleaned}:${limit}`;
 
-  return fetchWithCache(
-    cacheKey,
-    async () => {
-      try {
-        const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', {
-          sort,
-          account: cleaned,
-          limit
-        });
-        return result || [];
-      } catch {
-        return [];
+  const fetchPage = async () => {
+    try {
+      const payload: Record<string, unknown> = {
+        sort,
+        account: cleaned,
+        limit
+      };
+      if (startAuthor && startPermlink) {
+        payload.start_author = startAuthor;
+        payload.start_permlink = startPermlink;
       }
-    },
-    { ttl: CACHE_TTL.FEED, forceRefresh }
-  );
+      const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', payload);
+      return result || [];
+    } catch {
+      return [];
+    }
+  };
+
+  if (startPermlink) {
+    return fetchPage();
+  }
+
+  const cacheKey = `account_posts:${sort}:${cleaned}:${limit}`;
+  return fetchWithCache(cacheKey, fetchPage, { ttl: CACHE_TTL.FEED, forceRefresh });
 }
 
 /**
@@ -550,9 +561,11 @@ export async function getDynamicGlobalProperties(forceRefresh: boolean = false):
 export async function listCommunities(
   sort: 'rank' | 'subs' | 'new' = 'rank',
   limit: number = 25,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  last: string = '',
+  query: string = ''
 ): Promise<HiveCommunity[]> {
-  const cacheKey = `communities:${sort}:${limit}`;
+  const cacheKey = `communities:${sort}:${limit}:${last}:${query}`;
 
   return fetchWithCache(
     cacheKey,
@@ -561,11 +574,37 @@ export async function listCommunities(
         const result = await hiveRpcCall<HiveCommunity[]>('bridge.list_communities', {
           sort,
           limit,
+          last,
+          query: query || undefined,
           observer: ''
         });
         return result || [];
       } catch {
         return [];
+      }
+    },
+    { ttl: CACHE_TTL.COMMUNITY, forceRefresh }
+  );
+}
+
+/**
+ * Fetch one community by account name (hive-xxxxx).
+ */
+export async function getCommunity(name: string, forceRefresh: boolean = false): Promise<HiveCommunity | null> {
+  const cleaned = name.trim().toLowerCase();
+  if (!cleaned) return null;
+
+  return fetchWithCache(
+    `community:${cleaned}`,
+    async () => {
+      try {
+        const result = await hiveRpcCall<HiveCommunity | null>('bridge.get_community', {
+          name: cleaned,
+          observer: ''
+        });
+        return result && result.name ? result : null;
+      } catch {
+        return null;
       }
     },
     { ttl: CACHE_TTL.COMMUNITY, forceRefresh }

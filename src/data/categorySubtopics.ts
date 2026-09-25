@@ -120,7 +120,7 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
   },
   {
     tag: 'music',
-    label: 'Music & Audio',
+    label: 'Music & Movies',
     icon: '🎵',
     description: 'Original songs, live performances, beatmaking, and musical reviews',
     subtopics: [
@@ -263,7 +263,27 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'inleo', label: 'InLeo' },
       { tag: 'ecency', label: 'Ecency' }
     ]
-  }
+  },
+  {
+    tag: 'diy',
+    label: 'Diy & Tutorials',
+    icon: '🔧',
+    description: 'Diy & Tutorials',
+    subtopics: [
+      { tag: 'crafts', label: 'Crafts' },
+      { tag: 'tutorials', label: 'Tutorials' },
+    ]
+  },
+    {
+    tag: 'politics',
+    label: 'Liberty & Freedom',
+    icon: '⚖️',
+    description: 'Liberty & Freedom',
+    subtopics: [
+      { tag: 'Liberty', label: 'Liberty' },
+      { tag: 'Freedom', label: 'Freedom' },
+    ]
+  },
 ];
 
 /**
