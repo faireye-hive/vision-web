@@ -892,8 +892,23 @@ export function App() {
 
   // Clicking an author opens their profile page.
   const handleSelectAuthor = useCallback((author: string) => {
-    openStandalonePage('profile', author);
-  }, [openStandalonePage]);
+    setFeedAuthor((prevAuthor) => {
+      // Se clicar no mesmo autor que já está ativo, deseleciona!
+      if (prevAuthor === author) {
+        return null;
+      }
+      return author;
+    });
+
+    setAuthorFeedMode('posts');
+    setStandalonePage(null);
+    
+    if (selectedPost) {
+      handleClosePost();
+    }
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [selectedPost, handleClosePost]);
 
   // If initial URL had a direct post link, load that discussion
   useEffect(() => {
@@ -1251,6 +1266,7 @@ export function App() {
             currentTag={tag}
             onSelectTag={(t) => { setTag(t); setFeedAuthor(null); }}
             onSelectAuthor={handleSelectAuthor}
+            activeAuthor={feedAuthor}
             feedPosts={posts}
             currentUser={currentUser}
             onOpenManageCommunities={openManageCommunitiesModal}
@@ -1281,7 +1297,7 @@ export function App() {
                 <>
                   {/* Author Feed Filter Banner (When an author is clicked) */}
                   {feedAuthor && (
-                <div className="bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={getHiveAvatarUrl(feedAuthor, 'medium')}
@@ -1343,7 +1359,7 @@ export function App() {
               )}
 
               {/* Feed Controls Header */}
-              <div className="bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 text-gray-900 dark:text-slate-100">
+              <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none mb-4 text-gray-900 dark:text-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   {/* Left: Feed Title & Active Filters */}
                   <div className="flex items-center flex-wrap gap-2.5">
@@ -1725,7 +1741,7 @@ export function App() {
                   </div>
                 ) : filteredOutStats.total > 0 ? (
                   /* CONTENT FILTERS EMPTY STATE */
-                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                     <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
                     <div>
                       <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are hidden by your filters</h3>
@@ -1757,7 +1773,7 @@ export function App() {
                   </div>
                 ) : (
                   /* ALL REBLOGS EMPTY STATE */
-                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+                  <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                     <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
                     <div>
                       <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are reblogs</h3>
@@ -1783,7 +1799,7 @@ export function App() {
                   </div>
                 )
               ) : (
-                <div className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-150 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+                <div className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
                   <Compass className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto" />
                   <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
                     {selectedLanguage !== 'global' && activeNav === 'discover'
@@ -1944,6 +1960,7 @@ export function App() {
                   currentUser={currentUser}
                   feedPosts={posts}
                   onSelectAuthor={handleSelectAuthor}
+                  activeAuthor={feedAuthor}
                   followingUsers={followingUsersList}
                   onFollowChange={(targetUser, isNowFollowing) => {
                     setFollowingUsersList(prev => {
@@ -2000,7 +2017,7 @@ export function App() {
       />
 
       {/* Clean borderless Nebulosa Footer */}
-      <footer className="py-6 text-center text-xs text-gray-400 dark:text-slate-500 bg-white dark:bg-slate-900 border-t border-gray-150 dark:border-slate-800 mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)] transition-colors">
+      <footer className="py-6 text-center text-xs text-gray-400 dark:text-slate-500 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 mt-12 shadow-[0_-1px_4px_rgba(0,0,0,0.02)] transition-colors">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <img src="/assets/logo-circle.svg" alt="Nebulosa" className="w-5 h-5" />

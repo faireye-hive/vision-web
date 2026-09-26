@@ -32,6 +32,7 @@ export interface LeftSidebarProps {
   currentTag: string;
   onSelectTag: (tag: string) => void;
   onSelectAuthor: (author: string) => void;
+  activeAuthor?: string | null;
   feedPosts: HivePost[];
   currentUser: CurrentUser | null;
   onOpenManageCommunities: () => void;
@@ -88,6 +89,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   currentTag,
   onSelectTag,
   onSelectAuthor,
+  activeAuthor,
   feedPosts,
   currentUser,
   onOpenManageCommunities,
@@ -589,15 +591,23 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   const lastActivityInfo = authorActivityMap[author];
                   const timeBadge = lastActivityInfo ? getRelativeTime(lastActivityInfo.dateStr) : null;
 
+                  // 1. Verifica se este autor é o ativo selecionado no feed
+                  const isActive = Boolean(
+                    activeAuthor && activeAuthor.trim().toLowerCase() === author.trim().toLowerCase()
+                  );
+
                   return (
                     <div
                       key={author}
                       onClick={() => onSelectAuthor(author)}
                       title={`Filter feed by @${author}`}
-                      className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
-                        isFav
-                          ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-900 dark:text-slate-100'
-                          : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
+                      /* 2. Aplica destaque com borda azul e fundo visível quando estiver ativo */
+                      className={`group flex items-center justify-between p-2 rounded-2xl text-xs transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-100 dark:bg-blue-900/80 border-2 border-blue-500 shadow-md scale-[1.02]'
+                          : isFav
+                            ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 border-2 border-transparent text-gray-900 dark:text-slate-100'
+                            : 'hover:bg-gray-50 dark:hover:bg-slate-800 border-2 border-transparent text-gray-700 dark:text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -605,18 +615,25 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           <img
                             src={getHiveAvatarUrl(author, 'small')}
                             alt={author}
-                            className="w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-slate-800"
+                            /* 3. Anel azul no avatar quando ativo */
+                            className={`w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-slate-800 transition-all ${
+                              isActive ? 'ring-2 ring-blue-600 scale-105' : ''
+                            }`}
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                             }}
                           />
-                          {timeBadge && (
+                          {timeBadge && !isActive && (
                             <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                           )}
                         </div>
 
                         <div className="min-w-0">
-                          <p className="font-semibold text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate text-xs">
+                          <p className={`truncate text-xs ${
+                            isActive 
+                              ? 'font-extrabold text-blue-700 dark:text-blue-300' 
+                              : 'font-semibold text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400'
+                          }`}>
                             @{author}
                           </p>
                           {timeBadge && (
@@ -628,15 +645,24 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        onClick={(e) => toggleFavAuthor(author, e)}
-                        className={`p-1 rounded-lg transition cursor-pointer ${
-                          isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'
-                        }`}
-                        title={isFav ? 'Remove favorite' : 'Pin to top'}
-                      >
-                        <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* 4. Badge visual "Ativo" ao lado do botão de favorito */}
+                        {isActive && (
+                          <span className="text-[9px] font-black text-white bg-blue-600 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Active
+                          </span>
+                        )}
+
+                        <button
+                          onClick={(e) => toggleFavAuthor(author, e)}
+                          className={`p-1 rounded-lg transition cursor-pointer ${
+                            isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'
+                          }`}
+                          title={isFav ? 'Remove favorite' : 'Pin to top'}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })

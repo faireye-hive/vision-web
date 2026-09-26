@@ -79,7 +79,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-150 dark:border-slate-800 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200">
+        <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200">
           <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
             <span className="font-bold text-gray-800 dark:text-white text-[11px] uppercase tracking-wider">
               Browse Categories

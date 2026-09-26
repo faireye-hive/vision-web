@@ -82,10 +82,10 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
       <div
         id="content-filter-modal"
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 w-full max-w-lg shadow-2xl border border-gray-150 dark:border-slate-800 space-y-5 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-7 w-full max-w-lg shadow-2xl border border-gray-100 dark:border-slate-800 space-y-5 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="flex items-start justify-between pb-3 border-b border-gray-150 dark:border-slate-800">
+        <div className="flex items-start justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 shadow-2xs">
               <Shield className="w-5 h-5" />
@@ -234,7 +234,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             </div>
 
             {/* Words Chips List */}
-            <div className="space-y-2 pt-2 border-t border-gray-150 dark:border-slate-800">
+            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-slate-400">
                 <span>Active Blocked Words ({words.length})</span>
                 {words.length > 0 && (
@@ -307,7 +307,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
             </div>
 
             {/* Authors List */}
-            <div className="space-y-2 pt-2 border-t border-gray-150 dark:border-slate-800">
+            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-slate-400">
                 <span>Muted Authors ({authors.length})</span>
                 {authors.length > 0 && (
@@ -361,7 +361,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="pt-3 border-t border-gray-150 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-slate-500">
             <Info className="w-3.5 h-3.5 text-blue-500" />
             <span>Changes take effect immediately on your feed</span>

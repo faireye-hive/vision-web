@@ -14,6 +14,7 @@ interface RecommendedUsersCardProps {
   currentUser: CurrentUser | null;
   feedPosts?: HivePost[];
   onSelectAuthor: (author: string) => void;
+  activeAuthor?: string | null;
   followingUsers?: string[];
   onFollowChange?: (targetUser: string, isNowFollowing: boolean) => void;
 }
@@ -37,6 +38,7 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
   currentUser,
   feedPosts = [],
   onSelectAuthor,
+  activeAuthor,
   followingUsers = [],
   onFollowChange
 }) => {
@@ -172,38 +174,63 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
           const isFollowing = !!followingMap[user.username.toLowerCase()];
           const isBusy = !!actionLoading[user.username];
 
+          const isActive = Boolean(
+          activeAuthor && 
+          activeAuthor.trim().toLowerCase() === user.username.trim().toLowerCase()
+          );
+
           return (
             <div
-              key={user.username}
-              onClick={() => onSelectAuthor(user.username)}
-              className="flex items-center justify-between gap-3 p-1.5 -mx-1.5 rounded-2xl hover:bg-gray-50/80 dark:hover:bg-slate-800/60 transition cursor-pointer group"
-            >
-              {/* Avatar + Info */}
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <img
-                  src={getHiveAvatarUrl(user.username, 'small')}
-                  alt={user.username}
-                  className="w-9 h-9 rounded-full object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 ring-1 ring-gray-100 dark:ring-slate-800"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                  }}
-                />
+      key={user.username}
+      onClick={() => onSelectAuthor(user.username)}
+      className={`flex items-center justify-between gap-3 p-2 -mx-1.5 rounded-2xl transition-all cursor-pointer group ${
+        isActive
+          ? 'bg-blue-100 dark:bg-blue-900/80 border-2 border-blue-500 shadow-md scale-[1.02]'
+          : 'hover:bg-gray-50/80 dark:hover:bg-slate-800/60 border-2 border-transparent'
+      }`}
+    >
+      {/* Avatar + Info */}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <img
+          src={getHiveAvatarUrl(user.username, 'small')}
+          alt={user.username}
+          className={`w-9 h-9 rounded-full object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 transition-all ${
+            isActive
+              ? 'ring-2 ring-blue-600 scale-105'
+              : 'ring-1 ring-gray-100 dark:ring-slate-800'
+          }`}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
+          }}
+        />
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-xs text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
-                      @{user.username}
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1 py-0.2 rounded-sm flex-shrink-0">
-                      {user.reputation}
-                    </span>
-                  </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`font-semibold text-xs truncate ${
+              isActive 
+                ? 'text-blue-700 dark:text-blue-300 font-extrabold' 
+                : 'text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400'
+            }`}>
+              @{user.username}
+            </span>
 
-                  <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate leading-tight mt-0.5">
-                    {user.tagline || 'Hive Creator'}
-                  </p>
-                </div>
-              </div>
+            {/* Tag visual de confirmação */}
+            {isActive && (
+              <span className="text-[9px] font-black text-white bg-blue-600 px-1.5 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">
+                Ativo
+              </span>
+            )}
+
+            <span className="text-[10px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1 py-0.2 rounded-sm flex-shrink-0">
+              {user.reputation}
+            </span>
+          </div>
+
+          <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate leading-tight mt-0.5">
+            {user.tagline || 'Hive Creator'}
+          </p>
+        </div>
+      </div>
 
               {/* Follow Button */}
               <button

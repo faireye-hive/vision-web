@@ -24,6 +24,7 @@ import {
   getRebloggedBy
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
+import { getSafeImageUrl } from '../utils/sanitize';
 
 export interface PostCardProps {
   post: HivePost;
@@ -81,7 +82,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'small');
-  const thumbnail = getPostThumbnail(post);
+  const rawThumbnail = getPostThumbnail(post);
+  const thumbnail = getSafeImageUrl(rawThumbnail, { width: 400 });
   const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
   const rebloggedBy = getRebloggedBy(post);
   const snippet = getPostSnippet(post.body, isComment ? 240 : 170);
@@ -472,7 +474,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   }}
                 />
                 <div
-                  className="absolute right-0 bottom-full mb-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-150 dark:border-slate-800 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
+                  className="absolute right-0 bottom-full mb-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button

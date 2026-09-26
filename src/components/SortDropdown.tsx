@@ -131,7 +131,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
       {isOpen && (
         <div
           role="listbox"
-          className="absolute left-0 mt-1.5 w-60 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-150 dark:border-slate-800 p-1.5 z-40 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          className="absolute left-0 mt-1.5 w-60 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-1.5 z-40 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
         >
           <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
             Sort feed by

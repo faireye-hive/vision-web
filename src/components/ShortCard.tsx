@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { markdownToSafeHtml } from '../utils/sanitize';
+import { markdownToSafeHtml, getSafeImageUrl } from '../utils/sanitize';
 import {
   extractSnapImages,
   cleanSnapBody,
@@ -94,7 +94,14 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   }, [snap.created]);
 
   // Extract images and memoize markdown parsing for high scrolling performance
-  const images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
+
+  const raw_images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
+  
+  const images = useMemo(() => {
+    return raw_images
+      .map(url => getSafeImageUrl(url, { width: 1200 }))
+      .filter((url): url is string => url !== null);
+  }, [raw_images]);
   const cleanedBody = useMemo(() => cleanSnapBody(snap.body), [snap.body]);
   const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || snap.body), [cleanedBody, snap.body]);
 

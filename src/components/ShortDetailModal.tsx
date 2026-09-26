@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { markdownToSafeHtml } from '../utils/sanitize';
+import { markdownToSafeHtml, getSafeImageUrl } from '../utils/sanitize';
 import {
   extractSnapImages,
   cleanSnapBody,
@@ -110,7 +110,13 @@ export const ShortDetailModal: React.FC<ShortDetailModalProps> = ({
   };
 
   // Memoized body parsing for the main snap
-  const images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
+  const raw_images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
+  
+  const images = useMemo(() => {
+    return raw_images
+      .map(url => getSafeImageUrl(url, { width: 1200 }))
+      .filter((url): url is string => url !== null);
+  }, [raw_images]);
   const cleanedBody = useMemo(() => cleanSnapBody(snap.body), [snap.body]);
   const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || snap.body), [cleanedBody, snap.body]);
 
@@ -596,7 +602,12 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   // Clean body and sanitize HTML
   const cleanedBody = useMemo(() => cleanSnapBody(comment.body), [comment.body]);
   const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || comment.body), [cleanedBody, comment.body]);
-  const images = useMemo(() => extractSnapImages(comment.body, comment.json_metadata), [comment.body, comment.json_metadata]);
+  const raw_images = useMemo(() => extractSnapImages(comment.body, comment.json_metadata), [comment.body, comment.json_metadata]);
+  const images = useMemo(() => {
+    return raw_images
+      .map(url => getSafeImageUrl(url, { width: 1200 }))
+      .filter((url): url is string => url !== null);
+  }, [raw_images]);
 
   const handleVote = async () => {
     if (!currentUser) {

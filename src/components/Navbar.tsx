@@ -233,7 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header id="app-navbar" className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-150 dark:border-slate-800 shadow-[0_1px_4px_rgba(0,0,0,0.03)] dark:shadow-none transition-colors duration-200">
+    <header id="app-navbar" className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-gray-100 dark:border-slate-800 shadow-[0_1px_4px_rgba(0,0,0,0.03)] dark:shadow-none transition-colors duration-200">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
 
@@ -410,7 +410,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <img
                       src={currentUser.avatar}
                       alt={currentUser.username}
-                      className="w-7 h-7 object-cover rounded-full border border-gray-150"
+                      className="w-7 h-7 object-cover rounded-full border border-gray-100"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
                       }}
@@ -427,7 +427,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {showUserMenu && (
                   <div
                     id="user-menu-dropdown"
-                    className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-2xl shadow-xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-gray-800 dark:text-slate-200"
+                    className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-gray-800 dark:text-slate-200"
                   >
                     <div className="flex items-center gap-3 p-2 border-b border-gray-100 dark:border-slate-800">
                       <img
@@ -522,7 +522,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {showNodeMenu && (
               <div
                 id="node-dropdown-menu"
-                className="absolute right-4 top-16 mt-2 w-80 bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 rounded-2xl shadow-xl p-3 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100"
+                className="absolute right-4 top-16 mt-2 w-80 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-xl p-3 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100"
               >
                 <div className="px-2 py-1.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
                   <div>
@@ -678,7 +678,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Navigation Drawer */}
         {showMobileMenu && (
-          <div id="mobile-nav-drawer" className="md:hidden border-t border-gray-150 dark:border-slate-800 py-3 px-1 space-y-1 bg-white dark:bg-slate-900">
+          <div id="mobile-nav-drawer" className="md:hidden border-t border-gray-100 dark:border-slate-800 py-3 px-1 space-y-1 bg-white dark:bg-slate-900">
             <button
               onClick={() => {
                 if (onNavChange) onNavChange('feed');
@@ -809,9 +809,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* ================= KEYCHAIN LOGIN MODAL ================= */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 w-full max-w-md border border-gray-150 dark:border-slate-800 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 text-gray-900 dark:text-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 w-full max-w-md border border-gray-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 text-gray-900 dark:text-slate-100">
 
-            <div className="flex items-center justify-between pb-3 border-b border-gray-150 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 text-rose-600 dark:text-rose-400">
                   <Key className="w-5 h-5" />

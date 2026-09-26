@@ -394,7 +394,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
   return (
     <article
       id="in-place-post-reader"
-      className="bg-white dark:bg-slate-900 rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-150/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
+      className="bg-white dark:bg-slate-900 rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
     >
       {/* Top Reading Progress Line */}
       <div
@@ -678,7 +678,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span className="font-semibold text-gray-700 dark:text-slate-300">Beneficiaries:</span>
             <div className="flex flex-wrap gap-2 pt-1">
               {post.beneficiaries.map(b => (
-                <span key={b.account} className="bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-lg text-gray-600 dark:text-slate-300 border border-gray-150 dark:border-slate-700 shadow-xs">
+                <span key={b.account} className="bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-lg text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-700 shadow-xs">
                   @{b.account} ({(b.weight / 100).toFixed(1)}%)
                 </span>
               ))}
@@ -722,7 +722,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
               {/* Vote weight selector */}
               {showVoteSlider && (
-                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-4 z-30 animate-in fade-in zoom-in-95 border border-gray-150 dark:border-slate-800">
+                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-4 z-30 animate-in fade-in zoom-in-95 border border-gray-100 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Vote Weight</span>
                     <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{voteWeight}%</span>
@@ -776,7 +776,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         </div>
 
         {/* ================= DISCUSSION & COMMENTS ================= */}
-        <section id="comments-section" className="pt-8 border-t border-gray-150 dark:border-slate-800 space-y-6">
+        <section id="comments-section" className="pt-8 border-t border-gray-100 dark:border-slate-800 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -853,7 +853,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       {/* ================= TIP MODAL ================= */}
       {showTipModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 border border-gray-150 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 border border-gray-100 dark:border-slate-800">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Coins className="w-5 h-5 text-amber-500" />
@@ -1120,7 +1120,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
   return (
     <div className={`p-3.5 sm:p-4 rounded-2xl transition-all ${
-      depth === 0 ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-150/70 dark:border-slate-700/60 shadow-2xs' : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
+      depth === 0 ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-100/70 dark:border-slate-700/60 shadow-2xs' : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
     }`}>
       {/* Author Header */}
       <div className="flex items-center justify-between text-xs mb-2">
