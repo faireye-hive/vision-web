@@ -25,6 +25,7 @@ import {
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { getSafeImageUrl } from '../utils/sanitize';
+import { VoteWeightDialog } from './VoteWeightDialog';
 
 export interface PostCardProps {
   post: HivePost;
@@ -59,6 +60,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   });
   const [voteCountDelta, setVoteCountDelta] = useState<number>(0);
   const [isVoting, setIsVoting] = useState<boolean>(false);
+  const [voteOpen, setVoteOpen] = useState(false);
 
   // Check if current user has reblogged this post
   const [hasReblogged, setHasReblogged] = useState<boolean>(() => {
@@ -138,28 +140,20 @@ const PostCardComponent: React.FC<PostCardProps> = ({
       return;
     }
     if (isVoting) return;
-
-    setIsVoting(true);
-    try {
-      // 100% weight = 10000; unvote = 0
-      const weight = upvoted ? 0 : 10000;
-      const res = await KeychainService.vote(currentUser.username, post.author, post.permlink, weight);
-      if (res.success) {
-        if (upvoted) {
+    if (upvoted) {
+      setIsVoting(true);
+      try {
+        const res = await KeychainService.vote(currentUser.username, post.author, post.permlink, 0);
+        if (res.success) {
           setUpvoted(false);
-          setVoteCountDelta(prev => prev - 1);
-        } else {
-          setUpvoted(true);
-          setVoteCountDelta(prev => prev + 1);
+          setVoteCountDelta((prev) => prev - 1);
         }
-      } else {
-        alert(res.message || res.error || 'Keychain vote was rejected or failed.');
+      } finally {
+        setIsVoting(false);
       }
-    } catch (err: any) {
-      alert(err.message || 'Error broadcasting vote.');
-    } finally {
-      setIsVoting(false);
+      return;
     }
+    setVoteOpen(true);
   };
 
   // Real Keychain reblog handler
@@ -532,6 +526,17 @@ const PostCardComponent: React.FC<PostCardProps> = ({
           </div>
         </div>
       </div>
+      <VoteWeightDialog
+        open={voteOpen}
+        username={currentUser?.username || ''}
+        author={post.author}
+        permlink={post.permlink}
+        onClose={() => setVoteOpen(false)}
+        onVoted={() => {
+          setUpvoted(true);
+          setVoteCountDelta((prev) => prev + 1);
+        }}
+      />
     </article>
   );
 };

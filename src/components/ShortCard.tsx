@@ -20,6 +20,7 @@ import {
   getSnapSubcomments
 } from '../services/shortsApi';
 import { SnapContent } from './SnapContent';
+import { VoteWeightDialog } from './VoteWeightDialog';
 
 interface ShortCardProps {
   snap: HivePost;
@@ -62,6 +63,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   const [upvoted, setUpvoted] = useState(false);
   const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
+  const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -101,25 +103,13 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   const replyCount = Math.max(snap.children || 0, subcomments.length);
 
   // Upvote snap
-  const handleVote = async () => {
+  const handleVote = () => {
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
       return;
     }
     if (upvoted || voteLoading) return;
-
-    setVoteLoading(true);
-    try {
-      const res = await KeychainService.vote(currentUser.username, snap.author, snap.permlink, 10000);
-      if (res.success) {
-        setUpvoted(true);
-        setVoteCountDelta((prev) => prev + 1);
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setVoteLoading(false);
-    }
+    setVoteOpen(true);
   };
 
   // Copy share link
@@ -439,6 +429,18 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
       )}
 
       {/* Image Zoom Lightbox Modal */}
+      <VoteWeightDialog
+        open={voteOpen}
+        username={currentUser?.username || ''}
+        author={snap.author}
+        permlink={snap.permlink}
+        onClose={() => setVoteOpen(false)}
+        onVoted={() => {
+          setUpvoted(true);
+          setVoteCountDelta((prev) => prev + 1);
+        }}
+      />
+
       {selectedImage && (
         <div
           className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"

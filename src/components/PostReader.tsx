@@ -38,6 +38,7 @@ import {
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
 import { useAuth } from '../context/AuthContext';
+import { VoteWeightDialog } from './VoteWeightDialog';
 import { useContentFilter } from '../context/ContentFilterContext';
 
 interface PostReaderProps {
@@ -1138,6 +1139,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   });
   const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
+  const [voteOpen, setVoteOpen] = useState(false);
 
   // In-line reply state
   const [showReplyBox, setShowReplyBox] = useState(false);
@@ -1181,27 +1183,20 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       return;
     }
     if (isVoting) return;
-
-    setIsVoting(true);
-    try {
-      const weight = upvoted ? 0 : 10000;
-      const res = await KeychainService.vote(currentUser.username, comment.author, comment.permlink, weight);
-      if (res.success) {
-        if (upvoted) {
+    if (upvoted) {
+      setIsVoting(true);
+      try {
+        const res = await KeychainService.vote(currentUser.username, comment.author, comment.permlink, 0);
+        if (res.success) {
           setUpvoted(false);
-          setVoteCountDelta(prev => prev - 1);
-        } else {
-          setUpvoted(true);
-          setVoteCountDelta(prev => prev + 1);
+          setVoteCountDelta((prev) => prev - 1);
         }
-      } else {
-        alert(res.message || res.error || 'Vote could not be broadcast via Keychain.');
+      } finally {
+        setIsVoting(false);
       }
-    } catch (err: any) {
-      alert(err.message || 'Vote failed');
-    } finally {
-      setIsVoting(false);
+      return;
     }
+    setVoteOpen(true);
   };
 
   // Handle in-line reply to this comment via Keychain
@@ -1421,6 +1416,17 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           ))}
         </div>
       )}
+      <VoteWeightDialog
+        open={voteOpen}
+        username={currentUser?.username || ''}
+        author={comment.author}
+        permlink={comment.permlink}
+        onClose={() => setVoteOpen(false)}
+        onVoted={() => {
+          setUpvoted(true);
+          setVoteCountDelta((prev) => prev + 1);
+        }}
+      />
     </div>
   );
 };

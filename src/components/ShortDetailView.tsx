@@ -22,6 +22,7 @@ import {
   ThreadCommentNode
 } from '../services/shortsApi';
 import { SnapContent } from './SnapContent';
+import { VoteWeightDialog } from './VoteWeightDialog';
 
 interface ShortDetailViewProps {
   snap: HivePost;
@@ -50,6 +51,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   const [upvoted, setUpvoted] = useState(false);
   const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
+  const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Main reply composer state
@@ -115,23 +117,13 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     return countNodes(commentTree);
   }, [commentTree]);
 
-  const handleVote = async () => {
+  const handleVote = () => {
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
       return;
     }
     if (upvoted || voteLoading) return;
-
-    setVoteLoading(true);
-    try {
-      await KeychainService.vote(currentUser.username, snap.author, snap.permlink, 10000);
-      setUpvoted(true);
-      setVoteCountDelta((prev) => prev + 1);
-    } catch (err: any) {
-      console.error('Vote failed:', err);
-    } finally {
-      setVoteLoading(false);
-    }
+    setVoteOpen(true);
   };
 
   const handleCopyLink = () => {
@@ -386,12 +378,24 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             ) : (
               <div className="py-12 text-center bg-slate-50/50 dark:bg-slate-900/50 rounded-[32px] border-2 border-dashed border-slate-100 dark:border-slate-800">
                 <MessageCircle className="w-10 h-10 mx-auto text-slate-200 dark:text-slate-800 mb-3" />
-                <p className="text-slate-400 font-medium">Ainda não há comentários.</p>
+                <p className="text-slate-400 font-medium">No comments yet.</p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <VoteWeightDialog
+        open={voteOpen}
+        username={currentUser?.username || ''}
+        author={snap.author}
+        permlink={snap.permlink}
+        onClose={() => setVoteOpen(false)}
+        onVoted={() => {
+          setUpvoted(true);
+          setVoteCountDelta((prev) => prev + 1);
+        }}
+      />
 
       {/* Lightbox */}
       {selectedImage && (
@@ -456,15 +460,11 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   const cleanedBody = useMemo(() => cleanSnapBody(comment.body), [comment.body]);
   const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || comment.body), [cleanedBody, comment.body]);
 
-  const handleVote = async () => {
+  const [voteOpen, setVoteOpen] = useState(false);
+  const handleVote = () => {
     if (!currentUser) { onRequireLogin?.(); return; }
     if (upvoted || voteLoading) return;
-    setVoteLoading(true);
-    try {
-      await KeychainService.vote(currentUser.username, comment.author, comment.permlink, 10000);
-      setUpvoted(true);
-      setVoteCountDelta(1);
-    } catch { } finally { setVoteLoading(false); }
+    setVoteOpen(true);
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {
@@ -533,7 +533,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                 </button>
                 <button onClick={() => setShowReplyBox(!showReplyBox)} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-blue-600 transition">
                   <CornerDownRight className="w-4 h-4" />
-                  <span>Responder</span>
+                  <span>Reply</span>
                 </button>
               </div>
               
@@ -542,13 +542,24 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                   <input
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Sua resposta..."
+                    placeholder="Write a reply..."
                     className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     autoFocus
                   />
-                  <button type="submit" disabled={!replyText.trim() || submittingReply} className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-bold text-xs">Enviar</button>
+                  <button type="submit" disabled={!replyText.trim() || submittingReply} className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-bold text-xs">Send</button>
                 </form>
               )}
+              <VoteWeightDialog
+                open={voteOpen}
+                username={currentUser?.username || ''}
+                author={comment.author}
+                permlink={comment.permlink}
+                onClose={() => setVoteOpen(false)}
+                onVoted={() => {
+                  setUpvoted(true);
+                  setVoteCountDelta(1);
+                }}
+              />
             </>
           )}
         </div>

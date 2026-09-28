@@ -546,7 +546,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2 cursor-pointer"
                       >
                         <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span>Profile & Wallet</span>
+                        <span>Profile</span>
                       </button>
 
                       {onOpenManageFollowing && (

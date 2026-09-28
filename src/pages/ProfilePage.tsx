@@ -9,6 +9,8 @@ import {
   Link as LinkIcon,
   MapPin,
   MessageSquare,
+  AtSign,
+  Reply,
   Search,
   CheckCircle2,
   ChevronRight,
@@ -32,6 +34,7 @@ import {
   getProfile
 } from '../services/hiveApi';
 import { extractPostTags, isNoiseTag, postCommunity } from '../utils/postTags';
+import { ProfileMentions, ProfileReplies } from '../components/ProfileInbox';
 
 interface ProfilePageProps {
   username: string;
@@ -41,7 +44,7 @@ interface ProfilePageProps {
   onOpenCommunity?: (communityName: string) => void;
 }
 
-type ProfileTab = 'posts' | 'comments' | 'history';
+type ProfileTab = 'posts' | 'comments' | 'replies' | 'mentions' | 'history';
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   username,
@@ -437,6 +440,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setActiveTab('replies')}
+                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
+                    activeTab === 'replies'
+                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
+                  }`}
+                >
+                  <Reply className="w-4 h-4" />
+                  Replies
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('mentions')}
+                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
+                    activeTab === 'mentions'
+                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
+                  }`}
+                >
+                  <AtSign className="w-4 h-4" />
+                  Mentions
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setActiveTab('history')}
                   className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
                     activeTab === 'history'
@@ -495,6 +524,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === 'replies' && (
+                <ProfileReplies username={currentUser} onOpenPost={onSelectPost} />
+              )}
+
+              {activeTab === 'mentions' && (
+                <ProfileMentions username={currentUser} onOpenPost={onSelectPost} />
               )}
 
               {/* COMMENTS TAB */}

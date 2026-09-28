@@ -794,6 +794,36 @@ export async function getFollowing(account: string, start: string = '', limit: n
 }
 
 /**
+ * Accounts this user muted on chain.
+ * bridge.get_follow_list with follow_type "muted".
+ * The public nodes reject extra keys such as limit, and return the full list.
+ */
+export async function getMutedAccounts(observer: string, forceRefresh: boolean = false): Promise<string[]> {
+  const cleaned = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return [];
+  const cacheKey = `muted_list:${cleaned}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<Array<{ name?: string } | string>>('bridge.get_follow_list', {
+          observer: cleaned,
+          follow_type: 'muted'
+        });
+        return (result || [])
+          .map((row) => (typeof row === 'string' ? row : row?.name || ''))
+          .map((name) => name.replace(/^@/, '').trim().toLowerCase())
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    },
+    { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
+  );
+}
+
+/**
  * Fetch follow counts (followers and following)
  */
 export async function getFollowCount(account: string, forceRefresh: boolean = false): Promise<{ follower_count: number; following_count: number }> {

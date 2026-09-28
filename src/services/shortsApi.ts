@@ -11,7 +11,7 @@
  * 4. As users scroll to the end of a container's snaps, the next container is automatically loaded.
  */
 
-import { hiveRpcCall, HivePost, getDiscussion, getAccountPosts, getFollowedCommentsFeed } from './hiveApi';
+import { hiveRpcCall, HivePost, getDiscussion, getAccountPosts, getFollowedCommentsFeed, getMutedAccounts } from './hiveApi';
 import { fetchWithCache, apiCache, CACHE_TTL } from './apiCache';
 
 function hiveTime(value: string | undefined): number {
@@ -56,16 +56,31 @@ export async function loadFollowingSnaps(account: string): Promise<HivePost[]> {
 
 /**
  * Replies to snaps this account wrote.
- * bridge.get_account_posts sort=replies. A snap reply carries @peak.snaps in its url.
+ * Both calls use the signed-in account. peak.snaps is only how we recognize
+ * which of the account's own comments are snaps.
  */
 export async function loadRepliesToAccount(account: string): Promise<HivePost[]> {
   const me = account.replace(/^@/, '').trim().toLowerCase();
   if (!me) return [];
-  const replies = await getAccountPosts('replies', me, 40);
+  const [replies, myComments, muted] = await Promise.all([
+    getAccountPosts('replies', me, 40),
+    getAccountPosts('comments', me, 40),
+    getMutedAccounts(me),
+  ]);
+  const mutedNames = new Set(muted);
+  const mySnapPermlinks = new Set(
+    myComments
+      .filter((post) => (post.parent_author || '').toLowerCase() === 'peak.snaps' && post.author.toLowerCase() === me)
+      .map((post) => post.permlink.toLowerCase())
+  );
   return replies
     .filter((post) => {
+      if (mutedNames.has((post.author || '').toLowerCase())) return false;
       if ((post.parent_author || '').toLowerCase() !== me) return false;
-      return (post.url || '').toLowerCase().includes('@peak.snaps/');
+      const parentPermlink = (post.parent_permlink || '').toLowerCase();
+      if (mySnapPermlinks.has(parentPermlink)) return true;
+      const url = (post.url || '').toLowerCase();
+      return url.includes(`@${me}/`) && url.includes('snap-container-');
     })
     .sort((a, b) => hiveTime(b.created) - hiveTime(a.created));
 }

@@ -163,7 +163,7 @@ O `App` não chama `restoreScrollPosition` na aba Shorts. Esse valor é 0 nessa 
 
 A coluna da direita tem o cartão Reading (`ReadingStyleCard`), recolhido até o clique. Tamanho, fonte, cor e ambiente ficam em `localStorage` (`nebulosa_reading_style`).
 
-Na coluna da esquerda, em Shorts: "Snaps from following" lê o cache do feed de comentários de quem você segue (`getFollowedCommentsFeed`) e fica só com os comentários cujo pai é `@peak.snaps`. "Replies to my snaps" usa `bridge.get_account_posts` com `sort=replies` e fica só com as respostas cuja `url` aponta para `@peak.snaps`.
+Na coluna da esquerda, em Shorts: "Snaps from following" lê o cache do feed de comentários de quem você segue (`getFollowedCommentsFeed`) e fica só com os comentários cujo pai é `@peak.snaps`. "Replies to my snaps" chama `bridge.get_account_posts` com a conta logada e `sort=replies`, e cruza com os comentários dessa mesma conta cujo pai é um snap.
 
 ## O que não misturar de novo
 
