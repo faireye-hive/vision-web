@@ -8,6 +8,7 @@ export interface CacheEntry<T> {
   data: T;
   timestamp: number;
   ttl: number; // in milliseconds
+  persistent?: boolean; // Se true, salva no localStorage em vez do sessionStorage
 }
 
 export interface CacheStats {
@@ -30,7 +31,7 @@ class ApiCacheManager {
   private storagePrefix = 'hive_cache_v1:';
 
   constructor() {
-    this.hydrateFromSessionStorage();
+    this.hydrateFromStorage();
   }
 
   /**
@@ -56,32 +57,38 @@ class ApiCacheManager {
   }
 
   /**
-   * Hydrate in-memory cache from sessionStorage on startup
+   * Hydrate in-memory cache from sessionStorage and localStorage on startup
    */
-  private hydrateFromSessionStorage() {
-    if (typeof window === 'undefined' || !window.sessionStorage) return;
-    try {
-      const now = Date.now();
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.startsWith(this.storagePrefix)) {
-          const raw = sessionStorage.getItem(key);
-          if (raw) {
-            const entry: CacheEntry<any> = JSON.parse(raw);
-            // Check if still unexpired
-            if (now - entry.timestamp < entry.ttl) {
-              const actualKey = key.replace(this.storagePrefix, '');
-              this.memoryCache.set(actualKey, entry);
-            } else {
-              sessionStorage.removeItem(key);
+  private hydrateFromStorage() {
+    if (typeof window === 'undefined') return;
+    const now = Date.now();
+
+    const loadStorage = (storage: Storage) => {
+      try {
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (key && key.startsWith(this.storagePrefix)) {
+            const raw = storage.getItem(key);
+            if (raw) {
+              const entry: CacheEntry<any> = JSON.parse(raw);
+              if (now - entry.timestamp < entry.ttl) {
+                const actualKey = key.replace(this.storagePrefix, '');
+                this.memoryCache.set(actualKey, entry);
+              } else {
+                storage.removeItem(key);
+              }
             }
           }
         }
+      } catch {
+        // Fallback em caso de restrição de storage
       }
-      this.stats.entries = this.memoryCache.size;
-    } catch {
-      // Graceful fallback if storage is restricted
-    }
+    };
+
+    if (window.sessionStorage) loadStorage(window.sessionStorage);
+    if (window.localStorage) loadStorage(window.localStorage);
+
+    this.stats.entries = this.memoryCache.size;
   }
 
   /**
@@ -99,7 +106,7 @@ class ApiCacheManager {
     if (now - entry.timestamp > entry.ttl) {
       // Expired entry
       this.memoryCache.delete(key);
-      this.removeSessionStorage(key);
+      this.removeStorage(key, entry.persistent);
       this.stats.misses++;
       this.notify();
       return null;
@@ -120,26 +127,27 @@ class ApiCacheManager {
     const now = Date.now();
     if (now - entry.timestamp > entry.ttl) {
       this.memoryCache.delete(key);
-      this.removeSessionStorage(key);
+      this.removeStorage(key, entry.persistent);
       return false;
     }
     return true;
   }
 
   /**
-   * Store item in memory and sessionStorage
+   * Store item in memory and storage (localStorage if persistent, else sessionStorage)
    */
-  public set<T>(key: string, data: T, ttlMs: number = 180000): void {
-    if (ttlMs <= 0) return; // Do not cache zero-ttl items
+  public set<T>(key: string, data: T, ttlMs: number = 180000, persistent: boolean = false): void {
+    if (ttlMs <= 0) return;
 
     const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
-      ttl: ttlMs
+      ttl: ttlMs,
+      persistent
     };
 
     this.memoryCache.set(key, entry);
-    this.setSessionStorage(key, entry);
+    this.setStorage(key, entry);
     this.notify();
   }
 
@@ -147,8 +155,9 @@ class ApiCacheManager {
    * Invalidate a specific cache key
    */
   public invalidate(key: string): void {
+    const entry = this.memoryCache.get(key);
     this.memoryCache.delete(key);
-    this.removeSessionStorage(key);
+    this.removeStorage(key, entry?.persistent);
     this.notify();
   }
 
@@ -157,10 +166,10 @@ class ApiCacheManager {
    */
   public invalidatePattern(pattern: RegExp | string): void {
     const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
-    for (const key of this.memoryCache.keys()) {
+    for (const [key, entry] of this.memoryCache.entries()) {
       if (regex.test(key)) {
         this.memoryCache.delete(key);
-        this.removeSessionStorage(key);
+        this.removeStorage(key, entry.persistent);
       }
     }
     this.notify();
@@ -171,19 +180,22 @@ class ApiCacheManager {
    */
   public clear(): void {
     this.memoryCache.clear();
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      try {
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (key && key.startsWith(this.storagePrefix)) {
-            keysToRemove.push(key);
+    if (typeof window !== 'undefined') {
+      const purge = (storage: Storage) => {
+        try {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
+            if (key && key.startsWith(this.storagePrefix)) {
+              keysToRemove.push(key);
+            }
           }
-        }
-        keysToRemove.forEach((k) => sessionStorage.removeItem(k));
-      } catch {
-        // Ignore
-      }
+          keysToRemove.forEach((k) => storage.removeItem(k));
+        } catch {}
+      };
+
+      if (window.sessionStorage) purge(window.sessionStorage);
+      if (window.localStorage) purge(window.localStorage);
     }
     this.stats.entries = 0;
     this.notify();
@@ -199,22 +211,29 @@ class ApiCacheManager {
     };
   }
 
-  private setSessionStorage(key: string, entry: CacheEntry<any>) {
-    if (typeof window === 'undefined' || !window.sessionStorage) return;
+  private setStorage(key: string, entry: CacheEntry<any>) {
+    if (typeof window === 'undefined') return;
     try {
-      sessionStorage.setItem(this.storagePrefix + key, JSON.stringify(entry));
+      const storage = entry.persistent ? window.localStorage : window.sessionStorage;
+      if (storage) {
+        storage.setItem(this.storagePrefix + key, JSON.stringify(entry));
+      }
     } catch {
-      // Storage quota exceeded or disabled; memory cache continues working
+      // Storage cheio/desativado; o cache em memória continua operando
     }
   }
 
-  private removeSessionStorage(key: string) {
-    if (typeof window === 'undefined' || !window.sessionStorage) return;
+  private removeStorage(key: string, persistent?: boolean) {
+    if (typeof window === 'undefined') return;
     try {
-      sessionStorage.removeItem(this.storagePrefix + key);
-    } catch {
-      // Ignore
-    }
+      if (persistent !== undefined) {
+        const storage = persistent ? window.localStorage : window.sessionStorage;
+        storage?.removeItem(this.storagePrefix + key);
+      } else {
+        window.sessionStorage?.removeItem(this.storagePrefix + key);
+        window.localStorage?.removeItem(this.storagePrefix + key);
+      }
+    } catch {}
   }
 }
 
@@ -225,13 +244,13 @@ export const apiCache = new ApiCacheManager();
  */
 export const CACHE_TTL = {
   NONE: 0,
-  FAST: 15 * 1000,           // 15s (Blockchain dynamic global props)
-  FEED: 3 * 60 * 1000,       // 3 minutes (Hot, Trending, Payout, Muted)
-  FEED_PAGE: 5 * 60 * 1000,  // 5 minutes (Paginated historical feeds)
-  DISCUSSION: 2 * 60 * 1000, // 2 minutes (Post reading & comments)
-  ACCOUNT: 5 * 60 * 1000,    // 5 minutes (User profile, wallet stats)
-  COMMUNITY: 10 * 60 * 1000, // 10 minutes (Community listing)
-  TRENDING_TAGS: 10 * 60 * 1000 // 10 minutes (Trending topics)
+  FAST: 15 * 1000,               // 15s (Blockchain dynamic global props)
+  FEED: 5 * 60 * 1000,           // 10 minutos
+  FEED_PAGE: 5 * 60 * 1000,      // 5 minutos
+  DISCUSSION: 5 * 60 * 1000,     // 5 minutos
+  ACCOUNT: 5 * 60 * 1000,        // 5 minutos
+  COMMUNITY: 10 * 60 * 1000,     // 10 minutos
+  TRENDING_TAGS: 7 * 24 * 60 * 60 * 1000 // 7 DIAS (1 semana)
 };
 
 /**
@@ -244,10 +263,12 @@ export async function fetchWithCache<T>(
     ttl?: number;
     bypassCache?: boolean;
     forceRefresh?: boolean;
+    persistent?: boolean;
   }
 ): Promise<T> {
   const bypass = options?.bypassCache || options?.forceRefresh;
   const ttl = options?.ttl ?? CACHE_TTL.FEED;
+  const persistent = options?.persistent ?? false;
 
   if (!bypass) {
     const cached = apiCache.get<T>(cacheKey);
@@ -258,9 +279,8 @@ export async function fetchWithCache<T>(
 
   const fresh = await fetchFn();
 
-  // If not bypassing or if forceRefresh was used to update, store in cache if TTL > 0
   if (ttl > 0 && fresh !== null && fresh !== undefined) {
-    apiCache.set<T>(cacheKey, fresh, ttl);
+    apiCache.set<T>(cacheKey, fresh, ttl, persistent);
   }
 
   return fresh;

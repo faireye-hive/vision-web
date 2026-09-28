@@ -104,7 +104,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         const firstContainer = containerList[0];
         setCurrentContainerIndex(0);
 
-        const result = await getContainerSnaps(firstContainer.permlink, forceRefresh);
+        const result = await getContainerSnaps(firstContainer.permlink, forceRefresh, currentUser?.username || '');
         setSnaps(result.snaps);
         setDiscussionMap(result.discussionMap);
       } else {
@@ -116,7 +116,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.username]);
 
   useEffect(() => {
     loadInitialFeed();
@@ -146,7 +146,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           if (newContainers.length > 0) {
             setContainers((prev) => [...prev, ...newContainers]);
             const targetContainer = newContainers[0];
-            const result = await getContainerSnaps(targetContainer.permlink);
+            const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
             setSnaps((prev) => [...prev, ...result.snaps]);
             setDiscussionMap((prev) => ({ ...prev, ...result.discussionMap }));
             setCurrentContainerIndex(nextIndex);
@@ -163,7 +163,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     setLoadingMore(true);
     try {
       const targetContainer = containers[nextIndex];
-      const result = await getContainerSnaps(targetContainer.permlink);
+      const result = await getContainerSnaps(targetContainer.permlink ,false, currentUser?.username || '');
 
       // Append next container's snaps to the feed
       setSnaps((prev) => [...prev, ...result.snaps]);
@@ -174,7 +174,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, loading, containers, currentContainerIndex]);
+  }, [loadingMore, loading, containers, currentContainerIndex, currentUser?.username]);
 
   // Extract hashtags from all snaps and report to parent (for LeftSidebar)
   const lastTagsRef = useRef<string>('');

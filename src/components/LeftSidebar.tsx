@@ -23,6 +23,7 @@ import {
 import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions, hiveRpcCall } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
 import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
+import { getSmartAccountsActivity } from '../services/accountsCache';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
@@ -33,9 +34,10 @@ export interface LeftSidebarProps {
   onSelectTag: (tag: string) => void;
   onSelectAuthor: (author: string) => void;
   activeAuthor?: string | null;
-  feedPosts: HivePost[];
+  feedPosts?: HivePost[];
   currentUser: CurrentUser | null;
   onOpenManageCommunities: () => void;
+  onOpenManageFollowing?: () => void;
   joinedCommunities: Record<string, boolean>;
   shortsHashtags?: { tag: string; count: number }[];
   selectedShortTag?: string;
@@ -90,9 +92,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSelectTag,
   onSelectAuthor,
   activeAuthor,
-  feedPosts,
+  feedPosts = [],
   currentUser,
   onOpenManageCommunities,
+  onOpenManageFollowing,
   joinedCommunities,
   shortsHashtags = [],
   selectedShortTag = '',
@@ -217,7 +220,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     return map;
   }, [feedPosts]);
 
-  // Store blockchain last_post timestamp for followed accounts
+  // Store blockchain last_post timestamp for followed accounts com Cache Inteligente
   const [accountLastPostMap, setAccountLastPostMap] = useState<Record<string, { timestamp: number; dateStr: string }>>({});
 
   useEffect(() => {
@@ -226,33 +229,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       return;
     }
 
-    // Batch query condenser_api.get_accounts in chunks of 15
-    const chunkSize = 15;
-    const chunks: string[][] = [];
-    for (let i = 0; i < Math.min(followingUsers.length, 60); i += chunkSize) {
-      chunks.push(followingUsers.slice(i, i + chunkSize));
-    }
-
     let isMounted = true;
-    Promise.all(
-      chunks.map(chunk =>
-        hiveRpcCall<Array<{ name: string; last_post?: string }>>('condenser_api.get_accounts', [chunk]).catch(() => [])
-      )
-    ).then(results => {
-      if (!isMounted) return;
-      const map: Record<string, { timestamp: number; dateStr: string }> = {};
-      for (const accounts of results) {
-        for (const acc of accounts || []) {
-          if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
-            const safeStr = acc.last_post.endsWith('Z') ? acc.last_post : `${acc.last_post}Z`;
-            const time = new Date(safeStr).getTime();
-            if (!isNaN(time)) {
-              map[acc.name] = { timestamp: time, dateStr: acc.last_post };
-            }
-          }
-        }
+
+    // Utiliza o serviço de Cache Inteligente (evita sobrecarregar a API Hive)
+    getSmartAccountsActivity(followingUsers).then((map) => {
+      if (isMounted) {
+        setAccountLastPostMap(map);
       }
-      setAccountLastPostMap(map);
     });
 
     return () => {
@@ -351,81 +334,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     return `${Math.floor(diff / 86400)}d`;
   };
 
-  const sortItems = [
-    { id: 'hot' as const, label: 'Hot', icon: Flame, color: 'text-amber-500', description: 'Hot: Posts with rapid momentum and recent engagement' },
-    { id: 'trending' as const, label: 'Trending', icon: TrendingUp, color: 'text-blue-600', description: 'Trending: Posts with highest payout and top votes' },
-    { id: 'created' as const, label: 'New', icon: Sparkles, color: 'text-emerald-600', isLive: true, description: 'New: Real-time latest posts published on Hive' },
-    { id: 'payout' as const, label: 'Payout', icon: DollarSign, color: 'text-emerald-500', description: 'Payout: Posts with highest pending rewards' },
-    { id: 'muted' as const, label: 'Muted', icon: VolumeX, color: 'text-rose-500', description: 'Muted: Posts with downvotes or filtered' },
-  ];
-
   return (
     <aside id="left-sidebar" className="space-y-4">
 
-      {/* ================= CARD 1: LEFT SORT & FILTER NAVBAR (COMMUNITIES ONLY) ================= */}
-      {activeNav === 'communities' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
-
-          {/* Header */}
-          <div className="flex items-center justify-between pb-2.5 px-1 border-b border-gray-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-bold text-xs text-gray-700 dark:text-slate-300 tracking-wide uppercase">
-                Sort Feed
-              </h3>
-            </div>
-
-            {currentSort === 'created' ? (
-              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live
-              </span>
-            ) : (
-              <span className="text-[11px] font-semibold text-gray-500 dark:text-slate-400 capitalize bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                {currentSort}
-              </span>
-            )}
-          </div>
-
-          {/* Vertical Sort Nav Buttons */}
-          <nav className="mt-2.5 space-y-1">
-            {sortItems.map((item) => {
-              const Icon = item.icon;
-              const isSelected = currentSort === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  id={`sidebar-sort-${item.id}`}
-                  onClick={() => onSortChange(item.id)}
-                  title={item.description}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-semibold transition cursor-pointer group ${
-                    isSelected
-                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 shadow-xs'
-                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                      isSelected ? 'text-blue-600 dark:text-blue-400' : `${item.color} group-hover:scale-110`
-                    }`} />
-                    <span className="truncate">{item.label}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {item.isLive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    )}
-                    {isSelected && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400" />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      )}
 
       {/* ================= CARD 2: CONTEXTUAL DISCOVERY ================= */}
       {activeNav === 'shorts' ? (
@@ -674,6 +585,21 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Link to Manage Followed Creators */}
+            {onOpenManageFollowing && (
+              <button
+                onClick={onOpenManageFollowing}
+                title="Open followed creators manager to review activity and clean up feed"
+                className="w-full mt-2 pt-2.5 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition group cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Manage Followed Creators</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
           </div>
         )}
 

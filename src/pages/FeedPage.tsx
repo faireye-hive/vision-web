@@ -1,0 +1,603 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  RefreshCw,
+  X,
+  UserPlus,
+  MessageSquare,
+  FileText,
+  Zap,
+  Shuffle,
+  Repeat,
+  ChevronDown,
+  SlidersHorizontal,
+  ShieldAlert,
+  EyeOff
+} from 'lucide-react';
+import {
+  HivePost,
+  getAccountPosts,
+  getFollowedCommentsFeed,
+  getFollowedMixedFeed,
+  getFollowedRootFeed,
+  isReblogPost,
+  getHiveAvatarUrl
+} from '../services/hiveApi';
+import { useAuth } from '../context/AuthContext';
+import { useNavigation } from '../context/NavigationContext';
+import { useContentFilter } from '../context/ContentFilterContext';
+import { PostCard } from '../components/PostCard';
+
+export const FeedPage: React.FC = () => {
+  const { currentUser } = useAuth();
+  const {
+    feedAuthor,
+    setFeedAuthor,
+    authorFeedMode,
+    setAuthorFeedMode,
+    handleSelectAuthor,
+    handleSelectPost,
+    openAuthorProfile,
+    openContentFilterModal,
+    openFollowingManager,
+    setActiveNav,
+    setTag
+  } = useNavigation();
+
+  const {
+    config: contentFilterConfig,
+    addFilterWord,
+    addFilterAuthor,
+    toggleFilterEnabled,
+    filterPostsList
+  } = useContentFilter();
+
+  // Following feed mode: root, comments, mixed
+  const [followingMode, setFollowingMode] = useState<'root' | 'comments' | 'mixed'>(() => {
+    try {
+      const saved = localStorage.getItem('hive_following_mode');
+      if (saved === 'root' || saved === 'comments' || saved === 'mixed') {
+        return saved;
+      }
+    } catch {}
+    return 'root';
+  });
+
+  // Reblog hiding preference
+  const [hideReblogs, setHideReblogs] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hive_hide_reblogs') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleHideReblogs = () => {
+    setHideReblogs((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('hive_hide_reblogs', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const [posts, setPosts] = useState<HivePost[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch feed posts
+  const fetchPosts = useCallback(
+    async (isRefresh = false) => {
+      if (!currentUser && !feedAuthor) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        let fetched: HivePost[] = [];
+        if (feedAuthor) {
+          fetched = await getAccountPosts(authorFeedMode, feedAuthor, 20, isRefresh);
+        } else if (currentUser) {
+          if (followingMode === 'comments') {
+            fetched = await getFollowedCommentsFeed(currentUser.username, isRefresh);
+          } else if (followingMode === 'mixed') {
+            fetched = await getFollowedMixedFeed(currentUser.username, isRefresh);
+          } else {
+            fetched = await getFollowedRootFeed(currentUser.username, 20, isRefresh);
+          }
+        }
+        setPosts(fetched || []);
+      } catch (err: any) {
+        console.error('Failed to load feed:', err);
+        setError(err.message || 'Unable to fetch your feed from Hive RPC.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentUser, feedAuthor, authorFeedMode, followingMode]
+  );
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  // Load more posts (pagination)
+  const handleLoadMore = async () => {
+    if (loadingMore || posts.length === 0) return;
+    setLoadingMore(true);
+
+    try {
+      if (feedAuthor) {
+        const more = await getAccountPosts(authorFeedMode, feedAuthor, 20);
+        setPosts((prev) => [...prev, ...more.slice(prev.length)]);
+      } else if (currentUser) {
+        if (followingMode === 'root') {
+          const lastPost = posts[posts.length - 1];
+          const more = await getFollowedRootFeed(
+            currentUser.username,
+            20,
+            true,
+            lastPost.author,
+            lastPost.permlink
+          );
+          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
+          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
+          if (newOnes.length > 0) {
+            setPosts((prev) => [...prev, ...newOnes]);
+          }
+        } else if (followingMode === 'comments') {
+          const more = await getFollowedCommentsFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
+          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
+          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
+          if (newOnes.length > 0) {
+            setPosts((prev) => [...prev, ...newOnes]);
+          }
+        } else {
+          const more = await getFollowedMixedFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
+          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
+          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
+          if (newOnes.length > 0) {
+            setPosts((prev) => [...prev, ...newOnes]);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load more feed posts:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Reblog filter & Content filter
+  const { displayedPosts, filteredOutStats } = useMemo(() => {
+    let candidatePosts = posts;
+    if (hideReblogs && (followingMode === 'root' || followingMode === 'mixed')) {
+      candidatePosts = posts.filter((p) => !isReblogPost(p));
+    }
+
+    const filterRes = filterPostsList(candidatePosts);
+
+    const seen = new Set<string>();
+    const uniquePosts: HivePost[] = [];
+    for (const post of filterRes.visiblePosts) {
+      const key = `${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePosts.push(post);
+      }
+    }
+
+    return {
+      displayedPosts: uniquePosts,
+      filteredOutStats: {
+        total: filterRes.totalHiddenCount,
+        byWord: filterRes.hiddenByWordCount,
+        byAuthor: filterRes.hiddenByAuthorCount
+      }
+    };
+  }, [posts, hideReblogs, followingMode, filterPostsList]);
+
+  return (
+    <div className="space-y-4">
+      {/* Author Feed Filter Banner (When author filter is active) */}
+      {feedAuthor && (
+        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={getHiveAvatarUrl(feedAuthor, 'medium')}
+              alt={feedAuthor}
+              className="w-11 h-11 rounded-full object-cover shadow-xs border border-gray-100 dark:border-slate-800"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
+              }}
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">@{feedAuthor}</span>
+                <span className="text-xs text-gray-400 dark:text-slate-500">on feed</span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => setAuthorFeedMode('posts')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    authorFeedMode === 'posts'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>Posts</span>
+                </button>
+
+                <button
+                  onClick={() => setAuthorFeedMode('comments')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    authorFeedMode === 'comments'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  <span>Comments & Replies</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => feedAuthor && openAuthorProfile(feedAuthor)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline hidden sm:inline"
+            >
+              Wallet & Profile
+            </button>
+            <button
+              onClick={() => setFeedAuthor(null)}
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 transition cursor-pointer"
+              title="Clear author filter"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Feed Controls Header */}
+      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center flex-wrap gap-2.5">
+            <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
+              Your Feed
+            </span>
+
+            {/* Feed Mode Selector Dropdown */}
+            <div className="relative inline-flex items-center">
+              <select
+                id="following-feed-mode-select"
+                value={followingMode}
+                onChange={(e) => {
+                  const mode = e.target.value as 'root' | 'comments' | 'mixed';
+                  setFollowingMode(mode);
+                  try {
+                    localStorage.setItem('hive_following_mode', mode);
+                  } catch {}
+                }}
+                className="appearance-none bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
+                title="Filter following feed mode"
+              >
+                <option value="root">Root Posts</option>
+                <option value="comments">Comments</option>
+                <option value="mixed">Mixed</option>
+              </select>
+              <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 dark:text-blue-400">
+                {followingMode === 'root' ? (
+                  <FileText className="w-3.5 h-3.5" />
+                ) : followingMode === 'comments' ? (
+                  <MessageSquare className="w-3.5 h-3.5" />
+                ) : (
+                  <Shuffle className="w-3.5 h-3.5" />
+                )}
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-slate-400" />
+            </div>
+
+            {/* Reblogs Checkmark Toggle */}
+            {followingMode !== 'comments' && (
+              <label
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
+                  !hideReblogs
+                    ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100/70'
+                    : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title={!hideReblogs ? 'Reblogs are visible. Uncheck to hide.' : 'Reblogs are hidden. Check to show.'}
+              >
+                <input
+                  type="checkbox"
+                  checked={!hideReblogs}
+                  onChange={handleToggleHideReblogs}
+                  className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
+                />
+                <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>Reblogs</span>
+              </label>
+            )}
+
+            {/* Manage Followed Link */}
+            {currentUser && (
+              <button
+                onClick={openFollowingManager}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1 cursor-pointer"
+              >
+                Manage Followed
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0 flex-wrap">
+            {/* Content Filters Button */}
+            <button
+              onClick={openContentFilterModal}
+              className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
+                contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
+                  ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+                  : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+              }`}
+              title="Manage muted words and authors filter"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Filters</span>
+              {(contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    contentFilterConfig.enabled ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
+                  }`}
+                >
+                  {contentFilterConfig.words.length + contentFilterConfig.authors.length}
+                </span>
+              )}
+            </button>
+
+            {/* Cached Status Badge */}
+            <span
+              className="text-[11px] font-medium text-slate-500 bg-slate-100/90 dark:bg-slate-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1 cursor-default"
+              title="Fast instant navigation powered by client cache"
+            >
+              <Zap className="w-3 h-3 text-amber-500" />
+              <span>Cached</span>
+            </span>
+
+            <button
+              onClick={() => fetchPosts(true)}
+              className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Force refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between">
+          <div>
+            <p className="font-semibold">Unable to fetch feed from Hive RPC</p>
+            <p className="text-gray-600 dark:text-slate-400 mt-0.5">{error}</p>
+          </div>
+          <button
+            onClick={() => fetchPosts(true)}
+            className="px-3 py-1 bg-rose-600 text-white rounded-lg font-semibold hover:bg-rose-700 transition ml-3 flex-shrink-0 cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Content Filter Notice */}
+      {!loading && contentFilterConfig.enabled && filteredOutStats.total > 0 && (
+        <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-150/70 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldAlert className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <span className="truncate">
+              <strong className="font-bold">{filteredOutStats.total}</strong> {filteredOutStats.total === 1 ? 'post' : 'posts'} hidden by your content filters
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 text-xs font-semibold">
+            <button
+              onClick={openContentFilterModal}
+              className="text-blue-700 dark:text-blue-300 hover:underline transition cursor-pointer"
+            >
+              Manage Filters
+            </button>
+            <span className="text-blue-300 dark:text-blue-700">•</span>
+            <button
+              onClick={toggleFilterEnabled}
+              className="text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition cursor-pointer font-normal text-[11px]"
+            >
+              Pause Filter
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Skeleton */}
+      {loading ? (
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none animate-pulse space-y-4 border border-gray-100 dark:border-slate-800"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-800" />
+                <div className="space-y-1.5">
+                  <div className="w-24 h-3 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div className="w-16 h-2 rounded bg-gray-200 dark:bg-slate-800" />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-36 h-24 rounded-2xl bg-gray-200 dark:bg-slate-800 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="w-3/4 h-4 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div className="w-full h-3 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div className="w-2/3 h-3 rounded bg-gray-200 dark:bg-slate-800" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : !currentUser && !feedAuthor ? (
+        /* Guest user in feed */
+        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800">
+          <UserPlus className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />
+          <div>
+            <h3 className="text-base font-bold text-gray-800 dark:text-white">Connect your Hive account</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              Log in with Hive Keychain in the top navigation bar to see posts from the authors and curators you follow, or explore the global Discover feed.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveNav('discover')}
+            className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+          >
+            Explore Discover Feed
+          </button>
+        </div>
+      ) : posts.length === 0 ? (
+        /* Empty following feed */
+        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800">
+          <UserPlus className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />
+          <div>
+            <h3 className="text-base font-bold text-gray-800 dark:text-white">
+              {followingMode === 'comments'
+                ? 'No recent comments found'
+                : followingMode === 'mixed'
+                ? 'No recent activity found'
+                : "You aren't following anyone yet or they haven't posted recently"}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              {followingMode === 'comments'
+                ? 'None of the accounts you follow commented in the last 7 days, or your following list is empty.'
+                : followingMode === 'mixed'
+                ? 'No root stories or comments were detected from followed accounts in the last 7 days.'
+                : 'Follow creators across Hive to see their latest stories here, or explore Discover.'}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveNav('discover')}
+            className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+          >
+            Explore Discover Feed
+          </button>
+        </div>
+      ) : displayedPosts.length > 0 ? (
+        <div className="space-y-4">
+          {displayedPosts.map((post, index) => (
+            <PostCard
+              key={`${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}-${post.post_id || index}`}
+              post={post}
+              onSelectPost={(p, jump) => handleSelectPost(p, true, jump)}
+              onSelectAuthor={handleSelectAuthor}
+              onSelectTag={(t) => {
+                setTag(t);
+                setActiveNav('discover');
+                setFeedAuthor(null);
+              }}
+              currentUser={currentUser}
+              onRequireLogin={() => {
+                window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+              }}
+              onMuteAuthor={addFilterAuthor}
+              onBlockWord={addFilterWord}
+            />
+          ))}
+
+          {/* Load More Button */}
+          <div className="text-center pt-2 pb-8">
+            <button
+              id="load-more-posts-btn"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              title="Fetch older posts from the blockchain"
+              className="px-6 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
+            >
+              {loadingMore ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+                  Loading more stories...
+                </span>
+              ) : (
+                'Load More'
+              )}
+            </button>
+          </div>
+        </div>
+      ) : filteredOutStats.total > 0 ? (
+        /* Filters empty state */
+        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+          <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
+          <div>
+            <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are hidden by your filters</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              {filteredOutStats.total} {filteredOutStats.total === 1 ? 'post' : 'posts'} matched your muted words or authors.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
+            <button
+              onClick={openContentFilterModal}
+              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+            >
+              Adjust Content Filters
+            </button>
+            <button
+              onClick={toggleFilterEnabled}
+              className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
+            >
+              Temporarily Pause Filters
+            </button>
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-4 py-2 text-xs bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
+            >
+              {loadingMore ? 'Loading...' : 'Load More Posts'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* All reblogs empty state */
+        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+          <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
+          <div>
+            <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are reblogs</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              You unchecked "Reblogs". Check the box or load more posts to view them.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={handleToggleHideReblogs}
+              className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-full font-semibold transition cursor-pointer shadow-xs"
+            >
+              Enable Reblogs
+            </button>
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
+            >
+              {loadingMore ? 'Loading...' : 'Load More'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

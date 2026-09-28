@@ -4,6 +4,7 @@
  */
 import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
 import { getSafeImageUrl } from '../utils/sanitize';
+import { getSmartAccountsActivity } from './accountsCache';
 
 export { apiCache, CACHE_TTL };
 
@@ -79,6 +80,7 @@ export interface HiveAccount {
   post_count: number;
   voting_power: number;
   last_vote_time: string;
+  last_post?: string;
   posting?: any;
   active?: any;
   owner?: any;
@@ -90,6 +92,28 @@ export interface HiveAccount {
   reward_hive_balance?: string;
   reward_hbd_balance?: string;
   reward_vesting_balance?: string;
+}
+
+export interface HiveNotification {
+  id: string;
+  msg: string;
+  url: string;
+  date: string;
+  type: string;
+  score?: number;
+}
+
+export interface FollowedCreatorInfo {
+  username: string;
+  lastPostDate?: string;
+  lastPostTimestamp?: number;
+  isInactive6Months: boolean;
+  reputation?: number;
+  postCount?: number;
+  createdDate?: string;
+  name?: string;
+  about?: string;
+  avatarUrl?: string;
 }
 
 export interface HiveGlobalProps {
@@ -116,6 +140,14 @@ export interface HiveCommunity {
   is_nsfw: boolean;
   avatar_url?: string;
   created_at?: string;
+  description?: string;
+  flag_text?: string;
+  team?: [string, string, string][];
+  sum_pending?: number;
+  context?: {
+    role?: string;
+    subscribed?: boolean;
+  };
 }
 
 export const DEFAULT_HIVE_NODES = [
@@ -405,18 +437,21 @@ export function getCachedRankedPosts(
 export async function getDiscussion(
   author: string,
   permlink: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  observer: string = ''
 ): Promise<Record<string, HivePost>> {
   const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
   const cleanPermlink = permlink.trim();
-  const cacheKey = `discussion:${cleanAuthor}:${cleanPermlink}`;
+  const cleanObserver = (observer || '').replace(/^@/, '').trim().toLowerCase();
+  const cacheKey = `discussion:${cleanAuthor}:${cleanPermlink}:${cleanObserver}`;
 
   return fetchWithCache(
     cacheKey,
     async () => {
       const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
         author: cleanAuthor,
-        permlink: cleanPermlink
+        permlink: cleanPermlink,
+        observer: cleanObserver || undefined
       });
       return result || {};
     },
@@ -427,9 +462,11 @@ export async function getDiscussion(
 /**
  * Invalidate a post's discussion cache (e.g. after commenting or voting)
  */
-export function invalidateDiscussionCache(author: string, permlink: string): void {
+export function invalidateDiscussionCache(author: string, permlink: string, observer: string = ''): void {
   const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
   const cleanPermlink = permlink.trim();
+  const cleanObserver = (observer || '').replace(/^@/, '').trim().toLowerCase();
+  apiCache.invalidate(`discussion:${cleanAuthor}:${cleanPermlink}:${cleanObserver}`);
   apiCache.invalidate(`discussion:${cleanAuthor}:${cleanPermlink}`);
 }
 
@@ -470,18 +507,85 @@ export async function getPost(
 /**
  * Fetch detailed account info
  */
+// Objeto em memória para evitar chamadas duplicadas simultâneas (In-Flight Requests)
+const pendingAccountRequests = new Map<string, Promise<HiveAccount | null>>();
+
 export async function getAccount(username: string, forceRefresh: boolean = false): Promise<HiveAccount | null> {
   const cleaned = username.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return null;
+  
   const cacheKey = `account:${cleaned}`;
 
-  return fetchWithCache(
+  // 1. Verifica cache local primeiro
+  if (!forceRefresh) {
+    const cached = apiCache.get<HiveAccount>(cacheKey);
+    if (cached) return cached;
+  }
+
+  // 2. Se já existe uma requisição em andamento para essa mesma conta, reaproveita a Promise
+  if (pendingAccountRequests.has(cleaned)) {
+    return pendingAccountRequests.get(cleaned)!;
+  }
+
+  // 3. Cria a nova requisição
+  const requestPromise = fetchWithCache(
     cacheKey,
     async () => {
       const result = await hiveRpcCall<HiveAccount[]>('condenser_api.get_accounts', [[cleaned]]);
       return result && result.length > 0 ? result[0] : null;
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
-  );
+  ).finally(() => {
+    // Limpa a fila quando for resolvida
+    pendingAccountRequests.delete(cleaned);
+  });
+
+  pendingAccountRequests.set(cleaned, requestPromise);
+  return requestPromise;
+}
+
+/**
+ * Busca detalhes de múltiplos usuários em lote, ignorando os que já estão no cache.
+ */
+export async function getAccountsBatch(usernames: string[]): Promise<HiveAccount[]> {
+  // Limpa e remove duplicados da lista
+  const uniqueNames = Array.from(new Set(usernames.map(u => u.replace(/^@/, '').trim().toLowerCase()))).filter(Boolean);
+  
+  const results: HiveAccount[] = [];
+  const missingFromCache: string[] = [];
+
+  // 1. Resgata do cache o que já existir
+  for (const name of uniqueNames) {
+    const cached = apiCache.get<HiveAccount>(`account:${name}`);
+    if (cached) {
+      results.push(cached);
+    } else {
+      missingFromCache.push(name);
+    }
+  }
+
+  if (missingFromCache.length === 0) {
+    return results;
+  }
+
+  // 2. Para as contas que realmente faltam, dispara em blocos
+  const chunkSize = 15;
+  for (let i = 0; i < missingFromCache.length; i += chunkSize) {
+    const chunk = missingFromCache.slice(i, i + chunkSize);
+    try {
+      const fetched = await hiveRpcCall<HiveAccount[]>('condenser_api.get_accounts', [chunk]);
+      if (Array.isArray(fetched)) {
+        for (const acc of fetched) {
+          apiCache.set(`account:${acc.name}`, acc, CACHE_TTL.ACCOUNT);
+          results.push(acc);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar bloco de contas:', err);
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -679,37 +783,189 @@ export async function getFollowCount(account: string, forceRefresh: boolean = fa
 }
 
 /**
- * Fetch list of trending topics/tags on Hive
+ * Fetch account notifications with pagination via last_id
  */
-export async function getTrendingTags(limit: number = 30, forceRefresh: boolean = false): Promise<Array<{ name: string; tag: string; total_payouts?: string }>> {
+export async function getAccountNotifications(
+  account: string,
+  limit: number = 50,
+  lastId?: string
+): Promise<HiveNotification[]> {
+  const cleaned = account.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return [];
+
+  try {
+    const params: { account: string; limit: number; last_id?: string } = {
+      account: cleaned,
+      limit
+    };
+    if (lastId) {
+      params.last_id = lastId;
+    }
+    const result = await hiveRpcCall<HiveNotification[]>('bridge.account_notifications', params);
+    return Array.isArray(result) ? result : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch all accounts followed by a user along with their activity / last post status
+ */
+export async function getAllFollowingWithDetails(
+  account: string,
+  maxAccounts: number = 1000
+): Promise<FollowedCreatorInfo[]> {
+  const cleaned = account.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return [];
+
+  const allUsernames: string[] = [];
+  let currentStart = '';
+  let hasMore = true;
+
+  while (hasMore && allUsernames.length < maxAccounts) {
+    const batchLimit = 100;
+    try {
+      const result = await hiveRpcCall<Array<{ following: string }>>(
+        'condenser_api.get_following',
+        [cleaned, currentStart, 'blog', batchLimit]
+      );
+      if (!result || result.length === 0) {
+        break;
+      }
+
+      const users = result.map(r => r.following);
+      // If we provided currentStart, the first element is currentStart itself
+      const newUsers = currentStart ? users.slice(1) : users;
+
+      if (newUsers.length === 0) {
+        break;
+      }
+
+      for (const u of newUsers) {
+        if (!allUsernames.includes(u)) {
+          allUsernames.push(u);
+        }
+      }
+
+      if (users.length < batchLimit) {
+        hasMore = false;
+      } else {
+        currentStart = users[users.length - 1];
+      }
+    } catch {
+      break;
+    }
+  }
+
+  // Now fetch account data in chunks of 50 to get last_post, reputation, profile
+  const detailsMap: Record<string, FollowedCreatorInfo> = {};
+  const chunkSize = 50;
+  const now = Date.now();
+  const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+
+  for (let i = 0; i < allUsernames.length; i += chunkSize) {
+    const chunk = allUsernames.slice(i, i + chunkSize);
+    try {
+      const accounts = await hiveRpcCall<Array<HiveAccount & { last_post?: string }>>(
+        'condenser_api.get_accounts',
+        [chunk]
+      );
+      for (const acc of accounts || []) {
+        let lastPostTimestamp: number | undefined;
+        let lastPostDate: string | undefined;
+        let isInactive6Months = true;
+
+        if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
+          const safeStr = acc.last_post.endsWith('Z') ? acc.last_post : `${acc.last_post}Z`;
+          const t = new Date(safeStr).getTime();
+          if (!isNaN(t)) {
+            lastPostTimestamp = t;
+            lastPostDate = acc.last_post;
+            isInactive6Months = (now - t) > SIX_MONTHS_MS;
+          }
+        }
+
+        let profileData: any = {};
+        try {
+          const metaStr = acc.posting_json_metadata || acc.json_metadata;
+          if (metaStr) {
+            const parsed = JSON.parse(metaStr);
+            profileData = parsed?.profile || {};
+          }
+        } catch {}
+
+        detailsMap[acc.name] = {
+          username: acc.name,
+          lastPostDate,
+          lastPostTimestamp,
+          isInactive6Months,
+          reputation: typeof acc.reputation === 'number' ? acc.reputation : parseInt(String(acc.reputation || '0'), 10),
+          postCount: acc.post_count,
+          createdDate: acc.created,
+          name: profileData.name,
+          about: profileData.about,
+          avatarUrl: profileData.profile_image || getHiveAvatarUrl(acc.name, 'small')
+        };
+      }
+    } catch {
+      // Chunk failed, continue
+    }
+  }
+
+  // Assemble full list preserving order
+  return allUsernames.map(username => {
+    return detailsMap[username] || {
+      username,
+      isInactive6Months: true,
+      avatarUrl: getHiveAvatarUrl(username, 'small')
+    };
+  });
+}
+
+export interface TrendingTagInfo {
+  name: string;
+  tag: string;
+  comments?: number;
+  top_posts?: number;
+  total_payouts?: string;
+}
+
+/**
+ * Fetch list of trending topics/tags on Hive directly from the blockchain
+ */
+export async function getTrendingTags(
+  limit: number = 250,
+  forceRefresh: boolean = false
+): Promise<TrendingTagInfo[]> {
   const cacheKey = `trending_tags:${limit}`;
 
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<Array<{ name: string; total_payouts?: string }>>(
-          'condenser_api.get_trending_tags',
-          ['', limit]
-        );
-        return (result || [])
-          .filter(t => t.name && !t.name.startsWith('hive-'))
-          .map(t => ({ name: t.name, tag: t.name, total_payouts: t.total_payouts }));
-      } catch {
-        return [
-          { name: 'photography', tag: 'photography' },
-          { name: 'finance', tag: 'finance' },
-          { name: 'crypto', tag: 'crypto' },
-          { name: 'travel', tag: 'travel' },
-          { name: 'art', tag: 'art' },
-          { name: 'food', tag: 'food' },
-          { name: 'hive', tag: 'hive' },
-          { name: 'nature', tag: 'nature' },
-          { name: 'gaming', tag: 'gaming' }
-        ];
+      const result = await hiveRpcCall<Array<{ name: string; comments?: number; top_posts?: number; total_payouts?: string }>>(
+        'condenser_api.get_trending_tags',
+        ['', limit]
+      );
+
+      if (!result || !Array.isArray(result) || result.length === 0) {
+        throw new Error('Empty trending tags response');
       }
+
+      return result
+        .filter((t) => t && t.name && t.name.length >= 2)
+        .map((t) => ({
+          name: t.name,
+          tag: t.name,
+          comments: t.comments,
+          top_posts: t.top_posts,
+          total_payouts: t.total_payouts
+        }));
     },
-    { ttl: CACHE_TTL.TRENDING_TAGS, forceRefresh }
+    {
+      ttl: CACHE_TTL.TRENDING_TAGS, // 7 Dias
+      persistent: true,             // Grava no localStorage para sobreviver ao fechar o navegador
+      forceRefresh
+    }
   );
 }
 
@@ -839,10 +1095,43 @@ export function getPostSnippet(body: string, maxLength: number = 180): string {
 }
 
 /**
+ * Chame isso logo depois de confirmar um follow/unfollow (custom_json de sucesso).
+ * Limpa as listas cacheadas de "quem eu sigo" e "quem está ativo" desse observer,
+ * e também os caches dos 3 modos de feed com os parâmetros default usados na
+ * FeedPage, para que a próxima renderização já reflita o novo estado de following.
+ *
+ * OBS: mesmo limpando o cache local, o Hivemind pode levar alguns segundos pra
+ * indexar o follow — se o get_following logo em seguida ainda não trouxer o novo
+ * usuário, não é bug daqui, é atraso de indexação do backend público.
+ */
+export function notifyFollowingChanged(observer: string): void {
+  const cleanObserver = observer.replace(/^@/, '').trim().toLowerCase();
+  if (!cleanObserver) return;
+
+  // Lista de following usada internamente por getFollowedActiveAccounts
+  apiCache.invalidate(`following:${cleanObserver}::100`);
+  // Lista de following default (start vazio, limit 50) usada por outras telas
+  apiCache.invalidate(`following:${cleanObserver}::50`);
+
+  apiCache.invalidate(`followed_active_accounts:${cleanObserver}`);
+
+  // Caches dos 3 modos de feed com os parâmetros default da FeedPage
+  apiCache.invalidate(`followed_root_feed:${cleanObserver}:20::`);
+  apiCache.invalidate(`followed_comments_feed:${cleanObserver}:45:7`);
+  apiCache.invalidate(`followed_mixed_feed:${cleanObserver}:45:7`);
+}
+
+/**
  * Discovers accounts followed by the user that were active (posted or commented) within the last 7 days.
  * Efficiently batches account lookups in chunks of 15 using condenser_api.get_accounts as requested,
  * avoiding unnecessary RPC load and caching the active set.
  */
+// Trava de requisições em andamento por observer: se o feed disparar fetchPosts
+// duas vezes quase ao mesmo tempo (StrictMode, troca rápida de modo, etc.),
+// a segunda chamada reaproveita a Promise da primeira em vez de refazer o
+// get_following + a checagem de atividade do zero.
+const pendingActiveAccountsRequests = new Map<string, Promise<string[]>>();
+
 export async function getFollowedActiveAccounts(
   observer: string,
   forceRefresh: boolean = false
@@ -856,66 +1145,50 @@ export async function getFollowedActiveAccounts(
     if (cached) return cached;
   }
 
-  try {
-    // 1. Fetch up to 100 accounts followed by user
-    const following = await getFollowing(cleanObserver, '', 100, forceRefresh);
-    if (!following || following.length === 0) return [];
-
-    // 2. Batch in chunks of 15 accounts as specified by user
-    const chunkSize = 15;
-    const chunks: string[][] = [];
-    for (let i = 0; i < following.length; i += chunkSize) {
-      chunks.push(following.slice(i, i + chunkSize));
-    }
-
-    const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const activeWithTimestamp: { name: string; lastPostTime: number }[] = [];
-
-    // Process chunks concurrently (up to 3 in flight)
-    for (let i = 0; i < chunks.length; i += 3) {
-      const slice = chunks.slice(i, i + 3);
-      const results = await Promise.all(
-        slice.map(async (chunk) => {
-          try {
-            return await hiveRpcCall<Array<{ name: string; last_post?: string }>>(
-              'condenser_api.get_accounts',
-              [chunk]
-            );
-          } catch {
-            return [];
-          }
-        })
-      );
-
-      for (const accounts of results) {
-        for (const acc of accounts || []) {
-          if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
-            const time = new Date(acc.last_post.endsWith('Z') ? acc.last_post : acc.last_post + 'Z').getTime();
-            if (!isNaN(time) && time > sevenDaysAgoMs) {
-              activeWithTimestamp.push({ name: acc.name, lastPostTime: time });
-            }
-          }
-        }
-      }
-    }
-
-    // Sort by recent activity descending
-    activeWithTimestamp.sort((a, b) => b.lastPostTime - a.lastPostTime);
-    const activeUsernames = activeWithTimestamp.map(u => u.name);
-
-    // Cache active accounts list for 10 minutes
-    apiCache.set(cacheKey, activeUsernames, CACHE_TTL.FEED);
-    return activeUsernames;
-  } catch (err) {
-    console.error('Error fetching followed active accounts:', err);
-    return [];
+  if (!forceRefresh && pendingActiveAccountsRequests.has(cacheKey)) {
+    return pendingActiveAccountsRequests.get(cacheKey)!;
   }
+
+  const requestPromise = (async () => {
+    try {
+      const following = await getFollowing(cleanObserver, '', 100, forceRefresh);
+      if (!following || following.length === 0) return [];
+
+      const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+      // Cache inteligente em camadas (mesma lógica do accountsCache do app):
+      // contas ativas há < 7 dias são sempre re-checadas na abertura; contas
+      // inativas há semanas/meses só voltam a ser buscadas de tempos em tempos.
+      // Isso evita bater get_accounts toda hora em gente que não posta há muito tempo.
+      const activity = await getSmartAccountsActivity(following);
+
+      const activeWithTimestamp = Object.entries(activity)
+        .filter(([, info]) => info.timestamp > sevenDaysAgoMs)
+        .map(([name, info]) => ({ name, lastPostTime: info.timestamp }));
+
+      activeWithTimestamp.sort((a, b) => b.lastPostTime - a.lastPostTime);
+      const activeUsernames = activeWithTimestamp.map(u => u.name);
+
+      apiCache.set(cacheKey, activeUsernames, CACHE_TTL.FEED);
+      return activeUsernames;
+    } catch (err) {
+      console.error('Error fetching followed active accounts:', err);
+      return [];
+    } finally {
+      pendingActiveAccountsRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingActiveAccountsRequests.set(cacheKey, requestPromise);
+  return requestPromise;
 }
 
 /**
  * Fetches recent comments and replies made by accounts followed by the user.
  * Merges and sorts chronologically, capping at 45 items to prevent DOM/memory bloat.
  */
+const pendingCommentsFeedRequests = new Map<string, Promise<HivePost[]>>();
+
 export async function getFollowedCommentsFeed(
   observer: string,
   forceRefresh: boolean = false,
@@ -929,8 +1202,30 @@ export async function getFollowedCommentsFeed(
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
+
+    if (pendingCommentsFeedRequests.has(cacheKey)) {
+      return pendingCommentsFeedRequests.get(cacheKey)!;
+    }
   }
 
+  const requestPromise = fetchFollowedCommentsFeedInternal(cleanObserver, cacheKey, forceRefresh, limit, maxAgeDays)
+    .finally(() => {
+      pendingCommentsFeedRequests.delete(cacheKey);
+    });
+
+  if (!forceRefresh) {
+    pendingCommentsFeedRequests.set(cacheKey, requestPromise);
+  }
+  return requestPromise;
+}
+
+async function fetchFollowedCommentsFeedInternal(
+  cleanObserver: string,
+  cacheKey: string,
+  forceRefresh: boolean,
+  limit: number,
+  maxAgeDays: number
+): Promise<HivePost[]> {
   const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
   try {
@@ -1018,6 +1313,8 @@ export function getRebloggedBy(post: HivePost): string | null {
  * Fetches root publications and reblogs from accounts followed by the user.
  * Uses native condenser_api.get_discussions_by_feed with graceful fallback to active accounts' posts.
  */
+const pendingRootFeedRequests = new Map<string, Promise<HivePost[]>>();
+
 export async function getFollowedRootFeed(
   observer: string,
   limit: number = 20,
@@ -1033,8 +1330,37 @@ export async function getFollowedRootFeed(
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
+
+    if (pendingRootFeedRequests.has(cacheKey)) {
+      return pendingRootFeedRequests.get(cacheKey)!;
+    }
   }
 
+  const requestPromise = fetchFollowedRootFeedInternal(
+    cleanObserver,
+    cacheKey,
+    safeLimit,
+    forceRefresh,
+    startAuthor,
+    startPermlink
+  ).finally(() => {
+    pendingRootFeedRequests.delete(cacheKey);
+  });
+
+  if (!forceRefresh) {
+    pendingRootFeedRequests.set(cacheKey, requestPromise);
+  }
+  return requestPromise;
+}
+
+async function fetchFollowedRootFeedInternal(
+  cleanObserver: string,
+  cacheKey: string,
+  safeLimit: number,
+  forceRefresh: boolean,
+  startAuthor?: string,
+  startPermlink?: string
+): Promise<HivePost[]> {
   try {
     const params: Record<string, any> = {
       sort: 'feed',
@@ -1137,6 +1463,8 @@ export async function getFollowedRootFeed(
  * Fetches a merged feed combining both root stories and comments/replies from followed accounts.
  * Interleaved and sorted chronologically with strict memory capping.
  */
+const pendingMixedFeedRequests = new Map<string, Promise<HivePost[]>>();
+
 export async function getFollowedMixedFeed(
   observer: string,
   forceRefresh: boolean = false,
@@ -1150,8 +1478,30 @@ export async function getFollowedMixedFeed(
   if (!forceRefresh) {
     const cached = apiCache.get<HivePost[]>(cacheKey);
     if (cached) return cached;
+
+    if (pendingMixedFeedRequests.has(cacheKey)) {
+      return pendingMixedFeedRequests.get(cacheKey)!;
+    }
   }
 
+  const requestPromise = fetchFollowedMixedFeedInternal(cleanObserver, cacheKey, forceRefresh, limit, maxAgeDays)
+    .finally(() => {
+      pendingMixedFeedRequests.delete(cacheKey);
+    });
+
+  if (!forceRefresh) {
+    pendingMixedFeedRequests.set(cacheKey, requestPromise);
+  }
+  return requestPromise;
+}
+
+async function fetchFollowedMixedFeedInternal(
+  cleanObserver: string,
+  cacheKey: string,
+  forceRefresh: boolean,
+  limit: number,
+  maxAgeDays: number
+): Promise<HivePost[]> {
   const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
   try {
@@ -1249,4 +1599,3 @@ export async function getSimilarPosts(
     return [];
   }
 }
-

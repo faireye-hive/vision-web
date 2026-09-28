@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Activity, 
@@ -9,10 +9,8 @@ import {
   Play, 
   RefreshCw, 
   Check, 
-  Layers,
   Zap,
   Trash2,
-  Database,
   Plus,
   RotateCcw,
   Globe,
@@ -64,6 +62,9 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   const [cacheStats, setCacheStats] = useState(apiCache.getStats());
   const [cacheClearedMsg, setCacheClearedMsg] = useState(false);
 
+  // Ref para controlar se o ping já está em andamento e evitar duplicidade
+  const isPingingRef = useRef(false);
+
   useEffect(() => {
     return apiCache.subscribe((stats) => {
       setCacheStats(stats);
@@ -77,15 +78,30 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
     setTimeout(() => setCacheClearedMsg(false), 2500);
   };
 
-  const pingAllNodes = (nodesList: string[]) => {
-    nodesList.forEach((node) => {
-      pingNode(node).then((ms) => {
-        setNodePings((prev) => ({ ...prev, [node]: ms }));
+  // Testa os nós com controle para não encadear requisições
+  const pingAllNodes = (nodesList: string[], force: boolean = false) => {
+    if (isPingingRef.current && !force) return;
+    isPingingRef.current = true;
+
+    Promise.all(
+      nodesList.map(async (node) => {
+        const ms = await pingNode(node);
+        return { node, ms };
+      })
+    ).then((results) => {
+      const pingMap: Record<string, number> = {};
+      results.forEach(({ node, ms }) => {
+        pingMap[node] = ms;
       });
+      setNodePings((prev) => ({ ...prev, ...pingMap }));
+      isPingingRef.current = false;
+    }).catch(() => {
+      isPingingRef.current = false;
     });
   };
 
-  const fetchStats = () => {
+  // Atualiza apenas os dados da blockchain no timer (sem pingar os nós novamente)
+  const fetchStatsOnly = () => {
     setLoading(true);
     getDynamicGlobalProperties()
       .then((data) => {
@@ -93,12 +109,14 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
 
-    // Ping all nodes (defaults + custom)
+  const handleManualRefresh = () => {
+    fetchStatsOnly();
     const currentNodes = getAllHiveNodes();
     setAllNodes(currentNodes);
     setCustomNodes(getCustomHiveNodes());
-    pingAllNodes(currentNodes);
+    pingAllNodes(currentNodes, true);
   };
 
   const handleSelectNode = (node: string) => {
@@ -118,10 +136,9 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
 
     setAddingNode(true);
     try {
-      // Test connectivity first
       const pingMs = await pingNode(trimmed);
       if (pingMs < 0) {
-        setNodeAddError('Could not reach RPC node or response timed out. Verify the URL is a valid Hive JSON-RPC endpoint.');
+        setNodeAddError('Could not reach RPC node or response timed out.');
         setAddingNode(false);
         return;
       }
@@ -163,13 +180,22 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
       setCustomNodes([]);
       setAllNodes(DEFAULT_HIVE_NODES);
       setActiveNodeUrl(DEFAULT_HIVE_NODES[0]);
-      pingAllNodes(DEFAULT_HIVE_NODES);
+      pingAllNodes(DEFAULT_HIVE_NODES, true);
     }
   };
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
+    // 1. Busca inicial das métricas
+    fetchStatsOnly();
+
+    // 2. Executa o ping apenas UMA VEZ na abertura do modal
+    const currentNodes = getAllHiveNodes();
+    setAllNodes(currentNodes);
+    setCustomNodes(getCustomHiveNodes());
+    pingAllNodes(currentNodes);
+
+    // 3. Atualiza apenas as métricas gerais a cada 60s (SEM re-pingar os nós)
+    const interval = setInterval(fetchStatsOnly, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -214,15 +240,15 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
 
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchStats}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition"
-              title="Refresh Stats"
+              onClick={handleManualRefresh}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition cursor-pointer"
+              title="Refresh Stats & Pings"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-rose-500/20 border border-slate-800 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-rose-500/20 border border-slate-800 transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -406,7 +432,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {ping !== undefined && (
+                      {ping !== undefined ? (
                         <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
                           ping > 0 && ping < 250 ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-900/40' :
                           ping >= 250 ? 'text-amber-400 bg-amber-950/50 border border-amber-900/40' :
@@ -414,6 +440,8 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                         }`}>
                           {ping > 0 ? `${ping}ms` : 'offline'}
                         </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 font-mono animate-pulse">pinging...</span>
                       )}
 
                       {isActive && <Check className="w-4 h-4 text-rose-400 flex-shrink-0" />}
@@ -483,25 +511,6 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                 <p className="text-[9px] text-slate-500">Active entries</p>
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-slate-400">
-              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                Feeds (Hot/Trending): 3m
-              </span>
-              <span className="px-2 py-0.5 rounded bg-slate-900 border border-emerald-900/40 text-emerald-300 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                "New" Feed: Live (0s / Bypassed)
-              </span>
-              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Discussions: 2m
-              </span>
-              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                Accounts: 5m
-              </span>
-            </div>
           </div>
 
           {/* Interactive Live Hive RPC Test Playground */}
@@ -549,7 +558,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     setRpcMethod('condenser_api.get_version');
                     setRpcParams('[]');
                   }}
-                  className="text-[10px] text-slate-400 hover:text-white bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                  className="text-[10px] text-slate-400 hover:text-white bg-slate-900 px-2 py-1 rounded border border-slate-800 cursor-pointer"
                 >
                   Preset: get_version
                 </button>
@@ -558,7 +567,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     setRpcMethod('condenser_api.get_accounts');
                     setRpcParams('[["ecency"]]');
                   }}
-                  className="text-[10px] text-slate-400 hover:text-white bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                  className="text-[10px] text-slate-400 hover:text-white bg-slate-900 px-2 py-1 rounded border border-slate-800 cursor-pointer"
                 >
                   Preset: get_accounts
                 </button>
@@ -568,7 +577,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                 id="execute-rpc-btn"
                 onClick={handleExecuteRpc}
                 disabled={rpcLoading}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 disabled:opacity-50 transition"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 disabled:opacity-50 transition cursor-pointer"
               >
                 <Play className={`w-3.5 h-3.5 ${rpcLoading ? 'animate-pulse' : ''}`} />
                 <span>{rpcLoading ? 'Executing...' : 'Run RPC'}</span>

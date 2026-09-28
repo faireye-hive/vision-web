@@ -85,56 +85,120 @@ function stringHashCode(str: string): number {
   return Math.abs(hash);
 }
 
+// Memory Cache & Request De-duplication variables
 let cachedLanguages: LanguageOption[] | null = null;
+let cachedLanguagesPromise: Promise<LanguageOption[]> | null = null;
+
+const CACHE_KEY = 'nebulosa_combflow_languages_cache';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // Cache válido por 24 horas
 
 /**
- * Fetch the top 20 most popular languages from Combflow API.
+ * Carrega idiomas salvos no localStorage, se válidos.
+ */
+function loadLanguagesFromLocalStorage(): LanguageOption[] | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (parsed.timestamp && Date.now() - parsed.timestamp < CACHE_TTL_MS && Array.isArray(parsed.data)) {
+      return parsed.data;
+    }
+  } catch (err) {
+    console.warn('Erro ao ler cache de idiomas do localStorage:', err);
+  }
+  return null;
+}
+
+/**
+ * Salva a lista de idiomas no localStorage.
+ */
+function saveLanguagesToLocalStorage(data: LanguageOption[]) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        timestamp: Date.now(),
+        data,
+      })
+    );
+  } catch (err) {
+    console.warn('Erro ao salvar cache de idiomas no localStorage:', err);
+  }
+}
+
+/**
+ * Fetch the top 20 most popular languages from Combflow API (Com Cache e Lock de Concorrência).
  */
 export async function getCombflowLanguages(): Promise<LanguageOption[]> {
+  // 1. Retorno síncrono em memória
   if (cachedLanguages && cachedLanguages.length > 0) {
     return cachedLanguages;
   }
 
-  try {
-    const res = await fetch('https://combflow.net/api/languages', {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Combflow languages HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    if (data && Array.isArray(data.languages)) {
-      // Pick top 20
-      const top20 = data.languages.slice(0, 20);
-      const mapped: LanguageOption[] = top20.map((item: { language: string; count: number }) => {
-        const info = LANGUAGE_DETAILS_MAP[item.language] || {
-          name: item.language.toUpperCase(),
-          nativeName: item.language,
-          flag: '🌐',
-        };
-        return {
-          code: item.language,
-          name: info.name,
-          nativeName: info.nativeName,
-          flag: info.flag,
-          count: item.count,
-          formattedCount: formatCount(item.count),
-        };
-      });
-
-      cachedLanguages = mapped;
-      return mapped;
-    }
-  } catch (err) {
-    console.warn('Failed to fetch Combflow languages live, using fallback list:', err);
+  // 2. Retorno via localStorage (se o usuário recarregou a página)
+  const localCached = loadLanguagesFromLocalStorage();
+  if (localCached && localCached.length > 0) {
+    cachedLanguages = localCached;
+    return localCached;
   }
 
-  cachedLanguages = PREDEFINED_TOP_LANGUAGES;
-  return PREDEFINED_TOP_LANGUAGES;
+  // 3. Se uma requisição HTTP já estiver em andamento, reaproveita a mesma Promise
+  if (cachedLanguagesPromise) {
+    return cachedLanguagesPromise;
+  }
+
+  // 4. Cria a Promise para buscar na API apenas uma única vez
+  cachedLanguagesPromise = (async () => {
+    try {
+      const res = await fetch('https://combflow.net/api/languages', {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Combflow languages HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data && Array.isArray(data.languages)) {
+        // Pick top 20
+        const top20 = data.languages.slice(0, 20);
+        const mapped: LanguageOption[] = top20.map((item: { language: string; count: number }) => {
+          const info = LANGUAGE_DETAILS_MAP[item.language] || {
+            name: item.language.toUpperCase(),
+            nativeName: item.language,
+            flag: '🌐',
+          };
+          return {
+            code: item.language,
+            name: info.name,
+            nativeName: info.nativeName,
+            flag: info.flag,
+            count: item.count,
+            formattedCount: formatCount(item.count),
+          };
+        });
+
+        cachedLanguages = mapped;
+        saveLanguagesToLocalStorage(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch Combflow languages live, using fallback list:', err);
+    } finally {
+      // Limpa a promise ativa após resolver/rejeitar
+      cachedLanguagesPromise = null;
+    }
+
+    cachedLanguages = PREDEFINED_TOP_LANGUAGES;
+    return PREDEFINED_TOP_LANGUAGES;
+  })();
+
+  return cachedLanguagesPromise;
 }
 
 export interface CombflowBrowsePost {

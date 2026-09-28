@@ -6,62 +6,77 @@ import {
   Compass,
   TrendingUp,
   X,
-  Sparkles
+  Sparkles,
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import { HivePost, getTrendingTags } from '../services/hiveApi';
 
 interface TrendingTopicsCardProps {
   currentTag: string;
   onSelectTag: (tag: string) => void;
-  feedPosts: HivePost[];
+  feedPosts?: HivePost[];
+  currentSort?: string;
 }
 
-const DEFAULT_BACKUP_TAGS = [
-  'photography',
-  'crypto',
-  'finance',
-  'travel',
-  'art',
-  'food',
-  'hive',
-  'gaming',
-  'music',
-  'nature',
-  'technology',
-  'lifestyle',
-  'writing',
-  'science',
-  'sports'
-];
-
-// Lista de tags de ruído / ignoradas
-const NOISE_TAGS = new Set([
+// Blacklist of spam, bot rings, and low-effort reward tags
+const SPAM_TAGS = new Set([
+  'pob',
+  'leo',
+  'burnpost',
+  'bbho',
+  'bbh',
+  'cpt',
+  'ctp',
+  'actifit',
+  'alive',
+  'cent',
+  'waiv',
+  'vyb',
+  'archon',
   'neoxian',
+  'oneup',
+  'leofinance',
+  'inleo',
+  'creativecoin',
   'proofofbrain',
   'pimp',
-  'archon',
-  'vyb',
-  'cent',
   'appreciator',
   'palnet',
-  'pob',
-  'waiv',
   'arcadecolony',
-  'bbh',
   'qurator',
-  'alive', 
-  'leofinance', 
-  'inleo', 
-  'creativecoin',
+  'sportstalk',
+  'weedcash',
+  'splinterlands',
+  'spt',
+  'ecency',
+  'hive-engine',
+  'stem',
+  'stemng',
+  'lassecash',
+  'free-compliments',
+  'posh',
+  'curation',
+  'hive',
+  'polish',
+  'blog',
+  'percentmap',
+  'tribes',
 ]);
+
+const DEFAULT_FALLBACK_TAGS = [
+  'X'
+];
 
 export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
   currentTag,
   onSelectTag,
-  feedPosts,
+  feedPosts = [],
+  currentSort = 'hot'
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [remoteTags, setRemoteTags] = useState<string[]>([]);
+  const [blockchainTags, setBlockchainTags] = useState<string[]>([]);
+  const [loadingChainTags, setLoadingChainTags] = useState<boolean>(false);
   const [favTopics, setFavTopics] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('nebulosa_fav_topics');
@@ -71,18 +86,41 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
     }
   });
 
-  // Fetch global trending tags from Hive RPC in background
-  useEffect(() => {
+  // Fetch global trending tags from Hive blockchain when no tag is selected
+useEffect(() => {
     let isMounted = true;
-    getTrendingTags(30).then((tags) => {
-      if (isMounted && tags && tags.length > 0) {
-        setRemoteTags(tags.map((t) => t.tag));
-      }
-    }).catch(() => {});
+    if (!currentTag) {
+      setLoadingChainTags(true);
+      getTrendingTags(250)
+        .then((tags) => {
+          if (!isMounted) return;
+          
+          const cleanTags = (tags || [])
+            // Garante leitura tanto de t.tag quanto de t.name
+            .map((t) => ((t.tag || t.name) || '').toLowerCase().trim())
+            .filter((t) => t.length >= 2 && !t.startsWith('hive-') && !SPAM_TAGS.has(t));
+
+          // Se a filtragem eliminar todas as tags de spam, usa um fallback decente em vez de ficar em branco
+          setBlockchainTags(
+            cleanTags.length > 0 
+              ? cleanTags 
+              : ['photography', 'crypto', 'technology', 'art', 'gaming', 'finance']
+          );
+        })
+        .catch((err) => {
+          console.error("Erro ao carregar tags:", err);
+          if (isMounted) {
+            setBlockchainTags(['photography', 'crypto', 'technology', 'art', 'gaming']);
+          }
+        })
+        .finally(() => {
+          if (isMounted) setLoadingChainTags(false);
+        });
+    }
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentTag]);
 
   const toggleFavTopic = (topic: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -97,73 +135,91 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
     });
   };
 
-  // Rank topics extracted dynamically from current posts + remote trending
+  // Determine ranked topics:
+  // 1. If NO tag is selected: show blockchain trending tags
+  // 2. If a tag IS selected: extract local contextual tags from loaded feed posts
   const rankedTopics = useMemo(() => {
-    const counts: { [key: string]: number } = {};
+    let pool: string[] = [];
 
-    feedPosts.forEach((p) => {
-      if (p.category && !p.category.startsWith('hive-')) {
-        const cat = p.category.toLowerCase().trim();
-        if (!NOISE_TAGS.has(cat)) {
-          counts[cat] = (counts[cat] || 0) + 2;
-        }
-      }
-      let metadataTags: string[] = [];
-      if (typeof p.json_metadata === 'object' && p.json_metadata && Array.isArray((p.json_metadata as any).tags)) {
-        metadataTags = (p.json_metadata as any).tags;
-      } else if (typeof p.json_metadata === 'string') {
-        try {
-          const parsed = JSON.parse(p.json_metadata);
-          if (parsed && Array.isArray(parsed.tags)) {
-            metadataTags = parsed.tags;
-          }
-        } catch {}
-      }
+    if (!currentTag) {
+      // Use blockchain tags when no tag is selected
+      pool = blockchainTags.length > 0 ? blockchainTags : DEFAULT_FALLBACK_TAGS;
+    } else {
+      // Extract local tags from loaded feed posts when a tag is active
+      const localCounts: Record<string, number> = {};
 
-      metadataTags.forEach((t: string) => {
-        if (typeof t === 'string') {
-          const clean = t.toLowerCase().trim();
-          if (
-            clean &&
-            !clean.startsWith('hive-') &&
-            clean.length > 2 &&
-            clean.length < 24 &&
-            !NOISE_TAGS.has(clean)
-          ) {
-            counts[clean] = (counts[clean] || 0) + 1;
+      feedPosts.forEach((p) => {
+        const postTagsSet = new Set<string>();
+
+        // Category
+        if (p.category && !p.category.startsWith('hive-')) {
+          const cat = p.category.toLowerCase().trim();
+          if (!SPAM_TAGS.has(cat) && cat.length >= 2) {
+            postTagsSet.add(cat);
           }
         }
+
+        // json_metadata tags
+        let metadataTags: string[] = [];
+        if (typeof p.json_metadata === 'object' && p.json_metadata && Array.isArray((p.json_metadata as any).tags)) {
+          metadataTags = (p.json_metadata as any).tags;
+        } else if (typeof p.json_metadata === 'string') {
+          try {
+            const parsed = JSON.parse(p.json_metadata);
+            if (parsed && Array.isArray(parsed.tags)) {
+              metadataTags = parsed.tags;
+            }
+          } catch {}
+        }
+
+        metadataTags.forEach((t) => {
+          if (typeof t === 'string') {
+            const clean = t.toLowerCase().trim();
+            if (
+              clean &&
+              !clean.startsWith('hive-') &&
+              clean.length >= 2 &&
+              clean.length < 24 &&
+              !SPAM_TAGS.has(clean)
+            ) {
+              postTagsSet.add(clean);
+            }
+          }
+        });
+
+        postTagsSet.forEach((t) => {
+          localCounts[t] = (localCounts[t] || 0) + 1;
+        });
       });
-    });
 
-    const pool = Array.from(
-      new Set([
-        ...Object.keys(counts),
-        ...remoteTags,
-        ...favTopics,
-        ...DEFAULT_BACKUP_TAGS
-      ])
-    ).filter((topic) => !NOISE_TAGS.has(topic.toLowerCase().trim()));
+      const extractedKeys = Object.keys(localCounts);
+      if (extractedKeys.length > 0) {
+        // Sort by frequency in current posts
+        pool = extractedKeys.sort((a, b) => (localCounts[b] || 0) - (localCounts[a] || 0));
+      } else {
+        pool = blockchainTags.length > 0 ? blockchainTags : DEFAULT_FALLBACK_TAGS;
+      }
+    }
 
-    let filtered = pool;
+    // Filter out spam tags
+    let filtered = pool.filter((topic) => !SPAM_TAGS.has(topic.toLowerCase().trim()));
+
+    // Search query filter
     if (searchQuery.trim()) {
       filtered = filtered.filter((topic) =>
         topic.toLowerCase().includes(searchQuery.toLowerCase().trim())
       );
     }
 
+    // Sort favorites to top, then keep ranking order
     return filtered.sort((a, b) => {
       const aFav = favTopics.includes(a);
       const bFav = favTopics.includes(b);
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
-
-      const countA = counts[a] || 0;
-      const countB = counts[b] || 0;
-      if (countA !== countB) return countB - countA;
-      return a.localeCompare(b);
+      return 0;
     });
-  }, [feedPosts, remoteTags, favTopics, searchQuery]);
+  }, [currentTag, blockchainTags, feedPosts, favTopics, searchQuery]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4">
@@ -174,8 +230,17 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
             <TrendingUp className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-gray-900 dark:text-white">Trending Topics</h3>
-            <p className="text-[11px] text-gray-400 dark:text-slate-500">Popular blockchain discussions</p>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-bold text-sm text-gray-900 dark:text-white">Trending Topics</h3>
+              <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded-full border border-blue-200/50 dark:border-blue-800/50">
+                {!currentTag ? 'Hive Blockchain' : 'Related Topics'}
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-400 dark:text-slate-500">
+              {!currentTag
+                ? 'Popular on Hive network'
+                : `Contextual to #${currentTag}`}
+            </p>
           </div>
         </div>
 
@@ -191,7 +256,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search topics..."
+          placeholder={!currentTag ? 'Search blockchain topics...' : `Search in #${currentTag}...`}
           className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
         />
         {searchQuery && (
@@ -247,6 +312,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/60 text-gray-700 dark:text-slate-300'
                 }`}
               >
+                {/* Topic name without number after */}
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`font-bold text-xs ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`}>
                     #
@@ -277,7 +343,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
           })
         ) : (
           <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
-            No topics matching "{searchQuery}"
+            {loadingChainTags ? 'Loading trending tags...' : `No topics matching "${searchQuery}"`}
           </div>
         )}
       </div>

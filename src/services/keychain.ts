@@ -333,6 +333,10 @@ export class KeychainService {
     });
   }
 
+  static async unfollowUser(follower: string, following: string): Promise<KeychainResponse> {
+    return this.followUser(follower, following, false);
+  }
+
   /**
    * Send tip / transfer HIVE or HBD to an author
    */

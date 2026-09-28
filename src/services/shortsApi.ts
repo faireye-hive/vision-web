@@ -82,9 +82,10 @@ export async function getPeakSnapsContainers(
  */
 export async function getContainerSnaps(
   containerPermlink: string,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  observer: string = ''
 ): Promise<ContainerSnapsResult> {
-  const discussion = await getDiscussion('peak.snaps', containerPermlink, forceRefresh);
+  const discussion = await getDiscussion('peak.snaps', containerPermlink, forceRefresh, '');
 
   const containerKey = `peak.snaps/${containerPermlink}`;
   const rawContainer = discussion[containerKey];

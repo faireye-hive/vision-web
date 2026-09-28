@@ -11,6 +11,8 @@ export const ALLOWED_IMAGE_DOMAINS = [
   'liketu.com',
   'tenor.com',
   '3speak.tv',
+  'actifit.io',
+  'skatehype.com',
 ];
 
 export function isAllowedImageHost(url: string): boolean {

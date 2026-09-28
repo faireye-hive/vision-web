@@ -22,7 +22,10 @@ import {
   Hash,
   Bookmark,
   Loader2,
-  CornerDownRight
+  CornerDownRight,
+  UserPlus,
+  UserCheck,
+  VolumeX
 } from 'lucide-react';
 import {
   HivePost,
@@ -34,6 +37,8 @@ import {
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
+import { useAuth } from '../context/AuthContext';
+import { useContentFilter } from '../context/ContentFilterContext';
 
 interface PostReaderProps {
   post: HivePost;
@@ -233,10 +238,57 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   }, [isComment, post.parent_author, post.parent_permlink]);
 
-  // Fetch comments & discussion without resetting scroll
+  const { isFollowing, setFollowingUsersList } = useAuth();
+  const { config: contentFilterConfig, addFilterAuthor, removeFilterAuthor } = useContentFilter();
+  const [followLoading, setFollowLoading] = useState<string | null>(null);
+
+  const handleToggleFollowAuthor = async (targetAuthor: string) => {
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    const cleanTarget = targetAuthor.trim().toLowerCase().replace(/^@/, '');
+    const currentlyFollowing = isFollowing(cleanTarget);
+    setFollowLoading(cleanTarget);
+
+    try {
+      const res = currentlyFollowing
+        ? await KeychainService.unfollowUser(currentUser.username, cleanTarget)
+        : await KeychainService.followUser(currentUser.username, cleanTarget);
+
+      if (res.success) {
+        setFollowingUsersList((prev) => {
+          if (currentlyFollowing) {
+            return prev.filter((u) => u.toLowerCase() !== cleanTarget);
+          } else {
+            return [...prev, cleanTarget];
+          }
+        });
+      } else {
+        alert(res.message || res.error || 'Failed to update follow status.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Keychain error.');
+    } finally {
+      setFollowLoading(null);
+    }
+  };
+
+  const handleToggleMuteAuthor = (targetAuthor: string) => {
+    const cleanTarget = targetAuthor.trim().toLowerCase().replace(/^@/, '');
+    const isMuted = contentFilterConfig.authors.includes(cleanTarget);
+    if (isMuted) {
+      removeFilterAuthor(cleanTarget);
+    } else {
+      addFilterAuthor(cleanTarget);
+    }
+  };
+
+  // Fetch comments & discussion with observer so muted accounts on chain are excluded
   const fetchDiscussion = useCallback((forceRefresh = false) => {
     setLoadingDiscussion(true);
-    getDiscussion(post.author, post.permlink, forceRefresh)
+    getDiscussion(post.author, post.permlink, forceRefresh, currentUser?.username || '')
       .then((data) => {
         setDiscussion(data || {});
         setLoadingDiscussion(false);
@@ -244,7 +296,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       .catch(() => {
         setLoadingDiscussion(false);
       });
-  }, [post.author, post.permlink]);
+  }, [post.author, post.permlink, currentUser?.username]);
 
   useEffect(() => {
     fetchDiscussion(false);
@@ -371,15 +423,18 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const getComments = (): HivePost[] => {
     const key = `${post.author}/${post.permlink}`;
     const root = discussion[key] || post;
+    let list: HivePost[] = [];
     if (root.replies && root.replies.length > 0) {
-      return root.replies
+      list = root.replies
         .map((replyKey) => discussion[replyKey])
         .filter((p): p is HivePost => !!p);
+    } else {
+      list = Object.values(discussion).filter(
+        item => item.parent_author === post.author && item.parent_permlink === post.permlink
+      );
     }
-    // Fallback: search discussion dictionary for items with this post as parent
-    return Object.values(discussion).filter(
-      item => item.parent_author === post.author && item.parent_permlink === post.permlink
-    );
+    const mutedSet = new Set((contentFilterConfig.authors || []).map(a => a.toLowerCase().trim()));
+    return list.filter(p => !mutedSet.has(p.author.toLowerCase().trim()));
   };
 
   const comments = getComments();
@@ -444,6 +499,52 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
               {rep}
             </span>
+
+            {/* Author Quick Follow & Mute Options */}
+            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
+              <div className="flex items-center gap-1 ml-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleToggleFollowAuthor(post.author)}
+                  disabled={followLoading === post.author.toLowerCase()}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
+                    isFollowing(post.author)
+                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
+                  }`}
+                  title={isFollowing(post.author) ? 'Click to unfollow' : 'Follow this author on Hive'}
+                >
+                  {isFollowing(post.author) ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      <span>Following</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3 h-3" />
+                      <span>Follow</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleMuteAuthor(post.author)}
+                  className={`p-1 rounded-full text-xs transition cursor-pointer ${
+                    contentFilterConfig.authors.includes(post.author.toLowerCase())
+                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
+                      : 'text-gray-400 hover:text-rose-600 hover:bg-gray-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={
+                    contentFilterConfig.authors.includes(post.author.toLowerCase())
+                      ? 'Author is muted (Click to unmute)'
+                      : 'Mute this author (hide their posts & comments)'
+                  }
+                >
+                  <VolumeX className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {isComment && (
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
@@ -838,6 +939,10 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   currentUser={currentUser}
                   onRequireLogin={onRequireLogin}
                   onRefreshDiscussion={() => fetchDiscussion(true)}
+                  onToggleFollowAuthor={handleToggleFollowAuthor}
+                  onToggleMuteAuthor={handleToggleMuteAuthor}
+                  isUserFollowing={isFollowing}
+                  isAuthorMuted={(author: string) => contentFilterConfig.authors.includes(author.toLowerCase().trim())}
                 />
               ))}
             </div>
@@ -997,6 +1102,10 @@ interface CommentThreadItemProps {
   currentUser: CurrentUser | null;
   onRequireLogin?: () => void;
   onRefreshDiscussion: () => void;
+  onToggleFollowAuthor?: (author: string) => void;
+  onToggleMuteAuthor?: (author: string) => void;
+  isUserFollowing?: (author: string) => boolean;
+  isAuthorMuted?: (author: string) => boolean;
 }
 
 const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
@@ -1006,7 +1115,11 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   onSelectAuthor,
   currentUser,
   onRequireLogin,
-  onRefreshDiscussion
+  onRefreshDiscussion,
+  onToggleFollowAuthor,
+  onToggleMuteAuthor,
+  isUserFollowing,
+  isAuthorMuted
 }) => {
   // Check if current user has upvoted this comment
   const [upvoted, setUpvoted] = useState<boolean>(() => {
@@ -1037,13 +1150,17 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   // Child replies from discussion map
   const childReplies = useMemo(() => {
     const keys = comment.replies || [];
-    const directReplies = keys.map(k => discussion[k]).filter((c): c is HivePost => !!c);
-    if (directReplies.length > 0) return directReplies;
-    // Fallback: search discussion by parent_author and parent_permlink
-    return Object.values(discussion).filter(
-      item => item.parent_author === comment.author && item.parent_permlink === comment.permlink
-    );
-  }, [comment.author, comment.permlink, comment.replies, discussion]);
+    let directReplies = keys.map(k => discussion[k]).filter((c): c is HivePost => !!c);
+    if (directReplies.length === 0) {
+      directReplies = Object.values(discussion).filter(
+        item => item.parent_author === comment.author && item.parent_permlink === comment.permlink
+      );
+    }
+    if (isAuthorMuted) {
+      return directReplies.filter(c => !isAuthorMuted(c.author));
+    }
+    return directReplies;
+  }, [comment.author, comment.permlink, comment.replies, discussion, isAuthorMuted]);
 
   const totalVotes = Math.max(0, (comment.stats?.total_votes || comment.active_votes?.length || 0) + voteCountDelta);
   const payout = comment.payout !== undefined && comment.payout > 0
@@ -1140,6 +1257,38 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
             @{comment.author}
           </button>
           <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">({rep})</span>
+
+          {onToggleFollowAuthor && onToggleMuteAuthor && (!currentUser || currentUser.username.toLowerCase() !== comment.author.toLowerCase()) && (
+            <div className="flex items-center gap-1 ml-0.5">
+              <button
+                type="button"
+                onClick={() => onToggleFollowAuthor(comment.author)}
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition cursor-pointer ${
+                  isUserFollowing && isUserFollowing(comment.author)
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900'
+                    : 'bg-gray-100 dark:bg-slate-700 hover:bg-blue-600 hover:text-white text-gray-600 dark:text-slate-300'
+                }`}
+                title={isUserFollowing && isUserFollowing(comment.author) ? 'Following author (click to unfollow)' : 'Follow author'}
+              >
+                {isUserFollowing && isUserFollowing(comment.author) ? <Check className="w-2.5 h-2.5" /> : <UserPlus className="w-2.5 h-2.5" />}
+                <span>{isUserFollowing && isUserFollowing(comment.author) ? 'Following' : 'Follow'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onToggleMuteAuthor(comment.author)}
+                className={`p-0.5 rounded-full text-xs transition cursor-pointer ${
+                  isAuthorMuted && isAuthorMuted(comment.author)
+                    ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/60'
+                    : 'text-gray-400 hover:text-rose-600'
+                }`}
+                title={isAuthorMuted && isAuthorMuted(comment.author) ? 'Author is muted (click to unmute)' : 'Mute author'}
+              >
+                <VolumeX className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           {depth > 0 && (
             <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded-full">
               Reply
@@ -1258,6 +1407,10 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
               currentUser={currentUser}
               onRequireLogin={onRequireLogin}
               onRefreshDiscussion={onRefreshDiscussion}
+              onToggleFollowAuthor={onToggleFollowAuthor}
+              onToggleMuteAuthor={onToggleMuteAuthor}
+              isUserFollowing={isUserFollowing}
+              isAuthorMuted={isAuthorMuted}
             />
           ))}
         </div>

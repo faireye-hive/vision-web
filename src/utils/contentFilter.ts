@@ -17,7 +17,7 @@ export const RECOMMENDED_WORD_PRESETS = [
   'free spin',
   'casino',
   't.me/',
-  'scrobblelife',
+  'actifit',
   'dashboard/games',
   'token presale'
 ];
