@@ -35,10 +35,7 @@ interface DiscoverPageProps {
 
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
-  onPostsLoaded,
-  selectedSubTopic = '',
-  onSelectSubTopic,
-  onClearSubTopic
+  onPostsLoaded
 }) => {
   const { currentUser } = useAuth();
   const {
@@ -48,6 +45,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     setTag,
     selectedLanguage,
     setSelectedLanguage,
+    communitySubTopic,
+    setCommunitySubTopic,
     setFeedAuthor,
     handleSelectAuthor,
     handleSelectPost,
@@ -240,8 +239,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const { displayedPosts, filteredOutStats } = useMemo(() => {
     let candidatePosts = posts;
 
-    if (selectedSubTopic) {
-      const cleanSub = selectedSubTopic.toLowerCase().trim();
+    if (communitySubTopic) {
+      const cleanSub = communitySubTopic.toLowerCase().trim();
       candidatePosts = posts.filter((p) => {
         let tags: string[] = [];
         if (typeof p.json_metadata === 'object' && p.json_metadata && Array.isArray((p.json_metadata as any).tags)) {
@@ -278,7 +277,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         byAuthor: filterRes.hiddenByAuthorCount
       }
     };
-  }, [posts, selectedSubTopic, filterPostsList]);
+  }, [posts, communitySubTopic, filterPostsList]);
 
   return (
     <div className="space-y-4">
@@ -326,7 +325,15 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full text-xs font-semibold">
                 <span>{activeCategory?.icon ? `${activeCategory.icon} ` : ''}#{tag}</span>
                 <button
-                  onClick={() => setTag('')}
+                  onClick={() => {
+                    // If current tag is a subtopic, go back to parent category tag.
+                    // Otherwise reset tag entirely.
+                    if (activeCategory && tag.toLowerCase() !== activeCategory.tag.toLowerCase()) {
+                      setTag(activeCategory.tag);
+                    } else {
+                      setTag('');
+                    }
+                  }}
                   className="hover:text-blue-900 dark:hover:text-blue-100 font-bold ml-1 cursor-pointer"
                   title="Clear topic filter"
                 >
@@ -336,18 +343,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             )}
 
             {/* Active Community Subtopic Filter Chip */}
-            {selectedSubTopic && (
+            {communitySubTopic && (
               <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full text-xs font-semibold animate-in fade-in">
-                <span>Topic: #{selectedSubTopic}</span>
-                {onClearSubTopic && (
-                  <button
-                    onClick={onClearSubTopic}
-                    className="hover:text-indigo-900 dark:hover:text-indigo-100 font-bold ml-1 cursor-pointer"
-                    title="Clear subtopic filter"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
+                <span>Topic: #{communitySubTopic}</span>
+                <button
+                  onClick={() => setCommunitySubTopic('')}
+                  className="hover:text-indigo-900 dark:hover:text-indigo-100 font-bold ml-1 cursor-pointer"
+                  title="Clear subtopic filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
             )}
           </div>
@@ -416,7 +421,12 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               setFeedAuthor(null);
             }}
             onClearCategory={() => {
-              setTag('');
+              // If we are in a subtopic, the "X" on the bar should go back to the main category
+              if (activeCategory && tag.toLowerCase() !== activeCategory.tag.toLowerCase()) {
+                setTag(activeCategory.tag);
+              } else {
+                setTag('');
+              }
               setFeedAuthor(null);
             }}
           />

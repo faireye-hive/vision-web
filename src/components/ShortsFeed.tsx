@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   RefreshCw,
@@ -21,12 +22,14 @@ import {
 import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { ShortCard } from './ShortCard';
-import { ShortDetailModal } from './ShortDetailModal';
+import { useNavigation } from '../context/NavigationContext';
 import {
   getPeakSnapsContainers,
   getContainerSnaps,
   PeakSnapsContainer
 } from '../services/shortsApi';
+import { getCachedShorts, setCachedShorts } from '../services/shortsCache';
+import { ShieldAlert, Loader2, Camera } from 'lucide-react';
 
 interface ShortsFeedProps {
   currentUser: CurrentUser | null;
@@ -39,6 +42,8 @@ interface ShortsFeedProps {
   filterEnabled?: boolean;
   onHashtagsExtracted?: (hashtags: { tag: string; count: number }[]) => void;
   onHiddenCountChange?: (count: number) => void;
+  onToggleFilter?: () => void;
+  onDiscussionMapLoaded?: (map: Record<string, HivePost>) => void;
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -51,7 +56,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   blockedWords = [],
   filterEnabled = true,
   onHashtagsExtracted,
-  onHiddenCountChange
+  onHiddenCountChange,
+  onToggleFilter,
+  onDiscussionMapLoaded
 }) => {
   const [containers, setContainers] = useState<PeakSnapsContainer[]>([]);
   const [currentContainerIndex, setCurrentContainerIndex] = useState<number>(0);
@@ -70,7 +77,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [showSearch, setShowSearch] = useState<boolean>(false);
 
   // Detail Modal state for opened short
-  const [selectedSnapForDetail, setSelectedSnapForDetail] = useState<HivePost | null>(null);
+  const navigate = useNavigate();
 
   // Progressive rendering window to prevent DOM lag/freezing ("travando")
   const [displayLimit, setDisplayLimit] = useState<number>(20);
@@ -94,6 +101,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Initial Load: Fetch list of @peak.snaps containers and load container #0
   const loadInitialFeed = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh) {
+      const cached = getCachedShorts(selectedTag);
+      if (cached) {
+        setSnaps(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -107,6 +123,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         const result = await getContainerSnaps(firstContainer.permlink, forceRefresh, currentUser?.username || '');
         setSnaps(result.snaps);
         setDiscussionMap(result.discussionMap);
+        if (onDiscussionMapLoaded) onDiscussionMapLoaded(result.discussionMap);
+        if (!selectedTag) setCachedShorts(result.snaps, '');
       } else {
         setSnaps([]);
       }
@@ -116,11 +134,25 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.username]);
+  }, [currentUser?.username, selectedTag]);
 
   useEffect(() => {
     loadInitialFeed();
   }, [loadInitialFeed]);
+
+  useEffect(() => {
+    const handleResnapEvent = (e: any) => {
+      const { text } = e.detail;
+      setComposerText((prev) => (prev ? `${prev}\n${text}` : text));
+      const el = document.getElementById('shorts-composer-textarea');
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+    window.addEventListener('nebulosa:resnap' as any, handleResnapEvent);
+    return () => window.removeEventListener('nebulosa:resnap' as any, handleResnapEvent);
+  }, []);
 
   // Advance to next container post when reaching end of current snaps
   const loadNextContainer = useCallback(async () => {
@@ -148,7 +180,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             const targetContainer = newContainers[0];
             const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
             setSnaps((prev) => [...prev, ...result.snaps]);
-            setDiscussionMap((prev) => ({ ...prev, ...result.discussionMap }));
+            setDiscussionMap((prev) => {
+              const newMap = { ...prev, ...result.discussionMap };
+              if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
+              return newMap;
+            });
             setCurrentContainerIndex(nextIndex);
           }
         }
@@ -167,7 +203,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       // Append next container's snaps to the feed
       setSnaps((prev) => [...prev, ...result.snaps]);
-      setDiscussionMap((prev) => ({ ...prev, ...result.discussionMap }));
+      setDiscussionMap((prev) => {
+        const newMap = { ...prev, ...result.discussionMap };
+        if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
+        return newMap;
+      });
       setCurrentContainerIndex(nextIndex);
     } catch (err) {
       console.error('Failed to load next container snaps:', err);
@@ -451,63 +491,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const activeContainer = containers[currentContainerIndex];
 
   return (
-    <div id={id} className="max-w-2xl mx-auto space-y-4">
-      {/* ================= SHORTS HEADER ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs space-y-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-                  Shorts
-                </h1>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                  Microblogging
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                Community snaps from Hive blockchain via <span className="font-semibold text-gray-700 dark:text-slate-300">@peak.snaps</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Refresh Button */}
-          <button
-            type="button"
-            onClick={() => loadInitialFeed(true)}
-            disabled={loading}
-            className="flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 text-xs font-semibold text-gray-700 dark:text-slate-300 transition cursor-pointer disabled:opacity-50"
-            title="Refresh latest snaps"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-
-        {/* Live Container Tracking Info */}
-        {activeContainer && (
-          <div className="pt-2 border-t border-gray-50 dark:border-slate-800 flex items-center justify-between text-[11px] text-gray-400 dark:text-slate-500">
-            <span className="truncate">
-              Container {currentContainerIndex + 1} of {containers.length || 1} &bull;{' '}
-              {new Date(activeContainer.created + 'Z').toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </span>
-            <span className="font-medium text-gray-500 dark:text-slate-400 flex-shrink-0">
-              {snaps.length} snaps loaded
-            </span>
-          </div>
-        )}
-      </div>
+    <div id={id} className="w-full max-w-[760px] mx-auto space-y-4">
 
       {/* ================= SHORTS COMPOSER (POST TO COMMUNITY) ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-[24px] p-5 sm:p-6 border border-slate-200/70 dark:border-slate-800 shadow-[0_6px_24px_rgba(15,23,42,0.04)] space-y-4">
         {postSuccessMessage && (
           <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-850 text-emerald-800 dark:text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
             <div className="flex items-center gap-2">
@@ -542,7 +529,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <img
             src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : 'https://images.ecency.com/u/hive/avatar/small'}
             alt={currentUser?.username || 'Guest'}
-            className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-slate-700 flex-shrink-0 bg-gray-100 dark:bg-slate-800"
+            className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-slate-900 shadow-sm flex-shrink-0 bg-slate-100 dark:bg-slate-800"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
             }}
@@ -558,7 +545,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   : "Connect Keychain to post snaps directly to the Hive community..."
               }
               rows={3}
-              className="w-full text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 bg-gray-50/80 dark:bg-slate-800/80 hover:bg-gray-50 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-850 rounded-xl p-3 border border-transparent dark:border-slate-700/60 focus:border-blue-500 focus:outline-none transition resize-none leading-relaxed"
+              className="w-full text-[15px] text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 bg-slate-50/80 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 rounded-2xl p-4 border border-transparent dark:border-slate-700/60 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition resize-none leading-relaxed"
             />
           </div>
         </div>
@@ -620,7 +607,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
 
         {/* Composer Action Toolbar */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-slate-800">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
@@ -672,7 +659,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               type="button"
               onClick={handlePostSnap}
               disabled={!composerText.trim() || isPosting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-500/15 cursor-pointer disabled:cursor-not-allowed"
             >
               {isPosting ? (
                 <>
@@ -712,17 +699,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
       </div>
 
-      {/* ================= ACTIVE FILTER BANNER ================= */}
+      {/* ================= ACTIVE FILTER BANNER (Moved here) ================= */}
       {(selectedTag || (hiddenCount > 0 && filterEnabled)) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-gray-100 dark:border-slate-800 shadow-2xs text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 shadow-sm text-xs animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             {selectedTag && (
-              <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-medium px-2.5 py-1 rounded-xl">
-                <Hash className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-medium px-2.5 py-1 rounded-xl border border-blue-100 dark:border-blue-900/50">
+                <Hash className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>#{selectedTag}</span>
                 <button
                   onClick={() => onSelectTag && onSelectTag('')}
-                  className="ml-1 hover:text-blue-900 dark:hover:text-blue-100 font-bold text-sm leading-none"
+                  className="ml-1 hover:text-blue-900 dark:hover:text-blue-100 font-bold"
                   title="Clear hashtag filter"
                 >
                   &times;
@@ -730,29 +717,25 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               </div>
             )}
             {hiddenCount > 0 && filterEnabled && (
-              <div className="flex items-center gap-1 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-xl font-medium">
-                <EyeOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>
-                  {hiddenCount} {hiddenCount === 1 ? 'short' : 'shorts'} hidden by spam filter
-                </span>
+              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 rounded-xl">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                <span>{hiddenCount} shorts hidden by spam filter</span>
+                <button
+                  onClick={onToggleFilter}
+                  className="text-blue-600 dark:text-blue-400 font-bold hover:underline ml-1"
+                >
+                  Show
+                </button>
               </div>
             )}
           </div>
-
-          {selectedTag && (
-            <button
-              onClick={() => onSelectTag && onSelectTag('')}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-            >
-              Show all
-            </button>
-          )}
         </div>
       )}
 
+
       {/* ================= ERROR STATE ================= */}
       {error && (
-        <div className="bg-rose-50 border border-rose-200/80 rounded-2xl p-4 text-xs text-rose-800 flex items-start gap-3">
+        <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-4 text-xs text-rose-800 flex items-start gap-3 shadow-sm">
           <RefreshCw className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-semibold">{error}</p>
@@ -768,11 +751,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= LOADING SKELETON ================= */}
       {loading && snaps.length === 0 && (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200/70 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div
               key={i}
-              className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-gray-100 dark:border-slate-800 shadow-xs animate-pulse space-y-3"
+              className="p-5 sm:p-6 animate-pulse space-y-4"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-800" />
@@ -792,7 +775,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= EMPTY STATE ================= */}
       {!loading && visibleSnaps.length === 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 border border-gray-100 dark:border-slate-800 text-center space-y-3">
+        <div className="bg-white dark:bg-slate-900 rounded-[24px] p-10 border border-slate-200/70 dark:border-slate-800 text-center space-y-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
             <MessageCircle className="w-6 h-6" />
           </div>
@@ -821,7 +804,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       )}
 
       {/* ================= SNAPS STREAM ================= */}
-      <div className="space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200/70 dark:border-slate-800 shadow-[0_4px_20px_rgba(15,23,42,0.035)] overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
         {displayedSnaps.map((snap) => (
           <ShortCard
             key={`${snap.author}-${snap.permlink}`}
@@ -830,7 +813,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             currentUser={currentUser}
             onSelectAuthor={onSelectAuthor}
             onSelectTag={onSelectTag}
-            onOpenDetail={(s) => setSelectedSnapForDetail(s)}
+            onOpenDetail={(s) => navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } })}
             onRequireLogin={onRequireLogin}
           />
         ))}
@@ -842,7 +825,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <button
             type="button"
             onClick={handleShowMoreDisplay}
-            className="px-5 py-2 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-semibold text-gray-700 dark:text-slate-300 rounded-full transition shadow-2xs hover:shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+            className="px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-full transition shadow-sm hover:shadow-md cursor-pointer inline-flex items-center gap-1.5"
           >
             <span>Show more shorts</span>
             <span className="text-gray-400 dark:text-slate-500 font-normal">
@@ -879,18 +862,22 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
       </div>
 
-      {/* ================= SHORT DETAIL MODAL (COMMENTS & THREADING) ================= */}
-      {selectedSnapForDetail && (
-        <ShortDetailModal
-          snap={selectedSnapForDetail}
-          initialDiscussionMap={discussionMap}
-          currentUser={currentUser}
-          onClose={() => setSelectedSnapForDetail(null)}
-          onSelectAuthor={onSelectAuthor}
-          onSelectTag={onSelectTag}
-          onRequireLogin={onRequireLogin}
-        />
-      )}
+      {/* Floating Action Button (FAB) for Quick Snap */}
+      <button
+        type="button"
+        onClick={() => {
+          const el = document.getElementById('shorts-composer-textarea');
+          if (el) {
+            el.focus();
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all active:scale-95 z-40 group lg:hidden"
+        title="Write a snap"
+      >
+        <Send className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+      </button>
+
     </div>
   );
 };

@@ -16,6 +16,8 @@ export interface NavigationContextType {
   setSort: (sort: SortOption) => void;
   tag: string;
   setTag: (tag: string) => void;
+  communitySubTopic: string;
+  setCommunitySubTopic: (topic: string) => void;
   feedAuthor: string | null;
   setFeedAuthor: React.Dispatch<React.SetStateAction<string | null>>;
   authorFeedMode: 'posts' | 'comments';
@@ -53,6 +55,8 @@ export interface NavigationContextType {
   ghostNotification: HiveNotification | null;
   setGhostNotification: React.Dispatch<React.SetStateAction<HiveNotification | null>>;
   feedScrollPositionRef: React.MutableRefObject<number>;
+  saveScrollPosition: () => void;
+  restoreScrollPosition: () => void;
   goBack: () => void;
 }
 
@@ -83,6 +87,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [ghostNotification, setGhostNotification] = useState<HiveNotification | null>(null);
   const prevTopNotifIdRef = useRef<string>('');
 
+  const [communitySubTopic, setCommunitySubTopic] = useState<string>('');
   const feedScrollPositionRef = useRef<number>(0);
 
   // Sync state with React Router location.pathname & search
@@ -94,6 +99,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     const querySort = searchParams.get('sort') as SortOption | null;
     if (querySort && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
       setSort(querySort);
+    }
+
+    // Parse subtopic
+    const queryTopic = searchParams.get('topic');
+    if (queryTopic) {
+      setCommunitySubTopic(queryTopic);
     }
 
     // Community path: /c/:community
@@ -114,6 +125,33 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       setStandalonePage(null);
       setSelectedPost(null);
       return;
+    }
+
+    // Snap/Short Detail path: /shorts/@author/permlink
+    if (pathname.startsWith('/shorts/@')) {
+      const parts = pathname.split('/');
+      if (parts.length >= 3) {
+        const author = parts[2].replace('@', '');
+        const permlink = parts[3];
+        setActiveNav('shorts');
+        
+        // Instant load from router state if available
+        const stateSnap = (location.state as any)?.snap;
+        if (stateSnap && (!selectedPost || selectedPost.permlink !== permlink)) {
+          setSelectedPost(stateSnap);
+        }
+
+        if (!selectedPost || selectedPost.author !== author || selectedPost.permlink !== permlink) {
+          getDiscussion(author, permlink, false, currentUser?.username || '')
+            .then((disc) => {
+              const root = disc[`${author}/${permlink}`] || Object.values(disc)[0];
+              if (root) setSelectedPost(root);
+            })
+            .catch(() => {});
+        }
+        setStandalonePage(null);
+        return;
+      }
     }
 
     // Post path: /post/:author/:permlink
@@ -172,7 +210,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (pathname === '/communities') {
       setActiveNav('communities');
       const tabParam = searchParams.get('tab');
-      setStandalonePage(tabParam === 'manage' ? 'manage' : 'explore');
+      
+      // If explicit tab is provided, show standalone page.
+      // Otherwise, show the feed (standalonePage = null).
+      if (tabParam === 'manage') {
+        setStandalonePage('manage');
+      } else if (tabParam === 'explore') {
+        setStandalonePage('explore');
+      } else {
+        setStandalonePage(null);
+      }
+      
       setSelectedPost(null);
       return;
     }
@@ -236,6 +284,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setFeedAuthor(null);
     setSelectedPost(null);
     setStandalonePage(null);
+    setCommunitySubTopic('');
 
     if (tab === 'feed') {
       setTag('');
@@ -246,13 +295,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     } else if (tab === 'shorts') {
       navigate('/shorts');
     } else if (tab === 'communities') {
-      if (tag && tag.startsWith('hive-')) {
-        navigate(`/c/${tag}`);
-      } else {
-        navigate('/communities');
-      }
+      setTag('');
+      setStandalonePage(null);
+      navigate('/communities');
     }
-  }, [navigate, tag]);
+  }, [navigate]);
 
   const openCommunity = useCallback((communityName: string) => {
     const clean = communityName.trim().toLowerCase();
@@ -260,6 +307,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setActiveNav('communities');
     setStandalonePage(null);
     setSelectedPost(null);
+    setCommunitySubTopic('');
     navigate(`/c/${clean}`);
   }, [navigate]);
 
@@ -277,7 +325,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     } else if (page === 'following') {
       navigate('/following');
     } else if (page === 'explore') {
-      navigate('/communities');
+      navigate('/communities?tab=explore');
     } else if (page === 'manage') {
       navigate('/communities?tab=manage');
     }
@@ -322,21 +370,41 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     openStandalonePage('manage');
   }, [openStandalonePage]);
 
+  const saveScrollPosition = useCallback(() => {
+    feedScrollPositionRef.current = window.scrollY;
+  }, []);
+
+  const restoreScrollPosition = useCallback(() => {
+    // Small delay to ensure the DOM has settled after closing post
+    setTimeout(() => {
+      window.scrollTo({ top: feedScrollPositionRef.current, behavior: 'auto' });
+    }, 50);
+  }, []);
+
   const handleSelectPost = useCallback((post: HivePost, pushHistory = true, jumpToComments = false) => {
+    saveScrollPosition();
     setSelectedPost(post);
     setStandalonePage(null);
     navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
-  }, [navigate]);
+  }, [navigate, saveScrollPosition]);
 
   const handleClosePost = useCallback(() => {
     setSelectedPost(null);
     setPostHeadings([]);
+
+    const queryParams = new URLSearchParams();
+    if (sort !== 'hot') queryParams.set('sort', sort);
+    if (communitySubTopic) queryParams.set('topic', communitySubTopic);
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
     if (activeNav === 'communities' && tag) {
-      navigate(`/c/${tag}`);
+      navigate(`/c/${tag}${queryString}`);
+    } else if (activeNav === 'discover' && tag) {
+      navigate(`/tag/${tag}${queryString}`);
     } else {
-      navigate(`/${activeNav}`);
+      navigate(`/${activeNav}${queryString}`);
     }
-  }, [activeNav, tag, navigate]);
+  }, [activeNav, tag, sort, communitySubTopic, navigate]);
 
   const handleSelectHeading = useCallback((id: string) => {
     const element = document.getElementById(id);
@@ -348,8 +416,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const handleSelectAuthor = useCallback((author: string) => {
-    openAuthorProfile(author);
-  }, [openAuthorProfile]);
+    const clean = author.trim().replace(/^@/, '').toLowerCase();
+    
+    if (activeNav === 'feed') {
+      // Toggle filter on Feed page
+      setFeedAuthor(prev => prev?.toLowerCase() === clean ? null : clean);
+      setAuthorFeedMode('posts');
+    } else {
+      // Open profile on other pages
+      openAuthorProfile(clean);
+    }
+  }, [activeNav, openAuthorProfile, setFeedAuthor, setAuthorFeedMode]);
 
   const handleOpenNotificationPost = useCallback(async (author: string, permlink: string) => {
     const cleanAuthor = author.replace(/^@/, '').trim();
@@ -371,6 +448,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         setSort,
         tag,
         setTag,
+        communitySubTopic,
+        setCommunitySubTopic,
         feedAuthor,
         setFeedAuthor,
         authorFeedMode,
@@ -408,6 +487,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         ghostNotification,
         setGhostNotification,
         feedScrollPositionRef,
+        saveScrollPosition,
+        restoreScrollPosition,
         goBack
       }}
     >

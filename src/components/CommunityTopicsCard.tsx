@@ -1,22 +1,18 @@
 import React, { useMemo } from 'react';
-import { Hash, Sparkles, X } from 'lucide-react';
+import { Hash, X } from 'lucide-react';
 import { HivePost } from '../services/hiveApi';
+import { useNavigation } from '../context/NavigationContext';
 
 interface CommunityTopicsCardProps {
   communityPosts: HivePost[];
   currentTag: string;
-  selectedSubTopic?: string;
-  onSelectSubTopic: (tag: string) => void;
-  onClearSubTopic: () => void;
 }
 
 export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
   communityPosts,
-  currentTag,
-  selectedSubTopic = '',
-  onSelectSubTopic,
-  onClearSubTopic
+  currentTag
 }) => {
+  const { communitySubTopic, setCommunitySubTopic } = useNavigation();
   // Extract and rank topics/hashtags from community posts
   const rankedTopics = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -72,9 +68,9 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
           <h3 className="font-bold text-sm text-gray-900 dark:text-white">Community Topics</h3>
         </div>
 
-        {selectedSubTopic && (
+        {communitySubTopic && (
           <button
-            onClick={onClearSubTopic}
+            onClick={() => setCommunitySubTopic('')}
             className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
           >
             <X className="w-3 h-3" />
@@ -89,16 +85,16 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
 
       <div className="flex flex-wrap gap-1.5 pt-1">
         {rankedTopics.map(({ name, count }) => {
-          const isSelected = selectedSubTopic.toLowerCase() === name.toLowerCase();
+          const isSelected = communitySubTopic.toLowerCase() === name.toLowerCase();
 
           return (
             <button
               key={name}
               onClick={() => {
                 if (isSelected) {
-                  onClearSubTopic();
+                  setCommunitySubTopic('');
                 } else {
-                  onSelectSubTopic(name);
+                  setCommunitySubTopic(name);
                 }
               }}
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${

@@ -27,8 +27,8 @@ type QueueItem = {
 
 const queue: QueueItem[] = [];
 let activeRequests = 0;
-const MAX_CONCURRENT_REQUESTS = 3;
-const REQUEST_STAGGER_MS = 60;
+const MAX_CONCURRENT_REQUESTS = 5;
+const REQUEST_STAGGER_MS = 30;
 
 /**
  * Validates whether a URL looks like a plausible and safe image source

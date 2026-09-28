@@ -38,7 +38,6 @@ function NebulosaApp() {
   const { currentUser, login, logout, followingUsersList, setFollowingUsersList, joinedCommunities, toggleJoinCommunity } = useAuth();
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
-  const [communitySubTopic, setCommunitySubTopic] = useState<string>('');
 
   const handleDiscoverPostsLoaded = useCallback((loaded: HivePost[]) => {
     setDiscoverPosts(loaded);
@@ -75,6 +74,9 @@ function NebulosaApp() {
     handleClosePost,
     handleSelectHeading,
     handleOpenNotificationPost,
+    communitySubTopic,
+    setCommunitySubTopic,
+    restoreScrollPosition,
     showStatsModal,
     setShowStatsModal,
     openStatsModal,
@@ -107,6 +109,18 @@ function NebulosaApp() {
   const handleToggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
+
+  // Scroll restoration logic when closing a post
+  useEffect(() => {
+    // Only restore when returning to a feed (no post, no standalone page)
+    if (!selectedPost && !standalonePage) {
+      // Small delay to ensure the 'hidden' class is removed and layout is stable
+      const timer = setTimeout(() => {
+        restoreScrollPosition();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedPost, standalonePage, restoreScrollPosition]);
 
   // Shorts state & filtering
   const [shortsHashtags, setShortsHashtags] = useState<{ tag: string; count: number }[]>([]);
@@ -252,7 +266,7 @@ function NebulosaApp() {
         )}
 
         {/* ================= IN-PLACE POST READER (BOOKMARKS & OUTLINE) ================= */}
-        {selectedPost && !standalonePage && (
+        {selectedPost && !standalonePage && activeNav !== 'shorts' && (
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start animate-in fade-in duration-150">
             <aside className="hidden lg:block sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
               <PostSidebar
@@ -287,11 +301,11 @@ function NebulosaApp() {
         {/* ================= RESPONSIVE THREE-COLUMN LAYOUT ================= */}
         <div
           className={`grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_300px] gap-6 items-start ${
-            selectedPost || standalonePage ? 'hidden' : 'grid'
+            (selectedPost && activeNav !== 'shorts') || standalonePage ? 'hidden' : 'grid'
           }`}
         >
           {/* Left Navigation Sidebar */}
-          <aside className="hidden lg:block">
+          <aside className="hidden lg:block sticky top-20 self-start">
             <LeftSidebar
               activeNav={activeNav}
               onNavChange={handleNavChange}
@@ -322,9 +336,6 @@ function NebulosaApp() {
               <DiscoverPage
                 isCommunitiesFeed={true}
                 onPostsLoaded={handleCommunityPostsLoaded}
-                selectedSubTopic={communitySubTopic}
-                onSelectSubTopic={(sub) => setCommunitySubTopic(sub)}
-                onClearSubTopic={() => setCommunitySubTopic('')}
               />
             )}
             {activeNav === 'shorts' && (
@@ -333,6 +344,7 @@ function NebulosaApp() {
                 onSelectTag={setSelectedShortTag}
                 blockedWords={blockedWords}
                 filterEnabled={shortsFilterEnabled}
+                onToggleFilter={handleToggleShortsFilterEnabled}
                 onHashtagsExtracted={setShortsHashtags}
                 onHiddenCountChange={setShortsHiddenCount}
               />
@@ -340,7 +352,7 @@ function NebulosaApp() {
           </section>
 
           {/* Right Column Contextual Widgets */}
-          <aside className="hidden xl:block space-y-6">
+          <aside className="hidden xl:block space-y-6 sticky top-20 self-start">
             {activeNav === 'shorts' ? (
               <>
                 <ShortsWordFilterCard
@@ -387,9 +399,6 @@ function NebulosaApp() {
                   <CommunityTopicsCard
                     communityPosts={communityPosts}
                     currentTag={tag}
-                    selectedSubTopic={communitySubTopic}
-                    onSelectSubTopic={(sub) => setCommunitySubTopic(sub)}
-                    onClearSubTopic={() => setCommunitySubTopic('')}
                   />
                 </>
               ) : (
