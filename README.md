@@ -43,36 +43,7 @@ npm run dev
 
 ## Project Structure
 
-```
-vision-web/
-├── index.html              # Vite entry point
-├── vite.config.ts           # Vite + React + Tailwind config
-├── tsconfig.json            # TypeScript configuration
-├── package.json             # Dependencies and scripts
-├── public/
-│   └── assets/
-│       └── logo-circle.svg  # App logo
-└── src/
-    ├── main.tsx             # React mount point
-    ├── App.tsx              # Root component (routing, layout, state)
-    ├── index.css            # Global styles + Tailwind imports
-    ├── components/
-    │   ├── Navbar.tsx              # Top navigation bar
-    │   ├── LeftSidebar.tsx         # Sidebar navigation + community list
-    │   ├── ExplorerView.tsx        # Feed explorer / post listing
-    │   ├── PostCard.tsx            # Individual post card
-    │   ├── PostReader.tsx          # Full post reader view
-    │   ├── WritePostModal.tsx      # Post editor modal
-    │   ├── AccountModal.tsx        # User account details modal
-    │   ├── BlockchainStatsModal.tsx # Blockchain statistics
-    │   ├── CommunitiesModal.tsx    # Communities browser
-    │   └── ManageCommunitiesModal.tsx # Community management
-    ├── services/
-    │   ├── hiveApi.ts       # Hive JSON-RPC API client (fetch-based)
-    │   └── keychain.ts      # Hive Keychain browser extension integration
-    └── utils/
-        └── sanitize.ts      # HTML sanitization utilities
-```
+The layout, routes, and the constraints that are easy to break are in [docs/estado.md](docs/estado.md).
 
 ## Architecture
 

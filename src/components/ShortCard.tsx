@@ -10,18 +10,16 @@ import {
   Sparkles,
   Check,
   CornerDownRight,
-  Maximize2,
   X
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { markdownToSafeHtml, getSafeImageUrl } from '../utils/sanitize';
+import { markdownToSafeHtml } from '../utils/sanitize';
 import {
-  extractSnapImages,
   cleanSnapBody,
   getSnapSubcomments
 } from '../services/shortsApi';
-import { SafeSnapImage } from './SafeSnapImage';
+import { SnapContent } from './SnapContent';
 
 interface ShortCardProps {
   snap: HivePost;
@@ -93,17 +91,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     }
   }, [snap.created]);
 
-  // Extract images and memoize markdown parsing for high scrolling performance
 
-  const raw_images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
-  
-  const images = useMemo(() => {
-    return raw_images
-      .map(url => getSafeImageUrl(url, { width: 1200 }))
-      .filter((url): url is string => url !== null);
-  }, [raw_images]);
-  const cleanedBody = useMemo(() => cleanSnapBody(snap.body), [snap.body]);
-  const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || snap.body), [cleanedBody, snap.body]);
 
   // Subcomments from discussion map + any locally posted replies
   const subcomments = useMemo(() => [
@@ -141,30 +129,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  // Extract hashtags from body
-  const hashtags = useMemo(() => {
-    const list: string[] = [];
-    const hashRegex = /(?:^|\s)#([a-zA-Z0-9_\u0080-\uFFFF]+)/g;
-    let m;
-    while ((m = hashRegex.exec(snap.body || '')) !== null) {
-      const t = m[1].toLowerCase();
-      if (t.length >= 2 && !list.includes(t) && !/^\d+$/.test(t)) {
-        list.push(t);
-      }
-    }
-    return list;
-  }, [snap.body]);
-
-  // Hive link / Resnap detection
-  const quotedPost = useMemo(() => {
-    const hiveLinkRegex = /https?:\/\/(?:peakd\.com|ecency\.com|hive\.blog|leofinance\.io|nebulosa-web\.vercel\.app)\/(?:[^/]+\/)?@([a-z0-9.-]+)\/([a-z0-9-]+)/i;
-    const match = snap.body?.match(hiveLinkRegex);
-    if (match) {
-      return { author: match[1], permlink: match[2] };
-    }
-    return null;
-  }, [snap.body]);
 
   const handleResnap = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -266,6 +230,11 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                 {timeAgo}
               </span>
+              {snap.parent_author && snap.parent_author.toLowerCase() !== 'peak.snaps' && (
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                  in reply to @{snap.parent_author}
+                </span>
+              )}
             </div>
 
             {/* Quick External Link */}
@@ -280,103 +249,16 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
             </a>
           </div>
 
-          {/* Snap Text Content */}
-          <div
-            onClick={() => onOpenDetail?.(snap)}
-            className={`text-[14px] text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text ${
-              onOpenDetail ? 'cursor-pointer hover:text-gray-900 dark:hover:text-white' : ''
-            }`}
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
+          <SnapContent
+            body={snap.body}
+            jsonMetadata={snap.json_metadata}
+            author={snap.author}
+            permlink={snap.permlink}
+            onSelectTag={onSelectTag}
+            onOpenImage={setSelectedImage}
+            onOpenDetail={onOpenDetail ? () => onOpenDetail(snap) : undefined}
+            textClassName="text-sm text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
           />
-
-          {/* RESNAP / QUOTED POST PREVIEW */}
-          {quotedPost && (
-            <div 
-              onClick={(e) => {
-                e.stopPropagation();
-                window.location.href = `/post/@${quotedPost.author}/${quotedPost.permlink}`;
-              }}
-              className="mt-3 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 bg-white dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-700 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <img 
-                  src={getHiveAvatarUrl(quotedPost.author, 'small')} 
-                  className="w-4 h-4 rounded-full border border-slate-100 dark:border-slate-800" 
-                  alt="" 
-                />
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">@{quotedPost.author}</span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 italic">
-                Click to view quoted Hive post from @{quotedPost.author}...
-              </p>
-            </div>
-          )}
-
-          {/* Hashtag Pills */}
-          {hashtags.length > 0 && onSelectTag && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {hashtags.map((t: string) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => onSelectTag(t)}
-                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2.5 py-1 rounded-full transition cursor-pointer"
-                  title={`Filter shorts by #${t}`}
-                >
-                  #{t}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Attached Images Grid (Twitter Style) */}
-          {images.length > 0 && (
-            <div className="mt-3">
-              {images.length === 1 ? (
-                <div
-                  onClick={() => setSelectedImage(images[0])}
-                  className="relative rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 max-h-96 bg-slate-50 dark:bg-slate-800/40 cursor-pointer group"
-                >
-                  <SafeSnapImage
-                    src={images[0]}
-                    alt="Snap attachment"
-                    className="w-full h-full max-h-96"
-                    imgClassName="w-full h-full object-cover max-h-80 transition group-hover:scale-[1.01]"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center pointer-events-none">
-                    <Maximize2 className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow-md transition" />
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`grid gap-2 rounded-xl overflow-hidden border border-gray-100 dark:border-slate-800 ${
-                    images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'
-                  }`}
-                >
-                  {images.slice(0, 4).map((imgUrl, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setSelectedImage(imgUrl)}
-                      className="relative h-40 sm:h-44 bg-slate-50 dark:bg-slate-800/40 cursor-pointer group overflow-hidden"
-                    >
-                      <SafeSnapImage
-                        src={imgUrl}
-                        alt={`Attachment ${idx + 1}`}
-                        className="w-full h-full"
-                        imgClassName="w-full h-full object-cover transition group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition pointer-events-none" />
-                      {idx === 3 && images.length > 4 && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-bold text-base pointer-events-none">
-                          +{images.length - 4}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Action Bar (Twitter / Shorts Style) */}
           <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">

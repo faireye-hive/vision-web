@@ -18,12 +18,14 @@ import {
   Radio,
   SlidersHorizontal,
   FolderOpen,
-  MessageSquare
+  MessageSquare,
+  Reply
 } from 'lucide-react';
 import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions, hiveRpcCall } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
 import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
 import { getSmartAccountsActivity } from '../services/accountsCache';
+import { ShortsSource } from '../hooks/useShortsWordFilter';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
@@ -42,6 +44,8 @@ export interface LeftSidebarProps {
   shortsHashtags?: { tag: string; count: number }[];
   selectedShortTag?: string;
   onSelectShortTag?: (tag: string) => void;
+  shortsSource?: ShortsSource;
+  onShortsSourceChange?: (source: ShortsSource) => void;
 }
 
 const DEFAULT_FOLLOWING_LIST = [
@@ -99,7 +103,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   joinedCommunities,
   shortsHashtags = [],
   selectedShortTag = '',
-  onSelectShortTag
+  onSelectShortTag,
+  shortsSource = 'all',
+  onShortsSourceChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [followingUsers, setFollowingUsers] = useState<string[]>([]);
@@ -372,7 +378,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           {/* All Shorts / Reset Filter Button */}
           <button
             type="button"
-            onClick={() => onSelectShortTag && onSelectShortTag('')}
+            onClick={() => {
+              if (onSelectShortTag) onSelectShortTag('');
+              if (onShortsSourceChange) onShortsSourceChange('all');
+            }}
             title="Show all shorts without hashtag filter"
             className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1.5 text-left cursor-pointer ${
               !selectedShortTag
@@ -386,7 +395,37 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
               <span>All Shorts</span>
             </div>
-            {!selectedShortTag && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">active</span>}
+            {!selectedShortTag && shortsSource === 'all' && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">active</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onShortsSourceChange && onShortsSourceChange(shortsSource === 'following' ? 'all' : 'following')}
+            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
+              shortsSource === 'following'
+                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Users className="w-3.5 h-3.5" />
+              <span>Snaps from following</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onShortsSourceChange && onShortsSourceChange(shortsSource === 'replies' ? 'all' : 'replies')}
+            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1.5 text-left cursor-pointer ${
+              shortsSource === 'replies'
+                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Reply className="w-3.5 h-3.5" />
+              <span>Replies to my snaps</span>
+            </div>
           </button>
 
           {/* Hashtag List */}

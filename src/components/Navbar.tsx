@@ -37,6 +37,7 @@ import {
   removeCustomHiveNode
 } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
+import { useNotifications } from '../context/NotificationsContext';
 
 interface NavbarProps {
   currentSort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
@@ -50,7 +51,6 @@ interface NavbarProps {
   onOpenWrite?: () => void;
   onOpenNotifications?: () => void;
   onOpenManageFollowing?: () => void;
-  unreadNotificationsCount?: number;
   activeNav?: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
   onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
   currentUser: CurrentUser | null;
@@ -72,7 +72,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenWrite,
   onOpenNotifications,
   onOpenManageFollowing,
-  unreadNotificationsCount = 0,
   activeNav = 'discover',
   onNavChange,
   currentUser,
@@ -81,6 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isDark = false,
   onToggleTheme
 }) => {
+  const { unreadCount: unreadNotificationsCount } = useNotifications();
   const [searchInput, setSearchInput] = useState('');
   const [activeNodeUrl, setActiveNodeUrl] = useState(getActiveNode());
   const [nodePing, setNodePing] = useState<number | null>(null);
@@ -144,6 +144,35 @@ export const Navbar: React.FC<NavbarProps> = ({
       clearInterval(interval);
     };
   }, [activeNodeUrl]);
+
+  useEffect(() => {
+    if (!showNodeMenu && !showUserMenu) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (showNodeMenu) {
+        const menu = document.getElementById('node-dropdown-menu');
+        const trigger = document.getElementById('rpc-nodes-trigger');
+        if (!menu?.contains(target) && !trigger?.contains(target)) setShowNodeMenu(false);
+      }
+      if (showUserMenu) {
+        const menu = document.getElementById('user-menu-dropdown');
+        const trigger = document.getElementById('user-avatar-btn');
+        if (!menu?.contains(target) && !trigger?.contains(target)) setShowUserMenu(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowNodeMenu(false);
+      setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showNodeMenu, showUserMenu]);
 
   // Ping all nodes when node menu is opened
   useEffect(() => {
@@ -571,6 +600,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       )}
 
                       <button
+                        id="rpc-nodes-trigger"
                         onClick={() => { setShowNodeMenu(!showNodeMenu); setShowUserMenu(false); }}
                         className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between"
                       >

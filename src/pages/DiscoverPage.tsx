@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   RefreshCw,
   X,
@@ -24,6 +24,8 @@ import { LanguageDropdown } from '../components/LanguageDropdown';
 import { CategoryDropdown } from '../components/CategoryDropdown';
 import { CategorySubtopicsBar } from '../components/CategorySubtopicsBar';
 import { rankPostsByCustomAlgorithm, qualifiesForTrending } from '../utils/contentScoring';
+import { appendUniquePosts } from '../utils/posts';
+import { requestLogin } from '../utils/authEvents';
 
 interface DiscoverPageProps {
   isCommunitiesFeed?: boolean;
@@ -71,18 +73,48 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const queryGen = useRef(0);
+  const loadedPages = useRef(1);
+  const apiCursorRef = useRef<{ author: string; permlink: string } | null>(null);
+  const username = currentUser?.username || '';
+
+  const rememberCursor = (page: HivePost[]) => {
+    const tail = page[page.length - 1];
+    if (tail) apiCursorRef.current = { author: tail.author, permlink: tail.permlink };
+  };
+
+  const openPost = useCallback((post: HivePost, jump?: boolean) => {
+    handleSelectPost(post, true, Boolean(jump));
+  }, [handleSelectPost]);
+
+  const openTag = useCallback((nextTag: string) => {
+    setTag(nextTag);
+    setFeedAuthor(null);
+  }, [setTag, setFeedAuthor]);
 
   const fetchPosts = useCallback(
     async (isRefresh = false) => {
+      const gen = ++queryGen.current;
+      loadedPages.current = 1;
+      apiCursorRef.current = null;
+      const observer = isCommunitiesFeed ? username : '';
+      let queryTag = tag;
+      if (isCommunitiesFeed && !queryTag) {
+        queryTag = observer ? 'my' : 'hive-125125';
+      }
+
       let hasCached = false;
-      if (!isRefresh && sort !== 'created' && (!isCommunitiesFeed && selectedLanguage === 'global')) {
-        let queryTag = tag;
-        const observer = currentUser?.username || '';
-        if (isCommunitiesFeed && !queryTag) {
-          queryTag = 'my';
-        }
-        const cached = getCachedRankedPosts(sort, queryTag, 20, undefined, undefined, observer);
+      if (!isRefresh && sort !== 'created' && (isCommunitiesFeed || selectedLanguage === 'global')) {
+        const cached = getCachedRankedPosts(
+          sort,
+          isCommunitiesFeed ? queryTag : tag,
+          20,
+          undefined,
+          undefined,
+          observer
+        );
         if (cached && cached.length > 0) {
+          rememberCursor(cached);
           setPosts(rankPostsByCustomAlgorithm(cached, sort, sort === 'trending' && !isCommunitiesFeed));
           hasCached = true;
         }
@@ -97,65 +129,60 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         let fetched: HivePost[] = [];
 
         if (isCommunitiesFeed) {
-          const observer = currentUser?.username || '';
-          let queryTag = tag;
-          if (!queryTag) {
-            queryTag = observer ? 'my' : 'hive-125125';
-          }
           fetched = await getRankedPosts(sort, queryTag, 20, undefined, undefined, observer, isRefresh);
+        } else if (selectedLanguage !== 'global') {
+          fetched = await getLanguageDiscoveryFeed({
+            language: selectedLanguage,
+            limit: 20,
+            offset: 0,
+            observer: username,
+            category: tag || undefined,
+          });
         } else {
-          if (selectedLanguage !== 'global') {
-            fetched = await getLanguageDiscoveryFeed({
-              language: selectedLanguage,
-              limit: 20,
-              offset: 0,
-              observer: currentUser?.username || '',
-              category: tag || undefined,
-            });
-          } else {
-            fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
+          fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
 
-            // In Trending: user requested only posts with 10+ comments.
-            // If the initial batch has fewer than 20 qualifying posts, fetch next batches to reach 20.
-            if (sort === 'trending') {
-              let qualifying = (fetched || []).filter(qualifiesForTrending);
-              let attempts = 0;
-              while (qualifying.length < 20 && fetched.length > 0 && attempts < 4) {
-                attempts++;
-                const last = fetched[fetched.length - 1];
-                const nextBatch = await getRankedPosts(
-                  'trending',
-                  tag,
-                  20,
-                  last.author,
-                  last.permlink,
-                  '',
-                  isRefresh
-                );
-                if (!nextBatch || nextBatch.length <= 1) break;
-                const nextItems = nextBatch.slice(1);
-                if (nextItems.length === 0) break;
-                fetched = [...fetched, ...nextItems];
-                qualifying = fetched.filter(qualifiesForTrending);
-              }
+          // Trending keeps walking Hive pages until 20 posts have 10+ comments.
+          // The cursor stays on API order, not the re-ranked list.
+          if (sort === 'trending') {
+            let qualifying = (fetched || []).filter(qualifiesForTrending);
+            let attempts = 0;
+            while (qualifying.length < 20 && fetched.length > 0 && attempts < 4) {
+              attempts++;
+              const last = fetched[fetched.length - 1];
+              const nextBatch = await getRankedPosts(
+                'trending',
+                tag,
+                20,
+                last.author,
+                last.permlink,
+                '',
+                isRefresh
+              );
+              if (!nextBatch || nextBatch.length <= 1) break;
+              const nextItems = nextBatch.slice(1);
+              if (nextItems.length === 0) break;
+              fetched = [...fetched, ...nextItems];
+              qualifying = fetched.filter(qualifiesForTrending);
             }
           }
         }
 
-        const rankedBatch = rankPostsByCustomAlgorithm(
+        if (gen !== queryGen.current || loadedPages.current !== 1) return;
+        rememberCursor(fetched || []);
+        setPosts(rankPostsByCustomAlgorithm(
           fetched || [],
           sort,
           sort === 'trending' && !isCommunitiesFeed
-        );
-        setPosts(rankedBatch);
+        ));
       } catch (err: any) {
+        if (gen !== queryGen.current) return;
         console.error('Discover RPC fetch error:', err);
         setError(err.message || 'Unable to connect to Hive RPC node. Please try again.');
       } finally {
-        setLoading(false);
+        if (gen === queryGen.current) setLoading(false);
       }
     },
-    [sort, tag, isCommunitiesFeed, selectedLanguage, currentUser]
+    [sort, tag, isCommunitiesFeed, selectedLanguage, username]
   );
 
   useEffect(() => {
@@ -170,69 +197,67 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
   const handleLoadMore = async () => {
     if (loadingMore || posts.length === 0) return;
+    const rankedFeed = isCommunitiesFeed || selectedLanguage === 'global';
+    if (rankedFeed && !apiCursorRef.current) return;
+    const gen = queryGen.current;
+    loadedPages.current += 1;
     setLoadingMore(true);
 
-    const lastPost = posts[posts.length - 1];
     try {
-      if (isCommunitiesFeed) {
-        let queryTag = tag;
-        const observer = currentUser?.username || '';
-        if (!queryTag) {
-          queryTag = observer ? 'my' : 'hive-125125';
-        }
+      if (!rankedFeed) {
+        const more = await getLanguageDiscoveryFeed({
+          language: selectedLanguage,
+          limit: 20,
+          offset: posts.length,
+          observer: username,
+          category: tag || undefined,
+        });
+        if (gen !== queryGen.current) return;
+        const rankedMore = rankPostsByCustomAlgorithm(more, sort, false);
+        setPosts((prev) => appendUniquePosts(prev, rankedMore));
+        return;
+      }
 
-        const more = await getRankedPosts(
-          sort,
-          queryTag,
-          20,
-          lastPost.author,
-          lastPost.permlink,
-          observer
-        );
-        const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-        const uniqueMore = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
-        const rankedMore = rankPostsByCustomAlgorithm(uniqueMore, sort, false);
-        setPosts((prev) => [...prev, ...rankedMore]);
-      } else {
-        if (selectedLanguage !== 'global') {
-          const currentOffset = posts.length;
-          const more = await getLanguageDiscoveryFeed({
-            language: selectedLanguage,
-            limit: 20,
-            offset: currentOffset,
-            observer: currentUser?.username || '',
-            category: tag || undefined,
-          });
-          const existingKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-          const uniqueMore = more.filter((p) => !existingKeys.has(`${p.author}/${p.permlink}`));
-          const rankedMore = rankPostsByCustomAlgorithm(uniqueMore, sort, false);
-          setPosts((prev) => [...prev, ...rankedMore]);
-        } else {
-          let more = await getRankedPosts(sort, tag, 20, lastPost.author, lastPost.permlink);
-          if (sort === 'trending') {
-            let qualifying = more.filter(qualifiesForTrending);
-            let attempts = 0;
-            while (qualifying.length < 10 && more.length > 0 && attempts < 3) {
-              attempts++;
-              const last = more[more.length - 1];
-              const nextBatch = await getRankedPosts('trending', tag, 20, last.author, last.permlink);
-              if (!nextBatch || nextBatch.length <= 1) break;
-              const nextItems = nextBatch.slice(1);
-              if (nextItems.length === 0) break;
-              more = [...more, ...nextItems];
-              qualifying = more.filter(qualifiesForTrending);
-            }
-          }
-          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-          const uniqueMore = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
-          const rankedMore = rankPostsByCustomAlgorithm(uniqueMore, sort, sort === 'trending' && !isCommunitiesFeed);
-          setPosts((prev) => [...prev, ...rankedMore]);
+      const cursor = apiCursorRef.current;
+      if (!cursor) return;
+      const observer = isCommunitiesFeed ? username : '';
+      let queryTag = tag;
+      if (isCommunitiesFeed && !queryTag) {
+        queryTag = observer ? 'my' : 'hive-125125';
+      }
+
+      let more = await getRankedPosts(
+        sort,
+        isCommunitiesFeed ? queryTag : tag,
+        20,
+        cursor.author,
+        cursor.permlink,
+        observer
+      );
+
+      if (sort === 'trending' && !isCommunitiesFeed) {
+        let qualifying = more.filter(qualifiesForTrending);
+        let attempts = 0;
+        while (qualifying.length < 10 && more.length > 0 && attempts < 3) {
+          attempts++;
+          const last = more[more.length - 1];
+          const nextBatch = await getRankedPosts('trending', tag, 20, last.author, last.permlink);
+          if (!nextBatch || nextBatch.length <= 1) break;
+          const nextItems = nextBatch.slice(1);
+          if (nextItems.length === 0) break;
+          more = [...more, ...nextItems];
+          qualifying = more.filter(qualifiesForTrending);
         }
       }
+
+      if (gen !== queryGen.current) return;
+      rememberCursor(more);
+      const rankedMore = rankPostsByCustomAlgorithm(more, sort, sort === 'trending' && !isCommunitiesFeed);
+      setPosts((prev) => appendUniquePosts(prev, rankedMore));
     } catch (err: any) {
       console.error('Failed to load more discover posts:', err);
     } finally {
-      setLoadingMore(false);
+      if (gen === queryGen.current) setLoadingMore(false);
     }
   };
 
@@ -525,18 +550,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         <div className="space-y-4">
           {displayedPosts.map((post, index) => (
             <PostCard
-              key={`${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}-${post.post_id || index}`}
+              key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
               post={post}
-              onSelectPost={(p, jump) => handleSelectPost(p, true, jump)}
+              onSelectPost={openPost}
               onSelectAuthor={handleSelectAuthor}
-              onSelectTag={(t) => {
-                setTag(t);
-                setFeedAuthor(null);
-              }}
+              onSelectTag={openTag}
               currentUser={currentUser}
-              onRequireLogin={() => {
-                window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-              }}
+              onRequireLogin={requestLogin}
               onMuteAuthor={addFilterAuthor}
               onBlockWord={addFilterWord}
             />

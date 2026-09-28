@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   RefreshCw,
   X,
@@ -26,6 +26,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useContentFilter } from '../context/ContentFilterContext';
 import { PostCard } from '../components/PostCard';
+import { appendUniquePosts } from '../utils/posts';
+import { requestLogin } from '../utils/authEvents';
 
 export const FeedPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -85,11 +87,24 @@ export const FeedPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const queryGen = useRef(0);
+  const username = currentUser?.username || '';
+
+  const openPost = useCallback((post: HivePost, jump?: boolean) => {
+    handleSelectPost(post, true, Boolean(jump));
+  }, [handleSelectPost]);
+
+  const openTag = useCallback((nextTag: string) => {
+    setTag(nextTag);
+    setActiveNav('discover');
+    setFeedAuthor(null);
+  }, [setTag, setActiveNav, setFeedAuthor]);
 
   // Fetch feed posts
   const fetchPosts = useCallback(
     async (isRefresh = false) => {
-      if (!currentUser && !feedAuthor) {
+      const gen = ++queryGen.current;
+      if (!username && !feedAuthor) {
         setPosts([]);
         setLoading(false);
         return;
@@ -102,24 +117,26 @@ export const FeedPage: React.FC = () => {
         let fetched: HivePost[] = [];
         if (feedAuthor) {
           fetched = await getAccountPosts(authorFeedMode, feedAuthor, 20, isRefresh);
-        } else if (currentUser) {
+        } else if (username) {
           if (followingMode === 'comments') {
-            fetched = await getFollowedCommentsFeed(currentUser.username, isRefresh);
+            fetched = await getFollowedCommentsFeed(username, isRefresh);
           } else if (followingMode === 'mixed') {
-            fetched = await getFollowedMixedFeed(currentUser.username, isRefresh);
+            fetched = await getFollowedMixedFeed(username, isRefresh);
           } else {
-            fetched = await getFollowedRootFeed(currentUser.username, 20, isRefresh);
+            fetched = await getFollowedRootFeed(username, 20, isRefresh);
           }
         }
+        if (gen !== queryGen.current) return;
         setPosts(fetched || []);
       } catch (err: any) {
+        if (gen !== queryGen.current) return;
         console.error('Failed to load feed:', err);
         setError(err.message || 'Unable to fetch your feed from Hive RPC.');
       } finally {
-        setLoading(false);
+        if (gen === queryGen.current) setLoading(false);
       }
     },
-    [currentUser, feedAuthor, authorFeedMode, followingMode]
+    [username, feedAuthor, authorFeedMode, followingMode]
   );
 
   useEffect(() => {
@@ -129,47 +146,29 @@ export const FeedPage: React.FC = () => {
   // Load more posts (pagination)
   const handleLoadMore = async () => {
     if (loadingMore || posts.length === 0) return;
+    const gen = queryGen.current;
     setLoadingMore(true);
 
     try {
+      const lastPost = posts[posts.length - 1];
+      let more: HivePost[] = [];
       if (feedAuthor) {
-        const more = await getAccountPosts(authorFeedMode, feedAuthor, 20);
-        setPosts((prev) => [...prev, ...more.slice(prev.length)]);
-      } else if (currentUser) {
+        more = await getAccountPosts(authorFeedMode, feedAuthor, 20, false, lastPost.author, lastPost.permlink);
+      } else if (username) {
         if (followingMode === 'root') {
-          const lastPost = posts[posts.length - 1];
-          const more = await getFollowedRootFeed(
-            currentUser.username,
-            20,
-            true,
-            lastPost.author,
-            lastPost.permlink
-          );
-          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
-          if (newOnes.length > 0) {
-            setPosts((prev) => [...prev, ...newOnes]);
-          }
+          more = await getFollowedRootFeed(username, 20, false, lastPost.author, lastPost.permlink);
         } else if (followingMode === 'comments') {
-          const more = await getFollowedCommentsFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
-          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
-          if (newOnes.length > 0) {
-            setPosts((prev) => [...prev, ...newOnes]);
-          }
+          more = await getFollowedCommentsFeed(username, false, Math.min(posts.length + 20, 100));
         } else {
-          const more = await getFollowedMixedFeed(currentUser.username, true, Math.min(posts.length + 20, 100));
-          const currentKeys = new Set(posts.map((p) => `${p.author}/${p.permlink}`));
-          const newOnes = more.filter((p) => !currentKeys.has(`${p.author}/${p.permlink}`));
-          if (newOnes.length > 0) {
-            setPosts((prev) => [...prev, ...newOnes]);
-          }
+          more = await getFollowedMixedFeed(username, false, Math.min(posts.length + 20, 100));
         }
       }
+      if (gen !== queryGen.current) return;
+      setPosts((prev) => appendUniquePosts(prev, more));
     } catch (err: any) {
       console.error('Failed to load more feed posts:', err);
     } finally {
-      setLoadingMore(false);
+      if (gen === queryGen.current) setLoadingMore(false);
     }
   };
 
@@ -501,19 +500,13 @@ export const FeedPage: React.FC = () => {
         <div className="space-y-4">
           {displayedPosts.map((post, index) => (
             <PostCard
-              key={`${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}-${post.post_id || index}`}
+              key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
               post={post}
-              onSelectPost={(p, jump) => handleSelectPost(p, true, jump)}
+              onSelectPost={openPost}
               onSelectAuthor={handleSelectAuthor}
-              onSelectTag={(t) => {
-                setTag(t);
-                setActiveNav('discover');
-                setFeedAuthor(null);
-              }}
+              onSelectTag={openTag}
               currentUser={currentUser}
-              onRequireLogin={() => {
-                window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-              }}
+              onRequireLogin={requestLogin}
               onMuteAuthor={addFilterAuthor}
               onBlockWord={addFilterWord}
             />

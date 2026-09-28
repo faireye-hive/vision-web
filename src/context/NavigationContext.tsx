@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HivePost, HiveNotification, getDiscussion, getPost, getAccountNotifications } from '../services/hiveApi';
+import { HivePost, getPost } from '../services/hiveApi';
 import { PostHeading } from '../utils/sanitize';
 import { useAuth } from './AuthContext';
 
@@ -50,10 +50,6 @@ export interface NavigationContextType {
   showContentFilterModal: boolean;
   setShowContentFilterModal: (show: boolean) => void;
   openContentFilterModal: () => void;
-  unreadNotifsCount: number;
-  setUnreadNotifsCount: React.Dispatch<React.SetStateAction<number>>;
-  ghostNotification: HiveNotification | null;
-  setGhostNotification: React.Dispatch<React.SetStateAction<HiveNotification | null>>;
   feedScrollPositionRef: React.MutableRefObject<number>;
   saveScrollPosition: () => void;
   restoreScrollPosition: () => void;
@@ -83,38 +79,61 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [showContentFilterModal, setShowContentFilterModal] = useState<boolean>(false);
 
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState<number>(0);
-  const [ghostNotification, setGhostNotification] = useState<HiveNotification | null>(null);
-  const prevTopNotifIdRef = useRef<string>('');
-
   const [communitySubTopic, setCommunitySubTopic] = useState<string>('');
   const feedScrollPositionRef = useRef<number>(0);
+  const selectedPostRef = useRef<HivePost | null>(null);
+  const routeRequestRef = useRef(0);
+  selectedPostRef.current = selectedPost;
 
   // Sync state with React Router location.pathname & search
   useEffect(() => {
+    let cancelled = false;
+    const requestId = ++routeRequestRef.current;
     const pathname = location.pathname;
     const searchParams = new URLSearchParams(location.search);
 
-    // Parse sort
+    // Parse sort. Absent sort keeps the in-memory choice from the navbar.
     const querySort = searchParams.get('sort') as SortOption | null;
     if (querySort && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
       setSort(querySort);
     }
 
-    // Parse subtopic
-    const queryTopic = searchParams.get('topic');
-    if (queryTopic) {
-      setCommunitySubTopic(queryTopic);
-    }
+    const syncTopic = () => {
+      setCommunitySubTopic(searchParams.get('topic') || '');
+    };
+
+    const release = () => {
+      cancelled = true;
+    };
+
+    const loadShell = (author: string, permlink: string) => {
+      const current = selectedPostRef.current;
+      const alreadyOpen = Boolean(
+        current &&
+        current.author.replace(/^@/, '') === author &&
+        current.permlink === permlink
+      );
+      if (alreadyOpen) return;
+
+      getPost(author, permlink, currentUser?.username || '')
+        .then((post) => {
+          if (cancelled || requestId !== routeRequestRef.current || !post) return;
+          setSelectedPost(post);
+        })
+        .catch((err) => {
+          if (!cancelled) console.error('Failed to load post from route:', err);
+        });
+    };
 
     // Community path: /c/:community
     if (pathname.startsWith('/c/')) {
       const comm = pathname.replace('/c/', '').trim().toLowerCase();
       setActiveNav('communities');
       setTag(comm);
+      syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     // Topic tag path: /tag/:tag
@@ -122,35 +141,36 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       const topicTag = pathname.replace('/tag/', '').trim().toLowerCase();
       setActiveNav('discover');
       setTag(topicTag);
+      syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     // Snap/Short Detail path: /shorts/@author/permlink
     if (pathname.startsWith('/shorts/@')) {
       const parts = pathname.split('/');
-      if (parts.length >= 3) {
+      if (parts.length >= 4 && parts[3]) {
         const author = parts[2].replace('@', '');
         const permlink = parts[3];
         setActiveNav('shorts');
-        
-        // Instant load from router state if available
-        const stateSnap = (location.state as any)?.snap;
-        if (stateSnap && (!selectedPost || selectedPost.permlink !== permlink)) {
-          setSelectedPost(stateSnap);
-        }
-
-        if (!selectedPost || selectedPost.author !== author || selectedPost.permlink !== permlink) {
-          getDiscussion(author, permlink, false, currentUser?.username || '')
-            .then((disc) => {
-              const root = disc[`${author}/${permlink}`] || Object.values(disc)[0];
-              if (root) setSelectedPost(root);
-            })
-            .catch(() => {});
-        }
         setStandalonePage(null);
-        return;
+
+        const stateSnap = (location.state as { snap?: HivePost } | null)?.snap;
+        const snapMatches = Boolean(
+          stateSnap &&
+          stateSnap.permlink === permlink &&
+          stateSnap.author.replace(/^@/, '') === author
+        );
+        if (snapMatches && stateSnap) {
+          const current = selectedPostRef.current;
+          if (!current || current.permlink !== permlink || current.author.replace(/^@/, '') !== author) {
+            setSelectedPost(stateSnap);
+          }
+        } else {
+          loadShell(author, permlink);
+        }
+        return release;
       }
     }
 
@@ -160,22 +180,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       if (segments.length >= 2) {
         const cleanAuthor = segments[0].replace(/^@/, '');
         const cleanPermlink = segments.slice(1).join('/');
-
-        // Only fetch if not already selected
-        if (!selectedPost || selectedPost.author !== cleanAuthor || selectedPost.permlink !== cleanPermlink) {
-          getDiscussion(cleanAuthor, cleanPermlink, false, currentUser?.username || '')
-            .then((disc) => {
-              const root = disc[`${cleanAuthor}/${cleanPermlink}`] || Object.values(disc)[0];
-              if (root) {
-                setSelectedPost(root);
-              }
-            })
-            .catch((err) => {
-              console.error('Failed to load post from route:', err);
-            });
-        }
         setStandalonePage(null);
-        return;
+        loadShell(cleanAuthor, cleanPermlink);
+        return release;
       }
     }
 
@@ -185,32 +192,33 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       setProfileUser(username);
       setStandalonePage('profile');
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     // Other standalone routes
     if (pathname === '/write') {
       setStandalonePage('write');
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     if (pathname === '/notifications') {
       setStandalonePage('notifications');
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     if (pathname === '/following') {
       setStandalonePage('following');
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     if (pathname === '/communities') {
       setActiveNav('communities');
       const tabParam = searchParams.get('tab');
-      
+      syncTopic();
+
       // If explicit tab is provided, show standalone page.
       // Otherwise, show the feed (standalonePage = null).
       if (tabParam === 'manage') {
@@ -220,63 +228,42 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       } else {
         setStandalonePage(null);
       }
-      
+
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     // Primary Feed / Discover / Shorts tabs
     if (pathname === '/shorts') {
       setActiveNav('shorts');
       setStandalonePage(null);
+      // Closes the snap on browser back. A second null write does not
+      // re-run the scroll unlock in ShortsPage.
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     if (pathname === '/feed') {
       setActiveNav('feed');
       setTag('');
+      setCommunitySubTopic('');
       setStandalonePage(null);
       setSelectedPost(null);
-      return;
+      return release;
     }
 
     if (pathname === '/discover' || pathname === '/') {
       setActiveNav('discover');
       const qTag = searchParams.get('tag');
       setTag(qTag ? qTag.trim().toLowerCase() : '');
+      syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
-      return;
+      return release;
     }
-  }, [location.pathname, location.search, currentUser?.username]);
 
-  // Notifications checking interval
-  const checkNotifications = useCallback(async () => {
-    if (!currentUser?.username) {
-      setUnreadNotifsCount(0);
-      return;
-    }
-    try {
-      const notifs = await getAccountNotifications(currentUser.username, 15);
-      if (notifs && notifs.length > 0) {
-        setUnreadNotifsCount(notifs.length);
-        const topNotif = notifs[0];
-        if (prevTopNotifIdRef.current && topNotif.id !== prevTopNotifIdRef.current) {
-          setGhostNotification(topNotif);
-        }
-        prevTopNotifIdRef.current = topNotif.id;
-      }
-    } catch {
-      // Non-critical network check
-    }
-  }, [currentUser?.username]);
-
-  useEffect(() => {
-    checkNotifications();
-    const interval = setInterval(checkNotifications, 45000);
-    return () => clearInterval(interval);
-  }, [checkNotifications]);
+    return release;
+  }, [location.pathname, location.search, location.state, currentUser?.username]);
 
   // Navigation handlers
   const handleNavChange = useCallback((tab: NavTab) => {
@@ -404,7 +391,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     } else {
       navigate(`/${activeNav}${queryString}`);
     }
-  }, [activeNav, tag, sort, communitySubTopic, navigate]);
+
+    // Restore scroll position for non-shorts tabs (shorts handles its own restoration)
+    if (activeNav !== 'shorts') {
+      restoreScrollPosition();
+    }
+  }, [activeNav, tag, sort, communitySubTopic, navigate, restoreScrollPosition]);
 
   const handleSelectHeading = useCallback((id: string) => {
     const element = document.getElementById(id);
@@ -438,60 +430,90 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const openContentFilterModal = useCallback(() => setShowContentFilterModal(true), []);
   const goBack = useCallback(() => navigate(-1), [navigate]);
 
+  const value = useMemo<NavigationContextType>(() => ({
+    activeNav,
+    setActiveNav,
+    handleNavChange,
+    sort,
+    setSort,
+    tag,
+    setTag,
+    communitySubTopic,
+    setCommunitySubTopic,
+    feedAuthor,
+    setFeedAuthor,
+    authorFeedMode,
+    setAuthorFeedMode,
+    handleSelectAuthor,
+    selectedLanguage,
+    setSelectedLanguage,
+    standalonePage,
+    profileUser,
+    openStandalonePage,
+    closeStandalonePage,
+    openAuthorProfile,
+    openCommunity,
+    openWritePage,
+    openFollowingManager,
+    openNotificationsPage,
+    openCommunitiesModal,
+    openManageCommunitiesModal,
+    selectedPost,
+    setSelectedPost,
+    postHeadings,
+    setPostHeadings,
+    handleSelectPost,
+    handleClosePost,
+    handleSelectHeading,
+    handleOpenNotificationPost,
+    showStatsModal,
+    setShowStatsModal,
+    openStatsModal,
+    showContentFilterModal,
+    setShowContentFilterModal,
+    openContentFilterModal,
+    feedScrollPositionRef,
+    saveScrollPosition,
+    restoreScrollPosition,
+    goBack
+  }), [
+    activeNav,
+    handleNavChange,
+    sort,
+    tag,
+    communitySubTopic,
+    feedAuthor,
+    authorFeedMode,
+    handleSelectAuthor,
+    selectedLanguage,
+    standalonePage,
+    profileUser,
+    openStandalonePage,
+    closeStandalonePage,
+    openAuthorProfile,
+    openCommunity,
+    openWritePage,
+    openFollowingManager,
+    openNotificationsPage,
+    openCommunitiesModal,
+    openManageCommunitiesModal,
+    selectedPost,
+    postHeadings,
+    handleSelectPost,
+    handleClosePost,
+    handleSelectHeading,
+    handleOpenNotificationPost,
+    showStatsModal,
+    openStatsModal,
+    showContentFilterModal,
+    openContentFilterModal,
+    saveScrollPosition,
+    restoreScrollPosition,
+    goBack
+  ]);
+
   return (
-    <NavigationContext.Provider
-      value={{
-        activeNav,
-        setActiveNav,
-        handleNavChange,
-        sort,
-        setSort,
-        tag,
-        setTag,
-        communitySubTopic,
-        setCommunitySubTopic,
-        feedAuthor,
-        setFeedAuthor,
-        authorFeedMode,
-        setAuthorFeedMode,
-        handleSelectAuthor,
-        selectedLanguage,
-        setSelectedLanguage,
-        standalonePage,
-        profileUser,
-        openStandalonePage,
-        closeStandalonePage,
-        openAuthorProfile,
-        openCommunity,
-        openWritePage,
-        openFollowingManager,
-        openNotificationsPage,
-        openCommunitiesModal,
-        openManageCommunitiesModal,
-        selectedPost,
-        setSelectedPost,
-        postHeadings,
-        setPostHeadings,
-        handleSelectPost,
-        handleClosePost,
-        handleSelectHeading,
-        handleOpenNotificationPost,
-        showStatsModal,
-        setShowStatsModal,
-        openStatsModal,
-        showContentFilterModal,
-        setShowContentFilterModal,
-        openContentFilterModal,
-        unreadNotifsCount,
-        setUnreadNotifsCount,
-        ghostNotification,
-        setGhostNotification,
-        feedScrollPositionRef,
-        saveScrollPosition,
-        restoreScrollPosition,
-        goBack
-      }}
-    >
+    <NavigationContext.Provider value={value}>
       {children}
     </NavigationContext.Provider>
   );

@@ -10,20 +10,18 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownRight,
-  Maximize2,
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { markdownToSafeHtml, getSafeImageUrl } from '../utils/sanitize';
+import { markdownToSafeHtml } from '../utils/sanitize';
 import {
-  extractSnapImages,
   cleanSnapBody,
   buildCommentTree,
   ThreadCommentNode
 } from '../services/shortsApi';
-import { SafeSnapImage } from './SafeSnapImage';
+import { SnapContent } from './SnapContent';
 
 interface ShortDetailViewProps {
   snap: HivePost;
@@ -99,29 +97,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
       return '';
     }
   };
-
-  const raw_images = useMemo(() => extractSnapImages(snap.body, snap.json_metadata), [snap.body, snap.json_metadata]);
-  
-  const images = useMemo(() => {
-    return raw_images
-      .map(url => getSafeImageUrl(url, { width: 1200 }))
-      .filter((url): url is string => url !== null);
-  }, [raw_images]);
-  const cleanedBody = useMemo(() => cleanSnapBody(snap.body), [snap.body]);
-  const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || snap.body), [cleanedBody, snap.body]);
-
-  const hashtags = useMemo(() => {
-    const list: string[] = [];
-    const hashRegex = /(?:^|\s)#([a-zA-Z0-9_\u0080-\uFFFF]+)/g;
-    let m;
-    while ((m = hashRegex.exec(snap.body || '')) !== null) {
-      const t = m[1].toLowerCase();
-      if (t.length >= 2 && !list.includes(t) && !/^\d+$/.test(t)) {
-        list.push(t);
-      }
-    }
-    return list;
-  }, [snap.body]);
 
   const commentTree = useMemo(() => {
     return buildCommentTree(snap.author, snap.permlink, discussionMap);
@@ -257,7 +232,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             <button
               onClick={onBack}
               className="p-2 -ml-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-all cursor-pointer group"
-              title="Voltar"
+              title="Back"
             >
               <ArrowLeft className="w-5 h-5 group-active:-translate-x-1 transition-transform" />
             </button>
@@ -265,7 +240,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
               <h2 className="text-[17px] font-bold text-slate-900 dark:text-white tracking-tight">Snap Thread</h2>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                {totalCommentsCount} {totalCommentsCount === 1 ? 'interação' : 'interações'}
+                {totalCommentsCount} {totalCommentsCount === 1 ? 'reply' : 'replies'}
               </div>
             </div>
           </div>
@@ -319,29 +294,15 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
               </div>
             </div>
 
-            <div
-              className="text-[17px] text-slate-800 dark:text-slate-100 leading-relaxed break-words prose prose-slate dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
-              dangerouslySetInnerHTML={{ __html: safeHtml }}
+            <SnapContent
+              body={snap.body}
+              jsonMetadata={snap.json_metadata}
+              author={snap.author}
+              permlink={snap.permlink}
+              onSelectTag={onSelectTag}
+              onOpenImage={setSelectedImage}
+              textClassName="text-[17px] text-slate-800 dark:text-slate-100 leading-relaxed break-words prose prose-slate dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
             />
-
-            {images.length > 0 && (
-              <div className="space-y-3">
-                {images.map((img, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedImage(img)}
-                    className="relative rounded-[24px] overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 cursor-zoom-in group"
-                  >
-                    <SafeSnapImage
-                      src={img}
-                      alt="Snap attachment"
-                      className="w-full h-auto max-h-[600px]"
-                      imgClassName="w-full h-auto object-contain mx-auto group-hover:scale-[1.01] transition-transform duration-500"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-6">
@@ -355,7 +316,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
                   }`}
                 >
                   <Heart className={`w-5 h-5 ${upvoted ? 'fill-current animate-bounce' : ''}`} />
-                  <span>{upvoted ? 'Votado' : 'Votar'}</span>
+                  <span>{upvoted ? 'Voted' : 'Vote'}</span>
                 </button>
                 <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 font-medium">
                   <MessageCircle className="w-5 h-5 text-blue-500" />

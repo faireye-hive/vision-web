@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { getFollowing, getSubscriptions } from '../services/hiveApi';
 
@@ -107,22 +107,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [currentUser, joinedCommunities, setCommunitySubscription]
   );
 
+  const value = useMemo(
+    () => ({
+      currentUser,
+      setCurrentUser,
+      login,
+      logout,
+      followingUsersList,
+      setFollowingUsersList,
+      refreshFollowing,
+      isFollowing,
+      joinedCommunities,
+      setCommunitySubscription,
+      toggleJoinCommunity,
+    }),
+    [
+      currentUser,
+      login,
+      logout,
+      followingUsersList,
+      refreshFollowing,
+      isFollowing,
+      joinedCommunities,
+      setCommunitySubscription,
+      toggleJoinCommunity,
+    ]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        setCurrentUser,
-        login,
-        logout,
-        followingUsersList,
-        setFollowingUsersList,
-        refreshFollowing,
-        isFollowing,
-        joinedCommunities,
-        setCommunitySubscription,
-        toggleJoinCommunity,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

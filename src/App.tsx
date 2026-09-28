@@ -1,41 +1,47 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarksProvider } from './context/BookmarksContext';
 import { ContentFilterProvider, useContentFilter } from './context/ContentFilterContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 
-// Pages
+// First-screen pages stay eager. The rest load when the route opens.
 import { FeedPage } from './pages/FeedPage';
 import { DiscoverPage } from './pages/DiscoverPage';
-import { ShortsPage } from './pages/ShortsPage';
-import { CommunitiesPage } from './pages/CommunitiesPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { WritePage } from './pages/WritePage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { FollowingManagerPage } from './pages/FollowingManagerPage';
 
-// Components
 import { Navbar } from './components/Navbar';
 import { LeftSidebar } from './components/LeftSidebar';
-import { PostReader } from './components/PostReader';
 import { PostSidebar } from './components/PostSidebar';
-import { BlockchainStatsModal } from './components/BlockchainStatsModal';
 import { ContentFilterModal } from './components/ContentFilterModal';
-import { GhostNotificationToast } from './components/GhostNotificationToast';
-import { ShortsWordFilterCard } from './components/ShortsWordFilterCard';
-import { TrendingTopicsCard } from './components/TrendingTopicsCard';
-import { RecommendedUsersCard } from './components/RecommendedUsersCard';
+import { NotificationToastHost } from './components/NotificationToastHost';
+import { RightRail } from './components/RightRail';
 
 import { HivePost } from './services/hiveApi';
-import { CommunityInfoCard } from './components/CommunityInfoCard';
-import { CommunityTopicsCard } from './components/CommunityTopicsCard';
-import { SubscribedCommunitiesCard } from './components/SubscribedCommunitiesCard';
+import { requestLogin } from './utils/authEvents';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
+import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
+import { useShortsWordFilter } from './hooks/useShortsWordFilter';
+
+const ShortsPage = lazy(() => import('./pages/ShortsPage').then((m) => ({ default: m.ShortsPage })));
+const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default: m.WritePage })));
+const FollowingManagerPage = lazy(() => import('./pages/FollowingManagerPage').then((m) => ({ default: m.FollowingManagerPage })));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const CommunitiesPage = lazy(() => import('./pages/CommunitiesPage').then((m) => ({ default: m.CommunitiesPage })));
+const PostReader = lazy(() => import('./components/PostReader').then((m) => ({ default: m.PostReader })));
+const BlockchainStatsModal = lazy(() => import('./components/BlockchainStatsModal').then((m) => ({ default: m.BlockchainStatsModal })));
+
+function RouteFallback() {
+  return (
+    <div className="py-16 text-center text-sm text-gray-500 dark:text-slate-400">
+      Loading…
+    </div>
+  );
+}
 
 function NebulosaApp() {
-  const { currentUser, login, logout, followingUsersList, setFollowingUsersList, joinedCommunities, toggleJoinCommunity } = useAuth();
+  const { currentUser, login, logout, joinedCommunities, toggleJoinCommunity } = useAuth();
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
 
@@ -74,19 +80,15 @@ function NebulosaApp() {
     handleClosePost,
     handleSelectHeading,
     handleOpenNotificationPost,
-    communitySubTopic,
-    setCommunitySubTopic,
     restoreScrollPosition,
     showStatsModal,
     setShowStatsModal,
     openStatsModal,
     showContentFilterModal,
-    setShowContentFilterModal,
-    unreadNotifsCount,
-    setUnreadNotifsCount,
-    ghostNotification,
-    setGhostNotification
+    setShowContentFilterModal
   } = useNavigation();
+
+  const shortsFilter = useShortsWordFilter();
 
   const {
     config: contentFilterConfig,
@@ -104,75 +106,29 @@ function NebulosaApp() {
 
   useEffect(() => {
     applyTheme(theme);
+    applyReadingStyle(readReadingStyle(), theme);
   }, [theme]);
 
   const handleToggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
-  // Scroll restoration logic when closing a post
+  // Scroll restoration when closing a post. Shorts keeps its own offset:
+  // this global restore is 0 for that tab and was pulling the list back to the top.
   useEffect(() => {
-    // Only restore when returning to a feed (no post, no standalone page)
+    if (activeNav === 'shorts') return;
     if (!selectedPost && !standalonePage) {
-      // Small delay to ensure the 'hidden' class is removed and layout is stable
       const timer = setTimeout(() => {
         restoreScrollPosition();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [selectedPost, standalonePage, restoreScrollPosition]);
+  }, [selectedPost, standalonePage, restoreScrollPosition, activeNav]);
 
-  // Shorts state & filtering
-  const [shortsHashtags, setShortsHashtags] = useState<{ tag: string; count: number }[]>([]);
-  const [selectedShortTag, setSelectedShortTag] = useState<string>('');
-  const [shortsHiddenCount, setShortsHiddenCount] = useState<number>(0);
 
-  const [blockedWords, setBlockedWords] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('hive_shorts_blocked_words');
-      return saved ? JSON.parse(saved) : ['giveaway', 'airdrop'];
-    } catch {
-      return ['giveaway', 'airdrop'];
-    }
-  });
-
-  const [shortsFilterEnabled, setShortsFilterEnabled] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('hive_shorts_filter_enabled') !== 'false';
-    } catch {
-      return true;
-    }
-  });
-
-  const handleAddBlockedWord = (word: string) => {
-    const clean = word.trim().toLowerCase();
-    if (!clean || blockedWords.includes(clean)) return;
-    const next = [...blockedWords, clean];
-    setBlockedWords(next);
-    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify(next));
-  };
-
-  const handleRemoveBlockedWord = (word: string) => {
-    const next = blockedWords.filter((w) => w !== word);
-    setBlockedWords(next);
-    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify(next));
-  };
-
-  const handleClearAllBlockedWords = () => {
-    setBlockedWords([]);
-    localStorage.setItem('hive_shorts_blocked_words', JSON.stringify([]));
-  };
-
-  const handleToggleShortsFilterEnabled = () => {
-    setShortsFilterEnabled((prev) => {
-      const next = !prev;
-      localStorage.setItem('hive_shorts_filter_enabled', String(next));
-      return next;
-    });
-  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f8fa] dark:bg-[#0b0f17] text-gray-900 dark:text-slate-100 font-sans transition-colors duration-200">
+    <div className="app-shell min-h-screen flex flex-col bg-transparent text-[var(--reading-text,#1e293b)] transition-colors duration-200">
       {/* Top Navbar */}
       <Navbar
         currentSort={sort}
@@ -190,7 +146,6 @@ function NebulosaApp() {
         onOpenWrite={openWritePage}
         onOpenNotifications={openNotificationsPage}
         onOpenManageFollowing={openFollowingManager}
-        unreadNotificationsCount={unreadNotifsCount}
         activeNav={activeNav}
         onNavChange={handleNavChange}
         currentUser={currentUser}
@@ -202,14 +157,13 @@ function NebulosaApp() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
+        <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
         {standalonePage === 'write' && (
           <WritePage
             onClose={closeStandalonePage}
             currentUser={currentUser}
-            onRequireLogin={() => {
-              window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-            }}
+            onRequireLogin={requestLogin}
             defaultCommunity={tag.startsWith('hive-') ? tag : ''}
             joinedCommunities={joinedCommunities}
           />
@@ -220,9 +174,7 @@ function NebulosaApp() {
             currentUser={currentUser}
             onClose={closeStandalonePage}
             onOpenProfile={(user) => openStandalonePage('profile', user)}
-            onRequireLogin={() => {
-              window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-            }}
+            onRequireLogin={requestLogin}
           />
         )}
 
@@ -232,10 +184,7 @@ function NebulosaApp() {
             onClose={closeStandalonePage}
             onOpenPost={(author, permlink) => handleOpenNotificationPost(author, permlink)}
             onOpenUser={(user) => openStandalonePage('profile', user)}
-            onRequireLogin={() => {
-              window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-            }}
-            onNotificationsRead={() => setUnreadNotifsCount(0)}
+            onRequireLogin={requestLogin}
           />
         )}
 
@@ -264,6 +213,7 @@ function NebulosaApp() {
             }}
           />
         )}
+        </Suspense>
 
         {/* ================= IN-PLACE POST READER (BOOKMARKS & OUTLINE) ================= */}
         {selectedPost && !standalonePage && activeNav !== 'shorts' && (
@@ -279,21 +229,21 @@ function NebulosaApp() {
             </aside>
 
             <section className="min-w-0 flex-1">
-              <PostReader
-                post={selectedPost}
-                onClose={handleClosePost}
-                onSelectAuthor={handleSelectAuthor}
-                onSelectTag={(t) => {
-                  setTag(t);
-                  handleClosePost();
-                }}
-                currentUser={currentUser}
-                onRequireLogin={() => {
-                  window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-                }}
-                onHeadingsExtracted={setPostHeadings}
-                onSelectPost={(p) => handleSelectPost(p, true, false)}
-              />
+              <Suspense fallback={<RouteFallback />}>
+                <PostReader
+                  post={selectedPost}
+                  onClose={handleClosePost}
+                  onSelectAuthor={handleSelectAuthor}
+                  onSelectTag={(t) => {
+                    setTag(t);
+                    handleClosePost();
+                  }}
+                  currentUser={currentUser}
+                  onRequireLogin={requestLogin}
+                  onHeadingsExtracted={setPostHeadings}
+                  onSelectPost={(p) => handleSelectPost(p, true, false)}
+                />
+              </Suspense>
             </section>
           </div>
         )}
@@ -322,9 +272,11 @@ function NebulosaApp() {
               onOpenManageCommunities={openManageCommunitiesModal}
               onOpenManageFollowing={openFollowingManager}
               joinedCommunities={joinedCommunities}
-              shortsHashtags={shortsHashtags}
-              selectedShortTag={selectedShortTag}
-              onSelectShortTag={setSelectedShortTag}
+              shortsHashtags={shortsFilter.hashtags}
+              selectedShortTag={shortsFilter.selectedTag}
+              onSelectShortTag={shortsFilter.setSelectedTag}
+              shortsSource={shortsFilter.source}
+              onShortsSourceChange={shortsFilter.setSource}
             />
           </aside>
 
@@ -339,121 +291,53 @@ function NebulosaApp() {
               />
             )}
             {activeNav === 'shorts' && (
-              <ShortsPage
-                selectedTag={selectedShortTag}
-                onSelectTag={setSelectedShortTag}
-                blockedWords={blockedWords}
-                filterEnabled={shortsFilterEnabled}
-                onToggleFilter={handleToggleShortsFilterEnabled}
-                onHashtagsExtracted={setShortsHashtags}
-                onHiddenCountChange={setShortsHiddenCount}
-              />
+              <Suspense fallback={<RouteFallback />}>
+                <ShortsPage
+                  selectedTag={shortsFilter.selectedTag}
+                  onSelectTag={shortsFilter.setSelectedTag}
+                  blockedWords={shortsFilter.blockedWords}
+                  filterEnabled={shortsFilter.filterEnabled}
+                  onToggleFilter={shortsFilter.toggleEnabled}
+                  onHashtagsExtracted={shortsFilter.setHashtags}
+                  onHiddenCountChange={shortsFilter.setHiddenCount}
+                  source={shortsFilter.source}
+                  onSourceChange={shortsFilter.setSource}
+                />
+              </Suspense>
             )}
           </section>
 
           {/* Right Column Contextual Widgets */}
           <aside className="hidden xl:block space-y-6 sticky top-20 self-start">
-            {activeNav === 'shorts' ? (
-              <>
-                <ShortsWordFilterCard
-                  blockedWords={blockedWords}
-                  onAddWord={handleAddBlockedWord}
-                  onRemoveWord={handleRemoveBlockedWord}
-                  onClearAll={handleClearAllBlockedWords}
-                  filterEnabled={shortsFilterEnabled}
-                  onToggleFilter={handleToggleShortsFilterEnabled}
-                  hiddenCount={shortsHiddenCount}
-                />
-
-                <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">About Shorts</h3>
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed">
-                    Shorts brings decentralized microblogging to Hive. Snaps are published by community members directly as comments under container posts by <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>.
-                  </p>
-                  <div className="pt-2 border-t border-gray-100 dark:border-slate-800 space-y-2 text-xs text-gray-500 dark:text-slate-400">
-                    <div className="flex items-center justify-between">
-                      <span>Protocol</span>
-                      <span className="font-semibold text-gray-800 dark:text-slate-200">PeakD Snaps</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Source</span>
-                      <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Feed Type</span>
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">Twitter-like Stream</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : activeNav === 'communities' ? (
-              tag && tag.startsWith('hive-') ? (
-                <>
-                  <CommunityInfoCard
-                    communityName={tag}
-                    onSelectAuthor={handleSelectAuthor}
-                  />
-                  <CommunityTopicsCard
-                    communityPosts={communityPosts}
-                    currentTag={tag}
-                  />
-                </>
-              ) : (
-                <SubscribedCommunitiesCard
-                  onSelectCommunity={(commName) => {
-                    openCommunity(commName);
-                    setCommunitySubTopic('');
-                  }}
-                />
-              )
-            ) : activeNav === 'discover' ? (
-              <TrendingTopicsCard
-                currentTag={tag}
-                currentSort={sort}
-                feedPosts={discoverPosts}
-                onSelectTag={(newTag) => {
-                  setTag(newTag);
-                  setFeedAuthor(null);
-                }}
-              />
-            ) : (
-              <RecommendedUsersCard
-                currentUser={currentUser}
-                feedPosts={[]}
-                onSelectAuthor={handleSelectAuthor}
-                activeAuthor={feedAuthor}
-                followingUsers={followingUsersList}
-                onFollowChange={(targetUser, isNowFollowing) => {
-                  setFollowingUsersList((prev) => {
-                    const targetLower = targetUser.toLowerCase();
-                    if (isNowFollowing) {
-                      return prev.some((u) => u.toLowerCase() === targetLower) ? prev : [...prev, targetUser];
-                    } else {
-                      return prev.filter((u) => u.toLowerCase() !== targetLower);
-                    }
-                  });
-                }}
-              />
-            )}
+            <RightRail
+              discoverPosts={discoverPosts}
+              communityPosts={communityPosts}
+              blockedWords={shortsFilter.blockedWords}
+              shortsFilterEnabled={shortsFilter.filterEnabled}
+              shortsHiddenCount={shortsFilter.hiddenCount}
+              onAddBlockedWord={shortsFilter.addWord}
+              onRemoveBlockedWord={shortsFilter.removeWord}
+              onClearBlockedWords={shortsFilter.clearWords}
+              onToggleShortsFilter={shortsFilter.toggleEnabled}
+            />
           </aside>
         </div>
       </main>
 
       {/* Blockchain Stats Modal */}
-      {showStatsModal && (
-        <BlockchainStatsModal
-          onClose={() => {
-            if (window.history.state?.type === 'modal') {
-              window.history.back();
-            } else {
-              setShowStatsModal(false);
-            }
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showStatsModal && (
+          <BlockchainStatsModal
+            onClose={() => {
+              if (window.history.state?.type === 'modal') {
+                window.history.back();
+              } else {
+                setShowStatsModal(false);
+              }
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* Content & Mute Filters Modal */}
       <ContentFilterModal
@@ -492,22 +376,7 @@ function NebulosaApp() {
       </footer>
 
       {/* Ghost Notification Toast */}
-      <GhostNotificationToast
-        notification={ghostNotification}
-        onClose={() => setGhostNotification(null)}
-        onClick={(notif) => {
-          setGhostNotification(null);
-          if (notif.url) {
-            const clean = notif.url.replace(/^@/, '');
-            const parts = clean.split('/');
-            if (parts.length >= 2) {
-              handleOpenNotificationPost(parts[0], parts.slice(1).join('/'));
-              return;
-            }
-          }
-          openNotificationsPage();
-        }}
-      />
+      <NotificationToastHost />
     </div>
   );
 }
@@ -517,11 +386,13 @@ export function App() {
     <BrowserRouter>
       <AuthProvider>
         <NavigationProvider>
-          <ContentFilterProvider>
-            <BookmarksProvider>
-              <NebulosaApp />
-            </BookmarksProvider>
-          </ContentFilterProvider>
+          <NotificationsProvider>
+            <ContentFilterProvider>
+              <BookmarksProvider>
+                <NebulosaApp />
+              </BookmarksProvider>
+            </ContentFilterProvider>
+          </NotificationsProvider>
         </NavigationProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -26,9 +26,12 @@ import { useNavigation } from '../context/NavigationContext';
 import {
   getPeakSnapsContainers,
   getContainerSnaps,
-  PeakSnapsContainer
+  PeakSnapsContainer,
+  loadFollowingSnaps,
+  loadRepliesToAccount
 } from '../services/shortsApi';
 import { getCachedShorts, setCachedShorts } from '../services/shortsCache';
+import { ShortsSource } from '../hooks/useShortsWordFilter';
 import { ShieldAlert, Loader2, Camera } from 'lucide-react';
 
 interface ShortsFeedProps {
@@ -44,6 +47,9 @@ interface ShortsFeedProps {
   onHiddenCountChange?: (count: number) => void;
   onToggleFilter?: () => void;
   onDiscussionMapLoaded?: (map: Record<string, HivePost>) => void;
+  onBeforeOpenDetail?: () => void;
+  source?: ShortsSource;
+  onSourceChange?: (source: ShortsSource) => void;
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -58,7 +64,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   onHashtagsExtracted,
   onHiddenCountChange,
   onToggleFilter,
-  onDiscussionMapLoaded
+  onDiscussionMapLoaded,
+  onBeforeOpenDetail,
+  source = 'all',
+  onSourceChange
 }) => {
   const [containers, setContainers] = useState<PeakSnapsContainer[]>([]);
   const [currentContainerIndex, setCurrentContainerIndex] = useState<number>(0);
@@ -81,11 +90,48 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Progressive rendering window to prevent DOM lag/freezing ("travando")
   const [displayLimit, setDisplayLimit] = useState<number>(20);
+  const [sourceSnaps, setSourceSnaps] = useState<HivePost[] | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
 
   // Reset display window when active filters change
   useEffect(() => {
     setDisplayLimit(20);
-  }, [selectedTag, searchQuery]);
+  }, [selectedTag, searchQuery, source]);
+
+  useEffect(() => {
+    if (source === 'all') {
+      setSourceSnaps(null);
+      setSourceError(null);
+      setSourceLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSourceLoading(true);
+    setSourceError(null);
+
+    const job = source === 'following'
+      ? loadFollowingSnaps(currentUser?.username || '')
+      : currentUser?.username
+        ? loadRepliesToAccount(currentUser.username)
+        : Promise.resolve([] as HivePost[]);
+
+    job
+      .then((rows) => {
+        if (!cancelled) setSourceSnaps(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setSourceError('Could not load this list from Hive.');
+      })
+      .finally(() => {
+        if (!cancelled) setSourceLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [source, currentUser?.username]);
 
   // Composer states
   const [composerText, setComposerText] = useState<string>('');
@@ -294,8 +340,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const { visibleSnaps, hiddenCount } = useMemo(() => {
     let hidden = 0;
     const list: HivePost[] = [];
+    const sourceList = source === 'all' ? snaps : (sourceSnaps || []);
 
-    for (const snap of snaps) {
+    for (const snap of sourceList) {
       // 1. Spam filter check
       if (isSnapBlocked(snap)) {
         hidden++;
@@ -345,7 +392,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     }
 
     return { visibleSnaps: list, hiddenCount: hidden };
-  }, [snaps, isSnapBlocked, selectedTag, searchQuery]);
+  }, [snaps, sourceSnaps, source, isSnapBlocked, selectedTag, searchQuery]);
 
   // Notify parent of hiddenCount for the Right Sidebar card badge
   const lastHiddenCountRef = useRef<number>(-1);
@@ -699,6 +746,28 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
       </div>
 
+      {source !== 'all' && (
+        <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 text-xs">
+          <span className="font-semibold text-gray-800 dark:text-slate-100">
+            {source === 'following' ? 'Snaps from people you follow' : 'Replies to your snaps'}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSourceChange?.('all')}
+            className="text-blue-600 dark:text-blue-400 font-semibold cursor-pointer"
+          >
+            Show all
+          </button>
+        </div>
+      )}
+
+      {sourceLoading && (
+        <p className="text-xs text-gray-500 dark:text-slate-400 px-1">Loading from Hive…</p>
+      )}
+      {sourceError && (
+        <p className="text-xs text-rose-600 dark:text-rose-400 px-1">{sourceError}</p>
+      )}
+
       {/* ================= ACTIVE FILTER BANNER (Moved here) ================= */}
       {(selectedTag || (hiddenCount > 0 && filterEnabled)) && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 shadow-sm text-xs animate-in fade-in slide-in-from-top-1 duration-200">
@@ -774,14 +843,22 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       )}
 
       {/* ================= EMPTY STATE ================= */}
-      {!loading && visibleSnaps.length === 0 && (
+      {!loading && !sourceLoading && visibleSnaps.length === 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-[24px] p-10 border border-slate-200/70 dark:border-slate-800 text-center space-y-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
             <MessageCircle className="w-6 h-6" />
           </div>
           <h3 className="font-bold text-gray-900 dark:text-white text-base">No snaps found</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 max-w-sm mx-auto">
-            {selectedTag
+            {source === 'following' && !currentUser
+              ? 'Sign in with Keychain to see snaps from people you follow.'
+              : source === 'following'
+                ? 'No recent snap comments from people you follow are in the feed cache yet.'
+                : source === 'replies' && !currentUser
+                  ? 'Sign in with Keychain to see replies to your snaps.'
+                  : source === 'replies'
+                    ? 'No replies to your snaps yet.'
+                    : selectedTag
               ? `No snaps found with hashtag #${selectedTag}. Try selecting another topic or clearing your filter.`
               : searchQuery
                 ? `No snaps match "${searchQuery}". Try a different search term.`
@@ -813,7 +890,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             currentUser={currentUser}
             onSelectAuthor={onSelectAuthor}
             onSelectTag={onSelectTag}
-            onOpenDetail={(s) => navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } })}
+            onOpenDetail={(s) => {
+              onBeforeOpenDetail?.();
+              navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } });
+            }}
             onRequireLogin={onRequireLogin}
           />
         ))}

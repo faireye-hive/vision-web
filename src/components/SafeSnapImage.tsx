@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { enqueueImageVerification, isPlausibleImageUrl } from '../utils/imageLoaderQueue';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { resolveProtectedImageUrl } from '../utils/imageLoaderQueue';
 import { Image as ImageIcon, AlertCircle, RefreshCw } from 'lucide-react';
 
 export interface SafeSnapImageProps {
@@ -8,28 +8,43 @@ export interface SafeSnapImageProps {
   className?: string;
   imgClassName?: string;
   onClick?: () => void;
+  onStatus?: (status: 'loaded' | 'error') => void;
   showOverlayIcon?: boolean;
+  /** Fixed aspect ratio for skeleton placeholder (e.g. "16/9", "4/3", "1/1"). Prevents layout shift. */
+  aspectRatio?: string;
 }
 
-export const SafeSnapImage: React.FC<SafeSnapImageProps> = ({
+export const SafeSnapImage: React.FC<SafeSnapImageProps> = React.memo(({
   src,
   alt,
   className = '',
   imgClassName = '',
   onClick,
-  showOverlayIcon = false
+  onStatus,
+  showOverlayIcon = false,
+  aspectRatio
 }) => {
-  const [inViewport, setInViewport] = useState<boolean>(false);
-  const [status, setStatus] = useState<'idle' | 'queued' | 'loaded' | 'error'>('idle');
-  const [verifiedSrc, setVerifiedSrc] = useState<string>('');
-  const [errorReason, setErrorReason] = useState<string>('');
+  const [inViewport, setInViewport] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'loaded' | 'error'>('idle');
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // 1. Observe intersection so we DO NOT load all images at once
+  // Whitelist + wsrv proxy. Never falls back to the original host.
+  const protectedSrc = useMemo(() => resolveProtectedImageUrl(src), [src]);
+
+  useEffect(() => {
+    if (!protectedSrc) {
+      setStatus('error');
+      onStatus?.('error');
+      return;
+    }
+    setStatus('idle');
+    // onStatus is read once per src. Listing it would reset a loaded image on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [protectedSrc, retryCount]);
+
   useEffect(() => {
     if (!containerRef.current) return;
-
-    // If browser lacks IntersectionObserver, fallback to loading immediately
     if (typeof IntersectionObserver === 'undefined') {
       setInViewport(true);
       return;
@@ -37,112 +52,92 @@ export const SafeSnapImage: React.FC<SafeSnapImageProps> = ({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setInViewport(true);
-            observer.disconnect();
-          }
-        });
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInViewport(true);
+          observer.disconnect();
+        }
       },
-      {
-        rootMargin: '200px 0px', // Preload slightly before entering viewport for smooth UX
-        threshold: 0.01
-      }
+      { rootMargin: '300px 0px', threshold: 0.01 }
     );
 
     observer.observe(containerRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
-  // 2. Once in viewport, enqueue for controlled, rate-limited verification
-  const loadVerifiedImage = () => {
-    if (!src || !isPlausibleImageUrl(src)) {
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = event.currentTarget;
+    // 1x1 beacons that survived the proxy are not shown.
+    if ((img.naturalWidth || 0) <= 1 || (img.naturalHeight || 0) <= 1) {
       setStatus('error');
-      setErrorReason('Invalid or unsafe image link');
+      onStatus?.('error');
       return;
     }
-
-    setStatus('queued');
-    enqueueImageVerification(src)
-      .then((result) => {
-        if (result.valid && result.resolvedUrl) {
-          setVerifiedSrc(result.resolvedUrl);
-          setStatus('loaded');
-        } else {
-          setStatus('error');
-          setErrorReason(result.error || 'Failed to verify genuine image');
-        }
-      })
-      .catch(() => {
-        setStatus('error');
-        setErrorReason('Image server connection failed');
-      });
+    setStatus('loaded');
+    onStatus?.('loaded');
   };
 
-  useEffect(() => {
-    if (inViewport && status === 'idle') {
-      loadVerifiedImage();
-    }
-  }, [inViewport, src]);
-
-  const handleRetry = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    loadVerifiedImage();
+  const handleRetry = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!protectedSrc) return;
+    setRetryCount((count) => count + 1);
   };
+
+  const skeletonStyle: React.CSSProperties | undefined =
+    status !== 'loaded' && aspectRatio ? { aspectRatio, width: '100%' } : undefined;
 
   return (
     <div
       ref={containerRef}
       onClick={onClick}
       className={`relative overflow-hidden bg-gray-100 dark:bg-slate-800/80 transition ${className}`}
+      style={skeletonStyle}
     >
-      {/* State 1: Idle or In-queue skeleton shimmer */}
-      {(status === 'idle' || status === 'queued') && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 animate-pulse bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500">
-          <ImageIcon className="w-6 h-6 opacity-40 mb-1" />
-          <span className="text-[10px] font-medium opacity-60">
-            {status === 'queued' ? 'Loading image...' : ''}
-          </span>
+      {status !== 'loaded' && status !== 'error' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-slate-700/30 to-transparent animate-shimmer" />
+          <ImageIcon className="w-6 h-6 opacity-40 mb-1 relative z-10" />
+          {showOverlayIcon && (
+            <span className="text-[10px] font-medium opacity-60 relative z-10">Loading image...</span>
+          )}
         </div>
       )}
 
-      {/* State 2: Verified Genuine Image loaded */}
-      {status === 'loaded' && verifiedSrc && (
+      {inViewport && protectedSrc && status !== 'error' && (
         <img
-          src={verifiedSrc}
+          key={`${protectedSrc}:${retryCount}`}
+          src={protectedSrc}
           alt={alt}
           loading="lazy"
+          decoding="async"
           className={`w-full h-full object-cover transition-opacity duration-300 ${imgClassName}`}
+          onLoad={handleLoad}
           onError={() => {
             setStatus('error');
-            setErrorReason('Display rendering error');
+            onStatus?.('error');
           }}
         />
       )}
 
-      {/* State 3: Corrupt, deceptive or failed image fallback */}
       {status === 'error' && (
         <div className="w-full h-full min-h-[140px] flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-slate-800/60 border border-dashed border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 text-center select-none">
           <AlertCircle className="w-5 h-5 text-gray-400 dark:text-slate-500 mb-1" />
           <p className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
             Image unavailable
           </p>
-          <span className="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-[200px]">
-            {errorReason || 'Could not verify media asset'}
-          </span>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition cursor-pointer"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>Retry</span>
-          </button>
+          {protectedSrc && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          )}
         </div>
       )}
     </div>
   );
-};
+});
+
+SafeSnapImage.displayName = 'SafeSnapImage';

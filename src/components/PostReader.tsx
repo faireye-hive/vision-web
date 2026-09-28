@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ArrowLeft,
   ArrowUp,
@@ -285,18 +285,24 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   };
 
-  // Fetch comments & discussion with observer so muted accounts on chain are excluded
+  // Discussion is loaded without an observer. Hivemind drops the thread for
+  // some accounts when that argument is set. A generation counter drops
+  // responses from a post the reader has already left.
+  const discussionGen = useRef(0);
   const fetchDiscussion = useCallback((forceRefresh = false) => {
+    const gen = ++discussionGen.current;
     setLoadingDiscussion(true);
-    getDiscussion(post.author, post.permlink, forceRefresh, currentUser?.username || '')
+    getDiscussion(post.author, post.permlink, forceRefresh)
       .then((data) => {
+        if (gen !== discussionGen.current) return;
         setDiscussion(data || {});
         setLoadingDiscussion(false);
       })
       .catch(() => {
+        if (gen !== discussionGen.current) return;
         setLoadingDiscussion(false);
       });
-  }, [post.author, post.permlink, currentUser?.username]);
+  }, [post.author, post.permlink]);
 
   useEffect(() => {
     fetchDiscussion(false);

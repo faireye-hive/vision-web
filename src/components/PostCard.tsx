@@ -37,7 +37,7 @@ export interface PostCardProps {
   onBlockWord?: (word: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({
+const PostCardComponent: React.FC<PostCardProps> = ({
   post,
   onSelectPost,
   onSelectAuthor,
@@ -535,4 +535,6 @@ export const PostCard: React.FC<PostCardProps> = ({
     </article>
   );
 };
+
+export const PostCard = React.memo(PostCardComponent);
 

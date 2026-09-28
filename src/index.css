@@ -2,11 +2,15 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+html {
+  font-size: var(--reading-font-size, 16px);
+  font-family: var(--reading-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
+}
+
 @layer base {
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f7f8fa;
-    color: #1e293b;
+    background-color: var(--ambient-bg, #f7f8fa);
+    color: var(--reading-text, #1e293b);
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
@@ -16,8 +20,8 @@
   }
 
   html.dark body {
-    background-color: #0b0f17;
-    color: #f1f5f9;
+    background-color: var(--ambient-bg, #0b0f17);
+    color: var(--reading-text, #f1f5f9);
   }
 
   button, [role="button"], a {
@@ -277,5 +281,15 @@ html.dark #sanitized-post-body pre code {
   aspect-ratio: 16 / 9;
   border-radius: 1rem;
   margin: 1.5rem 0;
+}
+
+/* ================= SHIMMER ANIMATION FOR IMAGE SKELETONS ================= */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 

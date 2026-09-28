@@ -279,7 +279,7 @@ export function resetHiveNodesToDefault(): void {
 /**
  * Make a direct JSON-RPC call to Hive blockchain node with automatic node failover.
  */
-export async function hiveRpcCall<T = any>(
+async function performHiveRpcCall<T = any>(
   method: string,
   params: any = {},
   nodeUrl: string = activeNode
@@ -334,6 +334,31 @@ export async function hiveRpcCall<T = any>(
     }
     throw err;
   }
+}
+
+const pendingRpcCalls = new Map<string, Promise<unknown>>();
+
+/**
+ * JSON-RPC with in-flight dedup. React StrictMode and several cards asking for
+ * the same account/post otherwise fire the same request twice.
+ */
+export async function hiveRpcCall<T = any>(
+  method: string,
+  params: any = {},
+  nodeUrl: string = activeNode
+): Promise<T> {
+  const key = `${nodeUrl}\n${method}\n${JSON.stringify(params ?? {})}`;
+  const existing = pendingRpcCalls.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const promise = performHiveRpcCall<T>(method, params, nodeUrl);
+  pendingRpcCalls.set(key, promise);
+  promise.finally(() => {
+    if (pendingRpcCalls.get(key) === promise) {
+      pendingRpcCalls.delete(key);
+    }
+  });
+  return promise;
 }
 
 /**
@@ -432,26 +457,31 @@ export function getCachedRankedPosts(
 }
 
 /**
- * Fetch full discussion (main post + comment tree)
+ * Fetch the full discussion (root post + flattened comment tree).
+ *
+ * The `observer` argument is kept so existing call sites compile, but it is
+ * not sent. Hivemind's `bridge.get_discussion` joins the observer's mute and
+ * blacklist lists inside the recursive query. For some accounts that join
+ * returns an empty thread or errors, even though the same post loads with
+ * no observer. The in-app mute list (`contentFilter`) is separate and still
+ * applies on the client.
  */
 export async function getDiscussion(
   author: string,
   permlink: string,
   forceRefresh: boolean = false,
-  observer: string = ''
+  _observer: string = ''
 ): Promise<Record<string, HivePost>> {
   const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
   const cleanPermlink = permlink.trim();
-  const cleanObserver = (observer || '').replace(/^@/, '').trim().toLowerCase();
-  const cacheKey = `discussion:${cleanAuthor}:${cleanPermlink}:${cleanObserver}`;
+  const cacheKey = `discussion:${cleanAuthor}:${cleanPermlink}`;
 
   return fetchWithCache(
     cacheKey,
     async () => {
       const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
         author: cleanAuthor,
-        permlink: cleanPermlink,
-        observer: cleanObserver || undefined
+        permlink: cleanPermlink
       });
       return result || {};
     },
@@ -460,14 +490,16 @@ export async function getDiscussion(
 }
 
 /**
- * Invalidate a post's discussion cache (e.g. after commenting or voting)
+ * Invalidate a post's discussion cache (e.g. after commenting or voting).
+ * Also drops legacy keys that used to include the observer name.
  */
-export function invalidateDiscussionCache(author: string, permlink: string, observer: string = ''): void {
+export function invalidateDiscussionCache(author: string, permlink: string, _observer: string = ''): void {
   const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
   const cleanPermlink = permlink.trim();
-  const cleanObserver = (observer || '').replace(/^@/, '').trim().toLowerCase();
-  apiCache.invalidate(`discussion:${cleanAuthor}:${cleanPermlink}:${cleanObserver}`);
-  apiCache.invalidate(`discussion:${cleanAuthor}:${cleanPermlink}`);
+  const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  apiCache.invalidatePattern(
+    new RegExp(`^discussion:${escapeRegExp(cleanAuthor)}:${escapeRegExp(cleanPermlink)}(?::|$)`)
+  );
 }
 
 /**
