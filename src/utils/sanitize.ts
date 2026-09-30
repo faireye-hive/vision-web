@@ -145,7 +145,7 @@ function restoreRawTags(text: string, store: string[]): string {
 }
 
 export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string; headings: PostHeading[] } {
-  if (!markdown) return { html: '', headings: [] };
+  if (!markdown || typeof markdown !== 'string') return { html: '', headings: [] };
 
   const headings: PostHeading[] = [];
   let headingIndex = 0;

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { getFollowing, getSubscriptions } from '../services/hiveApi';
+import { getFollowing, getMutedAccounts, getSubscriptions } from '../services/hiveApi';
 
 export interface AuthContextType {
   currentUser: CurrentUser | null;
@@ -11,6 +11,11 @@ export interface AuthContextType {
   setFollowingUsersList: React.Dispatch<React.SetStateAction<string[]>>;
   refreshFollowing: () => Promise<void>;
   isFollowing: (username: string) => boolean;
+  mutedUsersList: string[];
+  setMutedUsersList: React.Dispatch<React.SetStateAction<string[]>>;
+  refreshMuted: () => Promise<void>;
+  isMuted: (username: string) => boolean;
+  toggleMuteUser: (username: string) => Promise<string | null>;
   joinedCommunities: Record<string, boolean>;
   setCommunitySubscription: (communityName: string, subscribed: boolean) => void;
   toggleJoinCommunity: (communityName: string) => Promise<string | null>;
@@ -24,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [followingUsersList, setFollowingUsersList] = useState<string[]>([]);
+  const [mutedUsersList, setMutedUsersList] = useState<string[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({});
 
   const refreshFollowing = useCallback(async () => {
@@ -39,9 +45,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser?.username]);
 
+  const refreshMuted = useCallback(async () => {
+    if (!currentUser?.username) {
+      setMutedUsersList([]);
+      return;
+    }
+    try {
+      const list = await getMutedAccounts(currentUser.username, true);
+      setMutedUsersList(list || []);
+    } catch {
+      setMutedUsersList([]);
+    }
+  }, [currentUser?.username]);
+
   useEffect(() => {
     refreshFollowing();
-  }, [refreshFollowing]);
+    refreshMuted();
+  }, [refreshFollowing, refreshMuted]);
 
   useEffect(() => {
     if (!currentUser?.username) {
@@ -75,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     KeychainService.logout();
     setCurrentUser(null);
     setFollowingUsersList([]);
+    setMutedUsersList([]);
     setJoinedCommunities({});
   }, []);
 
@@ -84,6 +105,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return followingUsersList.some((u) => u.toLowerCase() === clean);
     },
     [followingUsersList]
+  );
+
+  const isMuted = useCallback(
+    (username: string) => {
+      const clean = username.trim().toLowerCase().replace(/^@/, '');
+      return mutedUsersList.some((u) => u.toLowerCase() === clean);
+    },
+    [mutedUsersList]
+  );
+
+  const toggleMuteUser = useCallback(
+    async (targetUsername: string) => {
+      if (!currentUser) {
+        window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+        return 'Connect Hive Keychain to mute on chain.';
+      }
+      const clean = targetUsername.trim().toLowerCase().replace(/^@/, '');
+      const currentlyMuted = isMuted(clean);
+      const nextMute = !currentlyMuted;
+      const response = await KeychainService.muteUser(currentUser.username, clean, nextMute);
+      if (!response.success) {
+        return response.message || response.error || 'Hive did not accept mute operation.';
+      }
+      setMutedUsersList((prev) =>
+        nextMute ? [...prev, clean] : prev.filter((u) => u.toLowerCase() !== clean)
+      );
+      return null;
+    },
+    [currentUser, isMuted]
   );
 
   const setCommunitySubscription = useCallback((communityName: string, subscribed: boolean) => {
@@ -117,6 +167,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFollowingUsersList,
       refreshFollowing,
       isFollowing,
+      mutedUsersList,
+      setMutedUsersList,
+      refreshMuted,
+      isMuted,
+      toggleMuteUser,
       joinedCommunities,
       setCommunitySubscription,
       toggleJoinCommunity,
@@ -128,6 +183,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       followingUsersList,
       refreshFollowing,
       isFollowing,
+      mutedUsersList,
+      refreshMuted,
+      isMuted,
+      toggleMuteUser,
       joinedCommunities,
       setCommunitySubscription,
       toggleJoinCommunity,

@@ -336,6 +336,7 @@ export function extractHashtags(body: string): string[] {
 
 /** Keep the first copy of each hashtag in the text. */
 export function collapseDuplicateHashtags(body: string): string {
+  if (typeof body !== 'string') return '';
   const seen = new Set<string>();
   return body.replace(/(^|\s)#([a-zA-Z0-9_\u0080-\uFFFF]+)/g, (full, lead: string, tag: string) => {
     const key = tag.normalize('NFKC').toLowerCase();
@@ -347,6 +348,7 @@ export function collapseDuplicateHashtags(body: string): string {
 
 /** Drop loaded image URLs and resnap links so the text does not repeat the card. */
 export function stripResolvedSnapUrls(body: string, urls: string[]): string {
+  if (typeof body !== 'string') return '';
   const exact = new Set(urls.filter(Boolean));
   const keys = new Set(urls.filter(Boolean).map(imageIdentity));
   let next = body.replace(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/gi, (full, url: string) => {

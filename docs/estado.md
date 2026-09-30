@@ -165,6 +165,18 @@ A coluna da direita tem o cartão Reading (`ReadingStyleCard`), recolhido até o
 
 Na coluna da esquerda, em Shorts: "Snaps from following" lê o cache do feed de comentários de quem você segue (`getFollowedCommentsFeed`) e fica só com os comentários cujo pai é `@peak.snaps`. "Replies to my snaps" chama `bridge.get_account_posts` com a conta logada e `sort=replies`, e cruza com os comentários dessa mesma conta cujo pai é um snap.
 
+## Profile Studio (Customização de Layout e Estilo)
+
+A página de perfil possui seu próprio módulo modular em `src/features/profile/` com tipos, componentes e gaveta de edição:
+- **Isolamento de escopo**: Os estilos do perfil são aplicados exclusivamente dentro de `#profile-page-container` (fontes, cores de destaque, fundo e estilo de cartões), sem alterar as variáveis globais de body/html das outras páginas.
+- **8 Estruturas de Layout**: Suporta `hero-wide`, `bento-grid`, `split-columns`, `compact-centered`, `editorial-magazine`, `floating-avatar`, `sidebar-portrait` e `minimalist-canvas`.
+- **Layout de Cards de Posts**: Suporte a feed em `list`, `grid-2`, `grid-3`, `magazine` e `compact`, além de posicionamento de fotos (topo, direita, esquerda ou oculta), posição do título, linhas de resumo e posição de votos.
+- **Moldura de Avatar e Header**: Formato (círculo, quadrado, squircle, hexágono), anéis de Voting Power, brilhos e alturas de banner.
+- **Stats e Badges Granulares**: Toggles individuais para Voting Power, HIVE/HBD/Poupança e tópicos, com variantes `cards`, `pills` ou `minimal-row`.
+- **Temas por Persona**: Presets prontos apresentados como primeira aba (Jornalista, Escritor, Fotógrafo, Tech & Crypto, Artista, Anime & Gamers).
+- **Personalização de Cores**: Cor de fundo sólido da página (`backgroundColor`), cor dos containers/cartões (`cardBackgroundColor`), cor do cabeçalho da foto (`headerBackgroundColor`) e cores de texto principal e secundário (`textColor`, `textSecondaryColor`).
+- **Persistência na Blockchain**: O estilo é transmitido via `KeychainService.broadcastCustomJson` com o ID `nebulosa_profile_style` (chave Posting), e lido do histórico da conta para exibição pública. Ver detalhes em [docs/profile_style.md](profile_style.md).
+
 ## O que não misturar de novo
 
 - Poll de notificação dentro de `NavigationContext`.

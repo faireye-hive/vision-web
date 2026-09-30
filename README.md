@@ -61,7 +61,7 @@ The app is a **pure client-side SPA** — no SSR, no API proxy, no server-side s
 
 ## Security
 
-alpha
+---
 
 ## License
 

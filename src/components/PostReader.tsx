@@ -693,7 +693,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
               </div>
             ) : post.parent_permlink ? (
               <div className="text-xs text-gray-500 dark:text-slate-400 italic bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                Replying to discussion thread: "{post.parent_permlink.replace(/[-_]/g, ' ')}"
+                Replying to discussion thread: "{String(post.parent_permlink).replace(/[-_]/g, ' ')}"
               </div>
             ) : null}
           </div>

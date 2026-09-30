@@ -1,40 +1,54 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
-  Calendar,
-  ExternalLink,
-  FileText,
-  Hash,
-  History,
-  Link as LinkIcon,
-  MapPin,
-  MessageSquare,
-  AtSign,
-  Reply,
   Search,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Layers,
-  CornerDownRight
+  MessageSquare,
+  Settings,
+  Loader2
 } from 'lucide-react';
-import { findCategoryByTag } from '../data/categorySubtopics';
+import { getSmartTextColors } from '../features/profile/profileColorUtils';
+import { getThemeById } from '../features/profile/themes';
+import { getInitialTheme } from '../utils/theme';
 import {
   HiveAccount,
   HivePost,
-  calculateReputation,
-  calculateVotingPower,
+  HiveNotification,
   getAccount,
-  getAccountHistory,
   getAccountPosts,
+  getAccountMentions,
+  getAccountHistory,
+  getProfile,
   getDynamicGlobalProperties,
   getHiveAvatarUrl,
-  getPostSnippet,
   getPostThumbnail,
-  getProfile
+  getPostSnippet,
+  calculateReputation,
+  calculateVotingPower
 } from '../services/hiveApi';
 import { extractPostTags, isNoiseTag, postCommunity } from '../utils/postTags';
-import { ProfileMentions, ProfileReplies } from '../components/ProfileInbox';
+import { findCategoryByTag } from '../data/categorySubtopics';
+import { useAuth } from '../context/AuthContext';
+import { KeychainService } from '../services/keychain';
+import {
+  ProfileCustomStyle,
+  DEFAULT_PROFILE_STYLE,
+  FONT_STACKS,
+  BORDER_RADIUS_CLASSES,
+  ProfileSectionId
+} from '../features/profile/profileStyleTypes';
+import {
+  loadProfileStyle,
+  saveProfileStyleToBlockchain,
+  saveProfileStyleLocal,
+  resetProfileStyleLocal
+} from '../services/profileStyleService';
+import { getProfileCache, setProfileCache } from '../services/profileCache';
+import { ProfileHeaderSection } from '../features/profile/components/ProfileHeaderSection';
+import { ProfileBioSection } from '../features/profile/components/ProfileBioSection';
+import { ProfileStatsSection } from '../features/profile/components/ProfileStatsSection';
+import { ProfileBadgesSection } from '../features/profile/components/ProfileBadgesSection';
+import { ProfileFeedSection, ProfileTab } from '../features/profile/components/ProfileFeedSection';
+import { ProfileCustomizerDrawer, ProfileMetadataForm } from '../features/profile/components/ProfileCustomizerDrawer';
 
 interface ProfilePageProps {
   username: string;
@@ -44,8 +58,6 @@ interface ProfilePageProps {
   onOpenCommunity?: (communityName: string) => void;
 }
 
-type ProfileTab = 'posts' | 'comments' | 'replies' | 'mentions' | 'history';
-
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   username,
   onClose,
@@ -53,57 +65,201 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onOpenUser,
   onOpenCommunity
 }) => {
+  const { 
+    currentUser: authUser, 
+    isFollowing, 
+    refreshFollowing, 
+    isMuted, 
+    toggleMuteUser, 
+    mutedUsersList 
+  } = useAuth();
   const [currentUser, setCurrentUser] = useState(username.replace(/^@/, '').trim().toLowerCase());
   const [lookup, setLookup] = useState('');
   const [account, setAccount] = useState<HiveAccount | null>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [blogPosts, setBlogPosts] = useState<HivePost[]>([]);
   const [posts, setPosts] = useState<HivePost[]>([]);
   const [comments, setComments] = useState<HivePost[]>([]);
+  const [replies, setReplies] = useState<HivePost[]>([]);
+  const [mentions, setMentions] = useState<HiveNotification[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('blog');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+  const [loadingMentions, setLoadingMentions] = useState(false);
+  const [hasMoreBlog, setHasMoreBlog] = useState(true);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [hasMoreComments, setHasMoreComments] = useState(true);
+  const [hasMoreReplies, setHasMoreReplies] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const currentHasMore = useMemo(() => {
+    if (activeTab === 'comments') return hasMoreComments;
+    if (activeTab === 'replies') return hasMoreReplies;
+    if (activeTab === 'posts') return hasMorePosts;
+    if (activeTab === 'blog') return hasMoreBlog;
+    return false;
+  }, [activeTab, hasMoreComments, hasMoreReplies, hasMorePosts, hasMoreBlog]);
+
+  // Profile Customizer State
+  const [style, setStyle] = useState<ProfileCustomStyle>(DEFAULT_PROFILE_STYLE);
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+  const [isSavingStyle, setIsSavingStyle] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const isOwner = Boolean(authUser?.username && authUser.username.toLowerCase() === currentUser);
+  const isUserFollowing = isFollowing(currentUser);
+
+  // Detect current app theme for dynamic profile adaptation
+  const [appTheme, setAppTheme] = useState(getInitialTheme());
+
+  useEffect(() => {
+    // Listen for theme changes (e.g. from the customizer or top nav)
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setAppTheme(isDark ? 'dark' : 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  // Compute effective style by merging saved style with theme defaults
+  const effectiveStyle = useMemo(() => {
+    const theme = getThemeById(style.themeId);
+    const themeModeStyle = appTheme === 'dark' ? theme.dark : theme.light;
+    
+    return {
+      ...themeModeStyle,
+      themeId: style.themeId,
+      sectionsOrder: style.sectionsOrder || themeModeStyle.sectionsOrder,
+      hiddenSections: style.hiddenSections || themeModeStyle.hiddenSections,
+    };
+  }, [style, appTheme]);
 
   useEffect(() => {
     setCurrentUser(username.replace(/^@/, '').trim().toLowerCase());
     setSelectedTag(null);
     setSelectedTopic(null);
-    setActiveTab('posts');
+    setActiveTab('blog');
   }, [username]);
 
+  const handleTabChange = useCallback((tab: ProfileTab) => {
+    setActiveTab(tab);
+    // If switching to a tab that is empty, trigger loading immediately if not already loading
+    if (tab === 'comments' && comments.length === 0 && !loadingComments) {
+      setLoadingComments(true);
+    } else if (tab === 'replies' && replies.length === 0 && !loadingReplies) {
+      setLoadingReplies(true);
+    } else if (tab === 'mentions' && mentions.length === 0 && !loadingMentions) {
+      setLoadingMentions(true);
+    }
+  }, [comments.length, replies.length, mentions.length, loadingComments, loadingReplies, loadingMentions]);
+
+  // Load custom profile style for the active user
+  useEffect(() => {
+    let active = true;
+    loadProfileStyle(currentUser).then((loaded) => {
+      if (active) setStyle(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  // Load account data, blog, authored posts, and history with SWR caching
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
     setError(null);
-    setPosts([]);
-    setComments([]);
+    setHasMoreBlog(true);
+    setHasMorePosts(true);
+    setHasMoreComments(true);
+    setHasMoreReplies(true);
 
+    // 1. Instant Cache Check (SWR - render instantly if previously visited)
+    const cached = getProfileCache(currentUser);
+    if (cached && cached.account) {
+      setAccount(cached.account);
+      setProfile(cached.profile);
+      setBlogPosts(cached.blogPosts || []);
+      setPosts(cached.posts || []);
+      setComments(cached.comments || []);
+      setReplies(cached.replies || []);
+      setMentions(cached.mentions || []);
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setBlogPosts([]);
+      setPosts([]);
+      setComments([]);
+      setReplies([]);
+      setMentions([]);
+    }
+
+    setLoadingComments(false);
+    setLoadingReplies(false);
+    setLoadingMentions(false);
+
+    // 2. Background Revalidation (always fetch fresh blockchain data silently)
     Promise.all([
-      getAccount(currentUser),
-      getProfile(currentUser),
-      getAccountPosts('posts', currentUser, 20),
+      getAccount(currentUser, true),
+      getProfile(currentUser, true),
+      getAccountPosts('blog', currentUser, 20, true),
+      getAccountPosts('posts', currentUser, 20, true),
       getAccountHistory(currentUser, 25),
       getDynamicGlobalProperties()
     ])
-      .then(([acc, prof, userPosts, userHistory]) => {
+      .then(([acc, prof, userBlog, userPosts, userHistory]) => {
         if (!mounted) return;
         if (!acc) {
-          setError(`@${currentUser} was not found on Hive.`);
-          setAccount(null);
+          if (!cached?.account) {
+            setError(`@${currentUser} was not found on Hive.`);
+            setAccount(null);
+          }
         } else {
           setAccount(acc);
           setProfile(prof);
-          setPosts(userPosts);
+          
+          // Deduplicate blog posts
+          const seenBlog = new Set<string>();
+          const uniqueBlog = (userBlog || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seenBlog.has(key)) return false;
+            seenBlog.add(key);
+            return true;
+          });
+          setBlogPosts(uniqueBlog);
+
+          // Deduplicate authored posts
+          const seenPosts = new Set<string>();
+          const uniquePosts = (userPosts || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seenPosts.has(key)) return false;
+            seenPosts.add(key);
+            return true;
+          });
+          setPosts(uniquePosts);
+
           setHistory((userHistory || []).slice().reverse());
+
+          // Save fresh snapshot to SWR cache
+          setProfileCache(currentUser, {
+            account: acc,
+            profile: prof,
+            blogPosts: uniqueBlog,
+            posts: uniquePosts
+          });
         }
         setLoading(false);
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err?.message || 'Could not load this profile.');
+        if (!cached?.account) {
+          setError(err?.message || 'Could not load this profile.');
+        }
         setLoading(false);
       });
 
@@ -113,23 +269,173 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, [currentUser]);
 
   useEffect(() => {
-    if (activeTab !== 'comments' || comments.length > 0) return;
+    if (activeTab !== 'posts' || posts.length > 0) return;
     let mounted = true;
-    getAccountPosts('comments', currentUser, 20)
+    getAccountPosts('posts', currentUser, 20)
       .then((items) => {
-        if (mounted) setComments(items || []);
+        if (mounted) {
+          const seen = new Set<string>();
+          const unique = (items || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setPosts(unique);
+          setProfileCache(currentUser, { posts: unique });
+          if (unique.length < 15) setHasMorePosts(false);
+        }
       })
       .catch(() => {
-        if (mounted) setComments([]);
+        if (mounted) setPosts([]);
       });
     return () => {
       mounted = false;
     };
-  }, [activeTab, comments.length, currentUser]);
+  }, [activeTab, posts.length, currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'blog' || blogPosts.length > 0) return;
+    let mounted = true;
+    getAccountPosts('blog', currentUser, 20)
+      .then((items) => {
+        if (mounted) {
+          const seen = new Set<string>();
+          const unique = (items || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setBlogPosts(unique);
+          setProfileCache(currentUser, { blogPosts: unique });
+          if (unique.length < 15) setHasMoreBlog(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setBlogPosts([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, blogPosts.length, currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'comments') return;
+    if (comments.length > 0) return;
+
+    // Check SWR cache first for instant render
+    const cached = getProfileCache(currentUser);
+    if (cached && cached.comments && cached.comments.length > 0) {
+      setComments(cached.comments);
+      setLoadingComments(false);
+    } else {
+      setLoadingComments(true);
+    }
+
+    let mounted = true;
+    getAccountPosts('comments', currentUser, 20, true)
+      .then((items) => {
+        if (mounted) {
+          const seen = new Set<string>();
+          const unique = (items || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setComments(unique);
+          setProfileCache(currentUser, { comments: unique });
+          if (unique.length < 15) setHasMoreComments(false);
+        }
+      })
+      .catch(() => {
+        if (mounted && comments.length === 0) setComments([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingComments(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'replies') return;
+    if (replies.length > 0) return;
+
+    // Check SWR cache first for instant render
+    const cached = getProfileCache(currentUser);
+    if (cached && cached.replies && cached.replies.length > 0) {
+      setReplies(cached.replies);
+      setLoadingReplies(false);
+    } else {
+      setLoadingReplies(true);
+    }
+
+    let mounted = true;
+    getAccountPosts('replies', currentUser, 20, true)
+      .then((items) => {
+        if (mounted) {
+          const seen = new Set<string>();
+          const unique = (items || []).filter(p => {
+            const key = `${p.author}/${p.permlink}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setReplies(unique);
+          setProfileCache(currentUser, { replies: unique });
+          if (unique.length < 15) setHasMoreReplies(false);
+        }
+      })
+      .catch(() => {
+        if (mounted && replies.length === 0) setReplies([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingReplies(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'mentions') return;
+    if (mentions.length > 0) return;
+
+    // Check SWR cache first for instant render
+    const cached = getProfileCache(currentUser);
+    if (cached && cached.mentions && cached.mentions.length > 0) {
+      setMentions(cached.mentions);
+      setLoadingMentions(false);
+    } else {
+      setLoadingMentions(true);
+    }
+
+    let mounted = true;
+    getAccountMentions(currentUser, 40)
+      .then((items) => {
+        if (mounted) {
+          setMentions(items || []);
+          setProfileCache(currentUser, { mentions: items || [] });
+        }
+      })
+      .catch(() => {
+        if (mounted && mentions.length === 0) setMentions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingMentions(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, currentUser]);
 
   const tagStats = useMemo(() => {
     const counts = new Map<string, number>();
-    posts.forEach((post) => {
+    const allPosts = [...blogPosts, ...posts];
+    allPosts.forEach((post) => {
       extractPostTags(post).forEach((tag) => {
         counts.set(tag, (counts.get(tag) || 0) + 1);
       });
@@ -142,27 +448,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         category: findCategoryByTag(tag)
       }))
       .sort((a, b) => b.weight - a.weight || b.count - a.count);
-  }, [posts]);
-
-  const topics = useMemo(() => {
-    const groups = new Map<string, { tag: string; label: string; icon: string; count: number }>();
-    tagStats.forEach((stat) => {
-      if (!stat.category || isNoiseTag(stat.tag)) return;
-      const current = groups.get(stat.category.tag) || {
-        tag: stat.category.tag,
-        label: stat.category.label,
-        icon: stat.category.icon,
-        count: 0
-      };
-      current.count += stat.count;
-      groups.set(stat.category.tag, current);
-    });
-    return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [tagStats]);
+  }, [blogPosts, posts]);
 
   const communities = useMemo(() => {
     const groups = new Map<string, { name: string; title: string; count: number }>();
-    posts.forEach((post) => {
+    const allPosts = [...blogPosts, ...posts];
+    allPosts.forEach((post) => {
       const community = postCommunity(post);
       if (!community) return;
       const current = groups.get(community.name) || { ...community, count: 0 };
@@ -171,10 +462,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       groups.set(community.name, current);
     });
     return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [posts]);
+  }, [blogPosts, posts]);
 
-  const visiblePosts = useMemo(() => {
-    return posts.filter((post) => {
+  const visibleBlogPosts = useMemo(() => {
+    return blogPosts.filter((post) => {
+      if (mutedUsersList.includes(post.author.toLowerCase())) return false;
       const tags = extractPostTags(post);
       if (selectedTag && !tags.includes(selectedTag)) return false;
       if (selectedTopic) {
@@ -183,27 +475,115 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
       return true;
     });
-  }, [posts, selectedTag, selectedTopic]);
+  }, [blogPosts, selectedTag, selectedTopic, mutedUsersList]);
+
+  const visiblePosts = useMemo(() => {
+    return posts.filter((post) => {
+      if (mutedUsersList.includes(post.author.toLowerCase())) return false;
+      const tags = extractPostTags(post);
+      if (selectedTag && !tags.includes(selectedTag)) return false;
+      if (selectedTopic) {
+        const matchesTopic = tags.some((tag) => findCategoryByTag(tag)?.tag === selectedTopic);
+        if (!matchesTopic) return false;
+      }
+      return true;
+    });
+  }, [posts, selectedTag, selectedTopic, mutedUsersList]);
+
+  const visibleComments = useMemo(() => {
+    return comments.filter((c) => !mutedUsersList.includes(c.author.toLowerCase()));
+  }, [comments, mutedUsersList]);
+
+  const visibleReplies = useMemo(() => {
+    return replies.filter((r) => !mutedUsersList.includes(r.author.toLowerCase()));
+  }, [replies, mutedUsersList]);
+
+  const visibleMentions = useMemo(() => {
+    return mentions.filter((m) => {
+      const actor = (m.msg || '').match(/@([a-z0-9.-]+)/i)?.[1]?.toLowerCase();
+      return !actor || !mutedUsersList.includes(actor);
+    });
+  }, [mentions, mutedUsersList]);
+
+  const isTabLoading = useMemo(() => {
+    if (activeTab === 'comments') return loadingComments || (comments.length === 0 && hasMoreComments);
+    if (activeTab === 'replies') return loadingReplies || (replies.length === 0 && hasMoreReplies);
+    if (activeTab === 'mentions') return loadingMentions;
+    return false;
+  }, [activeTab, loadingComments, loadingReplies, loadingMentions, comments.length, replies.length, hasMoreComments, hasMoreReplies]);
 
   const lookupUser = (event: React.FormEvent) => {
     event.preventDefault();
     const clean = lookup.replace(/^@/, '').trim().toLowerCase();
     if (!clean) return;
-    setLookup('');
     onOpenUser(clean);
+    setLookup('');
   };
 
   const loadMore = async () => {
-    const source = activeTab === 'comments' ? comments : posts;
-    const last = source[source.length - 1];
-    if (!last || loadingMore) return;
+    let list: HivePost[] = [];
+    let sort: 'blog' | 'posts' | 'comments' | 'replies' = 'blog';
+    if (activeTab === 'comments') {
+      list = comments;
+      sort = 'comments';
+    } else if (activeTab === 'replies') {
+      list = replies;
+      sort = 'replies';
+    } else if (activeTab === 'posts') {
+      list = posts;
+      sort = 'posts';
+    } else {
+      list = blogPosts;
+      sort = 'blog';
+    }
+
+    if (loadingMore || list.length === 0 || !currentHasMore) return;
+    const last = list[list.length - 1];
     setLoadingMore(true);
     try {
-      const sort = activeTab === 'comments' ? 'comments' : 'posts';
       const more = await getAccountPosts(sort, currentUser, 20, true, last.author, last.permlink);
-      const fresh = more.filter((post) => post.permlink !== last.permlink || post.author !== last.author);
-      if (activeTab === 'comments') setComments((prev) => [...prev, ...fresh]);
-      else setPosts((prev) => [...prev, ...fresh]);
+      const existingKeys = new Set(list.map(p => `${p.author}/${p.permlink}`));
+      const fresh = (more || []).filter((post) => {
+        const key = `${post.author}/${post.permlink}`;
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+
+      if (fresh.length === 0 || (more || []).length < 15) {
+        if (activeTab === 'comments') setHasMoreComments(false);
+        else if (activeTab === 'replies') setHasMoreReplies(false);
+        else if (activeTab === 'posts') setHasMorePosts(false);
+        else setHasMoreBlog(false);
+      }
+
+      if (fresh.length > 0) {
+        if (activeTab === 'comments') {
+          setComments((prev) => {
+            const next = [...prev, ...fresh];
+            setProfileCache(currentUser, { comments: next });
+            return next;
+          });
+        } else if (activeTab === 'replies') {
+          setReplies((prev) => {
+            const next = [...prev, ...fresh];
+            setProfileCache(currentUser, { replies: next });
+            return next;
+          });
+        } else if (activeTab === 'posts') {
+          setPosts((prev) => {
+            const next = [...prev, ...fresh];
+            setProfileCache(currentUser, { posts: next });
+            return next;
+          });
+        } else {
+          setBlogPosts((prev) => {
+            const next = [...prev, ...fresh];
+            setProfileCache(currentUser, { blogPosts: next });
+            return next;
+          });
+        }
+      }
     } finally {
       setLoadingMore(false);
     }
@@ -218,609 +598,395 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   }
 
-  const reputation = account ? calculateReputation(account.reputation) : 25;
-  const votingPower = account ? calculateVotingPower(account.voting_power, account.last_vote_time) : 100;
+  const isUserMuted = isMuted(currentUser);
 
-  // Calculo do Circulo SVG para Voting Power em volta do Avatar
-  const strokeDasharray = 339.292;
-  const strokeDashoffset = strokeDasharray - (strokeDasharray * votingPower) / 100;
+  const handleFollowToggle = async () => {
+    if (!authUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    const nextFollow = !isUserFollowing;
+    const res = await KeychainService.followUser(authUser.username, currentUser, nextFollow);
+    if (res.success) {
+      refreshFollowing();
+    }
+  };
+
+  const handleMuteToggle = async () => {
+    if (!authUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    const err = await toggleMuteUser(currentUser);
+    if (err) {
+      alert(err);
+    }
+  };
+
+  const handleCommentReply = async (post: HivePost, body: string): Promise<boolean> => {
+    if (!authUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return false;
+    }
+    if (!body.trim()) return false;
+    const res = await KeychainService.postComment(authUser.username, post.author, post.permlink, body.trim());
+    if (res.success) {
+      setTimeout(() => {
+        getAccountPosts('replies', currentUser, 20, true).then((items) => {
+          if (items) setReplies(items);
+        }).catch(() => {});
+      }, 2500);
+      return true;
+    } else {
+      alert(res.message || 'Error broadcasting reply to Hive.');
+      return false;
+    }
+  };
+
+  const handleSaveToBlockchain = async (profileData?: ProfileMetadataForm) => {
+    if (!authUser || !isOwner) return;
+    setIsSavingStyle(true);
+    setSaveMessage(null);
+    try {
+      let profileSuccess = true;
+      let profileMsg = '';
+
+      if (profileData) {
+        const resProfile = await KeychainService.updateProfile(authUser.username, {
+          ...profileData,
+          theme_id: style.themeId
+        });
+        profileSuccess = resProfile.success;
+        profileMsg = resProfile.message || '';
+
+        setAccount((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            posting_json_metadata: JSON.stringify({
+              profile: {
+                ...profileData,
+                theme_id: style.themeId,
+                version: 2
+              }
+            })
+          };
+        });
+
+        setProfile((prev: any) => ({
+          ...prev,
+          metadata: {
+            ...(prev?.metadata || {}),
+            profile: {
+              ...(prev?.metadata?.profile || {}),
+              ...profileData,
+              theme_id: style.themeId
+            }
+          }
+        }));
+      }
+
+      const resStyle = await saveProfileStyleToBlockchain(authUser.username, style);
+
+      setIsSavingStyle(false);
+      const overallSuccess = profileSuccess || resStyle.success;
+      setSaveMessage({
+        type: overallSuccess ? 'success' : 'error',
+        text: overallSuccess
+          ? 'Profile & theme published to Hive!'
+          : (profileMsg || resStyle.message || 'Failed to publish to Hive.')
+      });
+      if (overallSuccess) {
+        setTimeout(() => setSaveMessage(null), 4000);
+      }
+    } catch (err: any) {
+      setIsSavingStyle(false);
+      setSaveMessage({ type: 'error', text: err?.message || 'Error saving profile.' });
+    }
+  };
+
+  const handleSaveLocalDraft = (profileData?: ProfileMetadataForm) => {
+    if (!authUser || !isOwner) return;
+    saveProfileStyleLocal(authUser.username, style);
+    if (profileData) {
+      setProfile((prev: any) => ({
+        ...prev,
+        metadata: {
+          ...(prev?.metadata || {}),
+          profile: {
+            ...(prev?.metadata?.profile || {}),
+            ...profileData,
+            theme_id: style.themeId
+          }
+        }
+      }));
+    }
+    setSaveMessage({
+      type: 'success',
+      text: 'Saved in local cache!'
+    });
+    setTimeout(() => setSaveMessage(null), 3000);
+  };
+
+  const handleResetToDefault = () => {
+    const def = resetProfileStyleLocal(currentUser);
+    setStyle(def);
+  };
+
+  const handleVote = async (post: HivePost, weight: number) => {
+    if (!authUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    const res = await KeychainService.vote(authUser.username, post.author, post.permlink, weight);
+    if (!res.success) {
+      alert(res.message || 'Error voting');
+    }
+  };
+
+  const handleReblog = async (post: HivePost) => {
+    if (!authUser) {
+      window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    const confirmed = window.confirm(`Reblog post by @${post.author} to your followers?`);
+    if (!confirmed) return;
+    const res = await KeychainService.reblog(authUser.username, post.author, post.permlink);
+    if (res.success) {
+      alert('Post reblogged successfully!');
+    } else {
+      alert(res.message || 'Error reblogging');
+    }
+  };
+
+  // Modular Section Renderer (Legacy - themes now build their own)
+  const renderSection = useCallback(
+    (secId: ProfileSectionId) => {
+      // This is kept for backward compatibility if any theme still uses it
+      // but new themes should build their own HTML
+      return null;
+    },
+    []
+  );
+
+  const smartPageColors = getSmartTextColors(effectiveStyle.textColor, effectiveStyle.textSecondaryColor, effectiveStyle.backgroundColor);
 
   return (
-    <div id="profile-page" className="max-w-6xl mx-auto pb-12 animate-in fade-in duration-150">
-      
-      {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition cursor-pointer"
+    <div
+      id="profile-page-container"
+      className="relative min-h-screen transition-colors duration-200"
+      style={
+        {
+          fontFamily: FONT_STACKS[effectiveStyle.fontFamily as keyof typeof FONT_STACKS] || undefined,
+          '--profile-accent': effectiveStyle.accentColor,
+          '--profile-bg': effectiveStyle.backgroundColor || undefined,
+          '--profile-card-bg': effectiveStyle.cardBackgroundColor || undefined,
+          '--profile-header-bg': effectiveStyle.headerBackgroundColor || undefined,
+          '--profile-text': smartPageColors.textColor || undefined,
+          '--profile-text-muted': smartPageColors.textSecondaryColor || undefined,
+          backgroundColor: effectiveStyle.backgroundColor || undefined,
+          color: smartPageColors.textColor || undefined
+        } as React.CSSProperties
+      }
+    >
+      {/* Solid Background Color Layer if defined */}
+      {effectiveStyle.backgroundColor && (
+        <div
+          className="fixed inset-0 pointer-events-none z-0 transition-colors duration-300"
+          style={{ backgroundColor: effectiveStyle.backgroundColor }}
+        />
+      )}
+
+      {/* Isolated Wallpaper Background Layer for Profile */}
+      {effectiveStyle.backgroundUrl && (
+        <div
+          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center transition-all duration-300"
+          style={{
+            backgroundImage: `url(${effectiveStyle.backgroundUrl})`,
+            filter: (effectiveStyle.backgroundBlur > 0 && !isCustomizerOpen) ? `blur(${effectiveStyle.backgroundBlur}px)` : undefined,
+            transform: (effectiveStyle.backgroundBlur > 0 && !isCustomizerOpen) ? 'scale(1.05)' : undefined
+          }}
         >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Feed
-        </button>
-
-        <form onSubmit={lookupUser} className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={lookup}
-              onChange={(event) => setLookup(event.target.value)}
-              placeholder="Search @account, post, tag..."
-              className="pl-8 pr-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 text-xs w-60 text-gray-800 dark:text-slate-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
-          </div>
-          <button type="submit" className="text-xs font-bold px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition cursor-pointer">
-            Open
-          </button>
-        </form>
-      </div>
-
-      {loading ? (
-        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-16 text-center text-sm font-semibold text-gray-500 dark:text-slate-400 shadow-xs">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          Loading @{currentUser}...
-        </div>
-      ) : error ? (
-        <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-rose-950/50 rounded-3xl p-12 text-center space-y-3 shadow-xs">
-          <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{error}</p>
-          <button type="button" onClick={() => onOpenUser('ecency')} className="text-xs font-bold text-blue-600 hover:underline">
-            Try opening @ecency
-          </button>
-        </div>
-      ) : account && (
-        <div className="space-y-6">
-          
-          {/* Banner & Profile Section */}
-          <section className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
-            
-            {/* Cover Banner */}
-            <div className="relative h-44 sm:h-56 bg-slate-950 overflow-hidden">
-              {metaProfile.cover_image ? (
-                <img
-                  src={metaProfile.cover_image}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
-                  onError={(event) => { (event.target as HTMLImageElement).style.display = 'none'; }}
-                />
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900" />
-              )}
-              
-              <div className="absolute top-4 right-6 text-right hidden sm:block text-white/80">
-                <p className="text-xs font-semibold tracking-wide">Decentralized social.</p>
-                <p className="text-xs font-bold">Built on Hive.</p>
-              </div>
-            </div>
-
-            {/* Profile Info Row */}
-            <div className="px-6 sm:px-8 pb-6 relative">
-              
-              <div className="flex flex-wrap items-end justify-between">
-                
-                {/* Circular Avatar with Voting Power SVG Ring */}
-                <div className="relative -mt-16 sm:-mt-20 flex-shrink-0 group">
-                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
-                    
-                    {/* SVG Voting Power Ring */}
-                    <svg className="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 120 120">
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="54"
-                        className="stroke-gray-100 dark:stroke-slate-800"
-                        strokeWidth="5"
-                        fill="transparent"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="54"
-                        className="stroke-blue-600 transition-all duration-700 ease-out"
-                        strokeWidth="5"
-                        strokeDasharray={strokeDasharray}
-                        strokeDashoffset={strokeDashoffset}
-                        strokeLinecap="round"
-                        fill="transparent"
-                      />
-                    </svg>
-
-                    {/* User Avatar */}
-                    <img
-                      src={getHiveAvatarUrl(currentUser, 'large')}
-                      alt={currentUser}
-                      className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover bg-slate-100 dark:bg-slate-800 shadow-md p-1"
-                    />
-
-                    {/* Verified Badge */}
-                    <div className="absolute bottom-1 right-1 p-1 bg-blue-600 text-white rounded-full ring-2 ring-white dark:ring-slate-900" title={`Reputation: ${reputation}`}>
-                      <CheckCircle2 className="w-4 h-4 fill-blue-600 text-white" />
-                    </div>
-                  </div>
-
-                  {/* Tooltip Hover for Voting Power */}
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition text-[10px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded-full whitespace-nowrap z-10">
-                    Voting Power: {votingPower}%
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700/60 px-3 py-1 rounded-full">
-                    VP: {votingPower}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Name & Username */}
-              <div className="mt-3">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">
-                    {metaProfile.name || currentUser}
-                  </h1>
-                  <span className="inline-flex items-center text-blue-600 dark:text-blue-400">
-                    <CheckCircle2 className="w-5 h-5 fill-blue-600 text-white dark:text-slate-900" />
-                  </span>
-                </div>
-                <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 mt-0.5">@{currentUser}</p>
-              </div>
-
-              {/* User Bio */}
-              {metaProfile.about && (
-                <p className="mt-2 text-xs sm:text-sm text-gray-600 dark:text-slate-300 max-w-2xl leading-relaxed">
-                  {metaProfile.about}
-                </p>
-              )}
-
-              {/* Metadata Row */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                {metaProfile.location && (
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-blue-500" />
-                    {metaProfile.location}
-                  </span>
-                )}
-                {metaProfile.website && (
-                  <a
-                    href={metaProfile.website.startsWith('http') ? metaProfile.website : `https://${metaProfile.website}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    <LinkIcon className="w-3.5 h-3.5" />
-                    {String(metaProfile.website).replace(/^https?:\/\//, '')}
-                  </a>
-                )}
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                  Joined {new Date(`${account.created}Z`).toLocaleDateString()}
-                </span>
-                <span>
-                  <strong className="text-gray-900 dark:text-slate-100 font-bold">{profile?.stats?.followers || 0}</strong> Followers
-                </span>
-                <span>
-                  <strong className="text-gray-900 dark:text-slate-100 font-bold">{profile?.stats?.following || 0}</strong> Following
-                </span>
-              </div>
-
-            </div>
-          </section>
-
-          {/* Main Content Layout */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
-            
-            {/* Left Column: Posts, Comments, History */}
-            <div className="min-w-0 space-y-4">
-              
-              {/* Tab Selector */}
-              <div className="flex items-center gap-6 border-b border-gray-200 dark:border-slate-800 pb-2 px-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('posts')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
-                    activeTab === 'posts'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  Posts ({posts.length})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('comments')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
-                    activeTab === 'comments'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  Comments
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('replies')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
-                    activeTab === 'replies'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
-                  }`}
-                >
-                  <Reply className="w-4 h-4" />
-                  Replies
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('mentions')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
-                    activeTab === 'mentions'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
-                  }`}
-                >
-                  <AtSign className="w-4 h-4" />
-                  Mentions
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('history')}
-                  className={`inline-flex items-center gap-2 text-xs font-bold pb-2 transition border-b-2 cursor-pointer ${
-                    activeTab === 'history'
-                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-800'
-                  }`}
-                >
-                  <History className="w-4 h-4" />
-                  Chain History
-                </button>
-              </div>
-
-              {/* POSTS TAB */}
-              {activeTab === 'posts' && (
-                <div className="space-y-4">
-                  {(selectedTag || selectedTopic) && (
-                    <div className="flex items-center justify-between text-xs bg-blue-50 dark:bg-blue-950/40 p-3 rounded-2xl border border-blue-100 dark:border-blue-900/50">
-                      <span className="text-blue-800 dark:text-blue-300 font-semibold">
-                        Filter: {selectedTag ? `#${selectedTag}` : topics.find((t) => t.tag === selectedTopic)?.label || selectedTopic}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedTag(null); setSelectedTopic(null); }}
-                        className="font-bold text-blue-600 hover:underline"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-
-                  {visiblePosts.length === 0 ? (
-                    <EmptyNote text="No posts found matching this tag." />
-                  ) : (
-                    <div className="space-y-3">
-                      {visiblePosts.map((post) => (
-                        <ProfilePostCard
-                          key={`${post.author}/${post.permlink}`}
-                          post={post}
-                          onOpen={() => onSelectPost(post)}
-                          onTag={(tag) => { setSelectedTag(tag); setSelectedTopic(null); }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {posts.length > 0 && (
-                    <div className="text-center pt-2">
-                      <button
-                        type="button"
-                        onClick={loadMore}
-                        disabled={loadingMore}
-                        className="px-6 py-2 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-xs font-bold text-gray-800 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition cursor-pointer"
-                      >
-                        {loadingMore ? 'Loading...' : 'Load more posts'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'replies' && (
-                <ProfileReplies username={currentUser} onOpenPost={onSelectPost} />
-              )}
-
-              {activeTab === 'mentions' && (
-                <ProfileMentions username={currentUser} onOpenPost={onSelectPost} />
-              )}
-
-              {/* COMMENTS TAB */}
-              {activeTab === 'comments' && (
-                <div className="space-y-3">
-                  {comments.length === 0 ? (
-                    <EmptyNote text="No comments found." />
-                  ) : (
-                    comments.map((comment, index) => {
-                      const parentAuthor = comment.parent_author || 'author';
-                      const parentPermlink = comment.parent_permlink || '';
-
-                      return (
-                        <div
-                          key={`comment-${comment.author}-${comment.permlink}-${comment.created || index}`}
-                          className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 hover:border-blue-500 transition shadow-xs"
-                        >
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400 mb-2 pb-2 border-b border-gray-100 dark:border-slate-800/80">
-                            <CornerDownRight className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                            <span>In reply to</span>
-                            <button
-                              type="button"
-                              onClick={() => onOpenUser(parentAuthor)}
-                              className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                              @{parentAuthor}
-                            </button>
-                            {parentPermlink && (
-                              <span className="truncate max-w-[220px] sm:max-w-[340px] text-gray-400">
-                                ({parentPermlink})
-                              </span>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => onSelectPost(comment)}
-                            className="w-full text-left cursor-pointer group"
-                          >
-                            <p className="text-xs sm:text-sm text-gray-800 dark:text-slate-200 line-clamp-3 leading-relaxed group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
-                              {getPostSnippet(comment.body, 240)}
-                            </p>
-                          </button>
-
-                          <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-gray-100 dark:border-slate-800/60">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {comment.created ? new Date(`${comment.created}Z`).toLocaleString() : ''}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onSelectPost(comment)}
-                              className="font-bold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-                            >
-                              View Thread →
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-
-                  {comments.length > 0 && (
-                    <div className="text-center pt-2">
-                      <button
-                        type="button"
-                        onClick={loadMore}
-                        disabled={loadingMore}
-                        className="px-6 py-2 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 text-xs font-bold text-gray-800 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition cursor-pointer"
-                      >
-                        {loadingMore ? 'Loading...' : 'Load more comments'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* CHAIN HISTORY TAB (Key Única Garantida) */}
-              {activeTab === 'history' && (
-                <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl divide-y divide-gray-100 dark:divide-slate-800 overflow-hidden shadow-xs">
-                  {history.length === 0 ? (
-                    <EmptyNote text="No chain operations found." />
-                  ) : (
-                    history.map((entry, index) => {
-                      const item = Array.isArray(entry) ? entry[1] : entry;
-                      const opType = item?.op?.[0] || 'operation';
-                      const opData = item?.op?.[1] || {};
-                      const detail = opType === 'vote'
-                        ? `voted @${opData.author}/${opData.permlink}`
-                        : opType === 'transfer'
-                          ? `sent ${opData.amount} to @${opData.to}`
-                          : opType === 'comment'
-                            ? `published ${opData.permlink}`
-                            : opType === 'claim_reward_balance'
-                              ? 'claimed rewards'
-                              : '';
-                      
-                      // Chave única para evitar o erro do React
-                      const uniqueKey = `history-${item?.trx_id || item?.timestamp || 'time'}-${opType}-${index}`;
-
-                      return (
-                        <div key={uniqueKey} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
-                          <div className="min-w-0 flex items-center gap-2">
-                            <span className="font-mono uppercase text-[10px] px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-bold">
-                              {opType}
-                            </span>
-                            <span className="text-gray-700 dark:text-slate-300 truncate">{detail}</span>
-                          </div>
-                          <span className="text-gray-400 text-[11px] flex-shrink-0">
-                            {item?.timestamp ? new Date(`${item.timestamp}Z`).toLocaleString() : ''}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {/* Right Column Cards */}
-            <aside className="space-y-4 xl:sticky xl:top-20">
-              
-              {/* Top Topics & Tags Card */}
-              <section className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Hash className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">Top Topics & Tags</h2>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {tagStats.filter((stat) => !isNoiseTag(stat.tag)).slice(0, 16).map((stat) => (
-                    <button
-                      key={stat.tag}
-                      type="button"
-                      onClick={() => {
-                        setSelectedTag(selectedTag === stat.tag ? null : stat.tag);
-                        setSelectedTopic(null);
-                        setActiveTab('posts');
-                      }}
-                      className={`rounded-xl px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                        selectedTag === stat.tag
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600'
-                      }`}
-                    >
-                      #{stat.tag}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {/* Posted Communities Card */}
-              {communities.length > 0 && (
-                <section className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-blue-600" />
-                      <h2 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">Posted Communities</h2>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  </div>
-
-                  <div className="space-y-2">
-                    {communities.map((community) => (
-                      <button
-                        key={community.name}
-                        type="button"
-                        onClick={() => onOpenCommunity?.(community.name)}
-                        className="w-full flex items-center justify-between gap-3 p-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 text-left transition cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <img
-                            src={`https://images.ecency.com/u/${community.name}/avatar/small`}
-                            alt=""
-                            className="w-7 h-7 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                            }}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{community.title}</p>
-                            <p className="text-[10px] text-gray-400">{community.count} {community.count === 1 ? 'post' : 'posts'}</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-            </aside>
-
-          </div>
-
+          <div
+            className="absolute inset-0 bg-black transition-opacity duration-300"
+            style={{ opacity: effectiveStyle.backgroundOverlayOpacity / 100 }}
+          />
         </div>
       )}
-    </div>
-  );
-};
 
-function EmptyNote({ text }: { text: string }) {
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-8 text-center text-xs font-semibold text-gray-500 dark:text-slate-400 shadow-xs">
-      {text}
-    </div>
-  );
-}
+      <div className="relative z-10 max-w-full mx-auto px-2 sm:px-6 pb-16 animate-in fade-in duration-150">
 
-function ProfilePostCard({
-  post,
-  onOpen,
-  onTag
-}: {
-  post: HivePost;
-  onOpen: () => void;
-  onTag: (tag: string) => void;
-}) {
-  const thumb = getPostThumbnail(post);
-  const tags = extractPostTags(post).filter((tag) => !isNoiseTag(tag)).slice(0, 5);
-  const payout = post.pending_payout_value || (post.is_paidout ? 'paid' : '0.000 HBD');
 
-  return (
-    <article className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs hover:border-gray-200 transition">
-      
-      {/* Header Info */}
-      <div className="flex items-center gap-2.5 mb-3">
-        <img
-          src={getHiveAvatarUrl(post.author, 'small')}
-          alt={post.author}
-          className="w-7 h-7 rounded-full object-cover bg-gray-100"
-        />
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="font-bold text-gray-900 dark:text-white">{post.author}</span>
-          <span className="text-gray-400">@{post.author}</span>
-          <span className="text-gray-400">•</span>
-          <span className="text-gray-400">{post.created ? new Date(`${post.created}Z`).toLocaleDateString() : ''}</span>
-        </div>
-      </div>
+        {/* Loading and Error States */}
+        {loading ? (
+          <div className="w-full max-w-full space-y-6 animate-pulse">
+            {/* Cover Skeleton */}
+            <div 
+              className="w-full bg-slate-200 dark:bg-slate-800/80 min-h-[200px] sm:min-h-[220px] relative overflow-hidden shadow-sm"
+              style={{ borderRadius: '15px' }}
+            >
+              <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent" />
+              <div className="absolute bottom-4 left-4 sm:left-6 right-4 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="flex items-end gap-3.5 sm:gap-5">
+                  <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-white dark:border-slate-900 bg-slate-300 dark:bg-slate-700 shrink-0 shadow-lg" />
+                  <div className="space-y-2 mb-1">
+                    <div className="h-6 sm:h-7 w-36 sm:w-48 bg-slate-300 dark:bg-slate-700 rounded-lg" />
+                    <div className="h-4 w-24 sm:w-32 bg-slate-300/80 dark:bg-slate-700/70 rounded-md" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-9 w-24 bg-slate-300 dark:bg-slate-700 rounded-xl" />
+                </div>
+              </div>
+            </div>
 
-      {/* Main Content & Thumbnail */}
-      <div className="flex gap-4 items-start">
-        <div className="min-w-0 flex-1 space-y-2">
-          <button type="button" onClick={onOpen} className="text-left group cursor-pointer">
-            <h3 className="text-base font-extrabold text-gray-900 dark:text-white leading-snug group-hover:text-blue-600 transition">
-              {post.title || 'Untitled Post'}
-            </h3>
-          </button>
+            {/* Grid Layout: Sidebar & Feed */}
+            <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-12 items-start">
+              {/* Sidebar Skeleton */}
+              <div className="space-y-6 pt-4 sm:pt-6">
+                <div className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-6 space-y-4">
+                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                  <div className="space-y-2">
+                    <div className="h-3.5 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                    <div className="h-3.5 w-5/6 bg-slate-200 dark:bg-slate-800 rounded" />
+                    <div className="h-3.5 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
+                  </div>
+                  <div className="pt-3 border-t border-gray-100 dark:border-slate-800/60 flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                    <div className="h-3.5 w-36 bg-slate-200 dark:bg-slate-800 rounded" />
+                  </div>
+                </div>
 
-          <p className="text-xs sm:text-sm leading-relaxed text-gray-600 dark:text-slate-300 line-clamp-2">
-            {getPostSnippet(post.body, 160)}
-          </p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-2xl p-4 text-center space-y-2">
+                      <div className="w-4 h-4 mx-auto rounded-full bg-slate-200 dark:bg-slate-800" />
+                      <div className="h-5 w-10 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
+                      <div className="h-2.5 w-12 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {/* Tags & Metadata */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-2">
-            {tags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => onTag(tag)}
-                className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition cursor-pointer"
-              >
-                {tag}
-              </button>
-            ))}
+              {/* Feed Skeleton */}
+              <div className="space-y-5 pt-4 sm:pt-6">
+                <div className="flex gap-4 border-b border-gray-100 dark:border-slate-800 pb-3">
+                  {[1, 2, 3, 4, 5].map((tab) => (
+                    <div key={tab} className="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                  ))}
+                </div>
 
-            <span className="text-[11px] text-gray-400 flex items-center gap-1 ml-2">
-              <MessageSquare className="w-3 h-3" />
-              {post.children || 0} comments
-            </span>
-
-            {payout && (
-              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-md ml-auto">
-                {payout}
-              </span>
-            )}
+                {[1, 2, 3].map((card) => (
+                  <div
+                    key={card}
+                    className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-4 flex flex-col sm:flex-row gap-4 h-auto sm:h-[180px] w-full max-w-[894px]"
+                  >
+                    <div className="w-full sm:w-[262px] h-36 sm:h-full bg-slate-200 dark:bg-slate-800/70 rounded-[15px] shrink-0" />
+                    <div className="flex-1 flex flex-col justify-between py-1 space-y-2">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                          <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                        </div>
+                        <div className="h-5 w-3/4 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                        <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                        <div className="h-3 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        ) : error ? (
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-rose-100 dark:border-rose-950/50 rounded-3xl p-12 text-center space-y-3 shadow-xs">
+            <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{error}</p>
+            <button
+              type="button"
+              onClick={() => onOpenUser('ecency')}
+              className="text-xs font-bold text-blue-600 hover:underline"
+            >
+              Try opening @ecency
+            </button>
+          </div>
+        ) : account && (
+          <>
+            {(() => {
+              const theme = getThemeById(style.themeId);
+              const ThemeLayout = theme.Layout;
+              
+              // Pre-calculate stats for the theme
+              const reputation = account ? calculateReputation(account.reputation) : 25;
+              const votingPower = account ? calculateVotingPower(account.voting_power, account.last_vote_time) : 100;
+              const followerCount = profile?.stats?.followers || 0;
+              const followingCount = profile?.stats?.following || 0;
+              const postCount = profile?.stats?.post_count || account?.post_count || 0;
 
-        {thumb && (
-          <button type="button" onClick={onOpen} className="flex-shrink-0 cursor-pointer">
-            <img src={thumb} alt="" className="h-24 w-36 rounded-2xl object-cover bg-gray-100 dark:bg-slate-800" />
-          </button>
+              return (
+                <ThemeLayout
+                  account={account}
+                  profile={profile}
+                  blog={visibleBlogPosts}
+                  blogPosts={visibleBlogPosts}
+                  posts={visiblePosts}
+                  comments={visibleComments}
+                  replies={visibleReplies}
+                  mentions={visibleMentions}
+                  history={history}
+                  reputation={reputation}
+                  votingPower={votingPower}
+                  followerCount={followerCount}
+                  followingCount={followingCount}
+                  postCount={postCount}
+                  isOwner={isOwner}
+                  isFollowing={isUserFollowing}
+                  onFollowToggle={handleFollowToggle}
+                  isMuted={isUserMuted}
+                  onMuteToggle={handleMuteToggle}
+                  onCommentReply={handleCommentReply}
+                  onVote={handleVote}
+                  onReblog={handleReblog}
+                  onOpenCustomizer={() => setIsCustomizerOpen(true)}
+                  onSelectPost={onSelectPost}
+                  onOpenUser={onOpenUser}
+                  onOpenCommunity={onOpenCommunity}
+                  activeTab={activeTab}
+                  setActiveTab={handleTabChange}
+                  loadingMore={loadingMore}
+                  onLoadMore={loadMore}
+                  hasMore={currentHasMore}
+                  tabLoading={isTabLoading}
+                />
+              );
+            })()}
+          </>
         )}
       </div>
 
-    </article>
+      {/* In-Place Profile Customizer Drawer */}
+      <ProfileCustomizerDrawer
+        isOpen={isCustomizerOpen}
+        onClose={() => setIsCustomizerOpen(false)}
+        style={style}
+        onChange={setStyle}
+        initialProfile={{
+          name: metaProfile.name || '',
+          about: metaProfile.about || '',
+          profile_image: metaProfile.profile_image || '',
+          cover_image: metaProfile.cover_image || '',
+          website: metaProfile.website || '',
+          location: metaProfile.location || ''
+        }}
+        onSaveToBlockchain={handleSaveToBlockchain}
+        onSaveLocalDraft={handleSaveLocalDraft}
+        isSaving={isSavingStyle}
+        saveMessage={saveMessage}
+      />
+    </div>
   );
-}
+};

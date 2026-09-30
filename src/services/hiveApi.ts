@@ -871,6 +871,31 @@ export async function getAccountNotifications(
 }
 
 /**
+ * Fetch account mentions notifications from Hivemind
+ */
+export async function getAccountMentions(
+  account: string,
+  limit: number = 50
+): Promise<HiveNotification[]> {
+  const cleaned = account.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return [];
+
+  try {
+    const notifications = await getAccountNotifications(cleaned, limit);
+    return (notifications || []).filter((item) => {
+      if (!item) return false;
+      if (item.type === 'mention' || item.type?.toLowerCase().includes('mention')) return true;
+      if (item.msg && (item.msg.toLowerCase().includes('mentioned you') || item.msg.includes(`@${cleaned}`))) {
+        return true;
+      }
+      return false;
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Fetch all accounts followed by a user along with their activity / last post status
  */
 export async function getAllFollowingWithDetails(
@@ -1144,7 +1169,7 @@ export function getPostThumbnail(post: HivePost): string | null {
  * Strip markdown syntax to generate a clean preview excerpt
  */
 export function getPostSnippet(body: string, maxLength: number = 180): string {
-  if (!body) return '';
+  if (!body || typeof body !== 'string') return '';
   const clean = body
     .replace(/!\[.*?\]\(.*?\)/g, '') // remove images
     .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // link to text
@@ -1659,5 +1684,53 @@ export async function getSimilarPosts(
   } catch (err: any) {
     if (err?.name === 'AbortError') return [];
     return [];
+  }
+}
+
+/**
+ * Retrieves the latest custom_json broadcasted by an account matching a specific ID.
+ * Scans recent account history up to the specified limit.
+ */
+export async function getLatestAccountCustomJson<T = any>(
+  account: string,
+  customJsonId: string,
+  limit: number = 100
+): Promise<T | null> {
+  const clean = account.replace(/^@/, '').trim().toLowerCase();
+  if (!clean || !customJsonId) return null;
+
+  try {
+    const rawHistory = await hiveRpcCall<Array<[number, any]>>(
+      'condenser_api.get_account_history',
+      [clean, -1, Math.min(limit, 200)]
+    );
+
+    if (!Array.isArray(rawHistory) || rawHistory.length === 0) return null;
+
+    for (let i = rawHistory.length - 1; i >= 0; i--) {
+      const item = rawHistory[i];
+      if (!item || !item[1] || !item[1].op) continue;
+      const [opName, opData] = item[1].op;
+
+      if (opName === 'custom_json' && opData && opData.id === customJsonId) {
+        const postingAuths: string[] = opData.required_posting_auths || [];
+        const activeAuths: string[] = opData.required_auths || [];
+        if (!postingAuths.includes(clean) && !activeAuths.includes(clean)) {
+          continue;
+        }
+
+        try {
+          const parsed = typeof opData.json === 'string' ? JSON.parse(opData.json) : opData.json;
+          return parsed as T;
+        } catch {
+          return null;
+        }
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(`Failed to fetch custom_json '${customJsonId}' for @${clean}:`, err);
+    return null;
   }
 }

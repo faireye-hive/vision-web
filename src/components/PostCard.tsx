@@ -94,7 +94,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   const displayTitle = isComment
     ? (post.title && !post.title.startsWith('Re: re-') && !post.title.startsWith('Re: @')
       ? post.title
-      : `Comment on: "${(post.parent_permlink || 'discussion').replace(/[-_]/g, ' ')}"`)
+      : `Comment on: "${String(post.parent_permlink || 'discussion').replace(/[-_]/g, ' ')}"`)
     : post.title;
 
   // Format relative time like Nebulosa: 19m, 44m, 1h, 2d
@@ -264,7 +264,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
             )}
             {post.parent_permlink && (
               <span className="text-blue-700/80 dark:text-blue-400/80 text-[11px] truncate hidden sm:inline">
-                • <span className="italic font-normal">"{post.parent_permlink.replace(/[-_]/g, ' ')}"</span>
+                • <span className="italic font-normal">"{String(post.parent_permlink).replace(/[-_]/g, ' ')}"</span>
               </span>
             )}
           </div>

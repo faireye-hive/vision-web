@@ -1,79 +1,126 @@
-# Implementation Plan: Discover Tag Reset, Contextual Trending Topics & Quality Ranking Algorithm
+# Implementation Plan: Profile Page Modular Style & Layout Customization
 
-Refine the Discover and Communities navigation to automatically reset active tags when switching to Discover, transform Trending Topics to extract tags dynamically from loaded posts (filtered for spam/low-effort tags), and implement a custom ranking algorithm for Hot and Trending feeds with a strict 10+ comments requirement and auto-fetching.
-
----
-
-## User Requirements & Clarifications Summary
-1. **Discover Tag Reset**:
-   - When switching from Communities or any filtered view to Discover, active community or topic tags must be cleared immediately so Discover starts in the clean "All Topics" global view.
-2. **Contextual Trending Topics**:
-   - Extract tags solely from the currently loaded posts rather than global Hive RPC calls.
-   - Maintain a robust spam tag blacklist (e.g., `pob`, `leo`, `burnpost`, `bbho`, `cpt`, `ctp`, `actifit`, `alive`, `cent`, `waiv`, `vyb`, `archon`, `neoxian`, `oneup`, etc.).
-   - Display relevant tags and post counts based on the active view.
-3. **Custom Content Quality Ranking Algorithm for Hot & Trending**:
-   - **Trending**: Strictly require posts to have at least **10 comments**. If the initial batch contains fewer than 20 qualifying posts, automatically fetch subsequent pages from the blockchain until at least 20 posts are collected.
-   - **Engagement Boost**: Posts with higher comment counts gain a substantial score boost.
-   - **Penalties ("Fica mais embaixo")**:
-     - Titles containing "daily" / daily logs / reports.
-     - Titles containing numbers / series counters (e.g., `#123`, `day 45`, `vol 2`).
-     - Titles containing `#hashtags`.
-     - Very short titles (< 20 characters or < 4 words).
-   - **New (`created`)**: Pure chronological order preserved without re-ranking.
+## Overview
+This feature introduces an in-place visual layout and styling customization system exclusively for the **Profile Page** (`/profile/@username`). Each user can customize their own profile's layout structure, section ordering, visibility of individual components, background imagery, color themes, glassmorphism transparency, and typography. The configuration is broadcast to the Hive blockchain via Hive Keychain (`custom_json`) so that any visitor viewing that profile sees the owner's custom design, with local cache fallback for instant rendering.
 
 ---
 
-## Proposed Changes
+## 1. Architecture & Component Organization
 
-### Step 1: Discover Navigation & Tag Reset (`src/context/NavigationContext.tsx`)
-- Update `handleNavChange`:
-  - When `tab === 'discover'`, reset `setTag('')` and navigate to `/discover`.
-  - When `tab === 'feed'`, reset `setTag('')` and navigate to `/feed`.
-- When URL pathname matches `/discover` without a `?tag=` search param, ensure `tag` state is cleared to `''`.
+To follow the project constitution regarding clean separation of concerns and modularity, all profile customization logic will reside in a dedicated directory: `src/features/profile/`.
 
-### Step 2: Quality Ranking Engine (`src/utils/postRanking.ts`)
-- Create a dedicated ranking utility:
-  - `calculateQualityScore(post: HivePost): number`
-  - Penalties for:
-    - Daily reports (`/\bdaily\b/i`, `actifit`, etc.)
-    - Numbers and series in title (`/\b\d+\b/`, `/#\d+/`, `/day\s*\d+/i`)
-    - Hashtags in title (`/#\w+/`)
-    - Short titles (`length < 20` or word count `< 4`)
-  - Boosts for:
-    - High comment discussion count (`post.children * 15`)
-    - Net upvotes and engagement
-  - `SPAM_NOISE_TAGS` set containing low-effort and token spam tags: `pob`, `leo`, `inleo`, `leofinance`, `burnpost`, `bbho`, `cpt`, `ctp`, `actifit`, `alive`, `cent`, `waiv`, `vyb`, `archon`, `neoxian`, `oneup`, `hive-engine`, `creativecoin`, `palnet`, etc.
-
-### Step 3: Contextual Trending Topics (`src/components/TrendingTopicsCard.tsx`)
-- Refactor `TrendingTopicsCard` to:
-  - Aggregate and rank tags exclusively from `feedPosts`.
-  - Exclude tags in `SPAM_NOISE_TAGS`.
-  - Show post counts for each tag based on current posts.
-  - Remove redundant blockchain global tag calls.
-  - Allow 1-click filtering and resetting.
-
-### Step 4: Discover Feed Auto-fetch & Ranking (`src/pages/DiscoverPage.tsx`)
-- In `fetchFeed`:
-  - If `sort === 'trending'`:
-    - Filter for `post.children >= 10`.
-    - If qualifying count is less than 20, loop/auto-fetch next pagination batches from Hive RPC until at least 20 qualifying posts are collected (or maximum 3 loop attempts to avoid runaway requests).
-    - Sort qualifying posts using `calculateQualityScore`.
-  - If `sort === 'hot'`:
-    - Apply `calculateQualityScore` so high-discussion, quality long-form posts rise to the top while daily repetitive posts with numbers/hashtags sink down.
-  - If `sort === 'created'`:
-    - Preserve strict chronological order untouched.
+```
+src/
+├── features/
+│   └── profile/
+│       ├── types.ts                      # ProfileStyleConfig, SectionId, Preset, LayoutType
+│       ├── defaultStyle.ts               # Default configurations & pre-built style presets
+│       ├── profileStyleService.ts        # Hive custom_json broadcast, account history reader, & cache
+│       ├── ProfileCustomizerDrawer.tsx   # Live in-place editor with tabs, sliders, toggles & reordering
+│       └── sections/                     # Modular sections that can be dynamically ordered/hidden
+│           ├── ProfileHeaderSection.tsx  # Banner, avatar (rounded/circle/square), name, follow/edit buttons
+│           ├── ProfileBioSection.tsx     # About text, location, website, created date
+│           ├── ProfileStatsSection.tsx   # Follower counts, reputation, balances, post counter
+│           ├── ProfileBadgesSection.tsx  # Subscribed communities, tags & badge pills
+│           └── ProfileFeedSection.tsx    # Tabs (Posts, Comments, Replies, Mentions, History) & feed list
+├── services/
+│   └── keychain.ts                       # Add broadcastCustomJson helper if missing
+└── pages/
+    └── ProfilePage.tsx                   # Refactored to render sections based on ProfileStyleConfig
+```
 
 ---
 
-## Verification Plan
-1. **Compilation & Linting**:
-   - Run `lint_applet` and `compile_applet` to confirm zero TypeScript and bundling errors.
-2. **Tag Reset Verification**:
-   - Open a community in Explore Communities (e.g. `/c/hive-163772`), verify feed and sidebar load.
-   - Click **Discover** in Navbar: verify URL becomes `/discover`, `currentTag` is empty, and "All Topics" is active.
-3. **Trending Topics Verification**:
-   - Inspect the Trending Topics sidebar card in Discover: verify tags are extracted from the currently loaded posts and no spam tags (`pob`, `leo`, `burnpost`, `actifit`, `bbho`) appear.
-4. **Feed Algorithm Verification**:
-   - In **Trending**: verify all displayed posts have 10+ comments and at least 20 posts are presented.
-   - In **Hot**: verify quality discussions rank higher, while posts with "daily", numbers, short titles, and hashtags are demoted.
-   - In **New**: verify posts remain in strict reverse-chronological order.
+## 2. Key Capabilities & Customization Options
+
+### A. Layout Structure (`layoutType`)
+- **Full-Width Hero (Default)**: Classic expansive cover banner with bottom avatar and centered/left-aligned content.
+- **Bento Grid**: Modern modular card grid where stats, bio, and badges form complementary dashboard cards beside/above the feed.
+- **Split 2-Column**: Sticky left sidebar with avatar, bio, and stats; right column dedicated to feed and tabs.
+- **Centered Compact**: Minimalist card with centered avatar, compact metrics, and focused content feed.
+
+### B. Section Reordering & Visibility (`sections`)
+- Configurable modular sections:
+  1. `header` (Banner & Identity)
+  2. `stats` (Followers, Reputation, Balances)
+  3. `bio` (About text, links, metadata)
+  4. `badges` (Subscribed communities & frequent tags)
+  5. `feed` (Posts, Comments, Replies, Mentions, Activity)
+- Each section can be toggled **Visible / Hidden** (header & feed required, others optional).
+- Each section can be reordered up/down to create personalized content flows.
+
+### C. Visual Styling & Ambience (Scoped strictly to Profile)
+- **Background**:
+  - Solid color, gradient, or Custom Background Image URL.
+  - Background overlay tint (opacity control) & optional background blur.
+- **Card Aesthetics**:
+  - Surface opacity (solid, semi-transparent frosted glass, or borderless outline).
+  - Border radius (sharp `rounded-lg`, standard `rounded-2xl`, ultra-curved `rounded-3xl`).
+  - Card shadow & border intensity.
+- **Accent & Typography**:
+  - Primary accent color (Blue, Purple, Emerald, Rose, Amber, Cyan, or custom hex).
+  - Font family override for profile text (System, Serif, Mono, Rounded).
+  - Avatar shape: Circle, Rounded Square, or Hexagon/Squircle.
+- **Curated Presets**:
+  - One-click presets: *Default Clean*, *Cyberpunk Neon*, *Frosted Glass*, *Warm Editorial*, *Minimalist Mono*, *Midnight Velvet*.
+
+---
+
+## 3. Blockchain Storage & Persistence (`custom_json`)
+
+### Hive Keychain Broadcast
+- Operation: `custom_json`
+- Authority: `Posting` (no Active key or token fees required)
+- ID: `nebulosa_profile_style`
+- Payload:
+  ```json
+  {
+    "app": "nebulosa/1.0",
+    "version": 1,
+    "style": {
+      "layoutType": "bento",
+      "sections": [
+        { "id": "header", "visible": true },
+        { "id": "bio", "visible": true },
+        { "id": "stats", "visible": true },
+        { "id": "badges", "visible": true },
+        { "id": "feed", "visible": true }
+      ],
+      "theme": {
+        "accentColor": "#6366f1",
+        "bgType": "image",
+        "bgImageUrl": "https://...",
+        "bgOverlayOpacity": 0.4,
+        "cardStyle": "glass",
+        "borderRadius": "2xl",
+        "fontFamily": "system"
+      }
+    }
+  }
+  ```
+
+### Retrieval & Hydration Flow
+1. **Immediate Cache**: Read `localStorage.getItem(`nebulosa_profile_style:${username}`)` for instant zero-flicker loading.
+2. **Blockchain Fetch**: If viewing another user's profile or refreshing, fetch the account's recent `custom_json` operations matching `id === 'nebulosa_profile_style'` via Hive RPC (`condenser_api.get_account_history`), parse the JSON, and update the view and cache.
+3. **Safety Fallback**: If no custom style is published or parsing fails, seamlessly fall back to `DEFAULT_PROFILE_STYLE`.
+
+---
+
+## 4. User Experience & In-Place Edit Flow
+
+1. When `currentUser.username === profileUser` (viewing your own profile), a floating or top-bar button appears: **"Customize Profile"** / **"Personalizar Perfil"** with a magic wand icon.
+2. Clicking opens an in-place editing drawer/bar that lets the user change presets, tweak colors, reorder sections, and adjust cards in **real-time** on the actual profile page without leaving.
+3. Controls include:
+   - **Live Preview toggle**: Test changes instantly before saving.
+   - **Revert / Reset**: Revert back to default or discard draft changes.
+   - **Save to Hive (Keychain)**: Triggers Hive Keychain `requestCustomJson` to publish to the blockchain, saving locally immediately.
+   - **Save Local**: Option to save locally in browser if Keychain is not installed or user wants a private draft.
+
+---
+
+## 5. Verification & Testing
+
+- Compile and lint check with `compile_applet` and `lint_applet`.
+- Verify that custom profile styles apply **strictly to the Profile page** container (`#profile-custom-container`) and do not bleed into global styles, Feed, Discover, Shorts, or Reader.
+- Verify section reordering and visibility toggles accurately position elements.
+- Verify graceful fallback when an account has no custom style or is viewed by guests.

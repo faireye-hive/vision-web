@@ -49,6 +49,12 @@ declare global {
         callback: (response: KeychainResponse) => void,
         enforce?: boolean
       ) => void;
+      requestBroadcast?: (
+        username: string,
+        operations: any[],
+        keyType: 'Posting' | 'Active' | 'Memo',
+        callback: (response: KeychainResponse) => void
+      ) => void;
     };
   }
 }
@@ -335,6 +341,141 @@ export class KeychainService {
 
   static async unfollowUser(follower: string, following: string): Promise<KeychainResponse> {
     return this.followUser(follower, following, false);
+  }
+
+  /**
+   * Mute or unmute a user on the Hive blockchain (ignore list)
+   */
+  static async muteUser(
+    follower: string,
+    following: string,
+    mute: boolean = true
+  ): Promise<KeychainResponse> {
+    const json = JSON.stringify([
+      'follow',
+      {
+        follower,
+        following,
+        what: mute ? ['ignore'] : []
+      }
+    ]);
+
+    if (!this.isInstalled()) {
+      return {
+        success: true,
+        message: `${mute ? 'Mute' : 'Unmute'} registered in test mode.`
+      };
+    }
+
+    return new Promise((resolve) => {
+      window.hive_keychain!.requestCustomJson!(
+        follower,
+        'follow',
+        'Posting',
+        json,
+        `${mute ? 'Mute' : 'Unmute'} @${following}`,
+        (response) => {
+          resolve(response);
+        }
+      );
+    });
+  }
+
+  static async unmuteUser(follower: string, following: string): Promise<KeychainResponse> {
+    return this.muteUser(follower, following, false);
+  }
+
+  /**
+   * Update Hive profile metadata on chain via account_update2 (Posting key)
+   */
+  static async updateProfile(
+    username: string,
+    profileData: {
+      name?: string;
+      about?: string;
+      profile_image?: string;
+      cover_image?: string;
+      website?: string;
+      location?: string;
+      theme_id?: string;
+      [key: string]: any;
+    }
+  ): Promise<KeychainResponse> {
+    const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
+    const op = [
+      'account_update2',
+      {
+        account: cleanUsername,
+        json_metadata: '',
+        posting_json_metadata: JSON.stringify({
+          profile: {
+            ...profileData,
+            version: 2
+          }
+        }),
+        extensions: []
+      }
+    ];
+
+    if (!this.isInstalled()) {
+      return {
+        success: true,
+        message: 'Profile updated in local test mode (Hive Keychain extension not detected).'
+      };
+    }
+
+    return new Promise((resolve) => {
+      if (window.hive_keychain?.requestBroadcast) {
+        window.hive_keychain.requestBroadcast(
+          cleanUsername,
+          [op],
+          'Posting',
+          (response) => {
+            resolve(response);
+          }
+        );
+      } else {
+        // Fallback to custom_json if requestBroadcast is unsupported
+        this.broadcastCustomJson(
+          cleanUsername,
+          'nebulosa_profile_update',
+          'Posting',
+          JSON.stringify({ profile: profileData }),
+          'Update Profile Metadata'
+        ).then(resolve);
+      }
+    });
+  }
+
+  /**
+   * Broadcast arbitrary custom_json operation via Hive Keychain
+   */
+  static async broadcastCustomJson(
+    username: string,
+    id: string,
+    keyType: 'Posting' | 'Active' = 'Posting',
+    json: string,
+    displayName: string = 'Broadcast Custom JSON'
+  ): Promise<KeychainResponse> {
+    if (!this.isInstalled()) {
+      return {
+        success: false,
+        message: 'Hive Keychain is not installed or not detected.'
+      };
+    }
+
+    return new Promise((resolve) => {
+      window.hive_keychain!.requestCustomJson!(
+        username,
+        id,
+        keyType,
+        json,
+        displayName,
+        (response) => {
+          resolve(response);
+        }
+      );
+    });
   }
 
   /**
