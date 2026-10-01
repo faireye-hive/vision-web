@@ -92,3 +92,35 @@ Nebulosa Vision features context-sensitive noise filtering for the **Trending To
   ```
 - **Hierarchical Inheritance**: If viewing subtopic `#robotics`, the system automatically applies noise tags from `#robotics` + parent category `#technology` + global spam noise!
 - **Interactive UI Management**: In the Trending Topics card on the right rail, click the **Ruído** button to view and manage muted tags, add new noise tags on the fly, or click the mute icon next to any trending topic. These custom overrides are saved in `localStorage`.
+
+## Deploying on Render.com (Fixing "Not Found" on Subpages)
+
+Unlike Netlify or Cloudflare Pages, **Render.com Static Sites do not read the `_redirects` file by default**. When a user accesses `/discover` or `/profile/@user`, Render's static web server looks for a physical file named `discover/index.html`. Since it doesn't exist, Render displays "Not Found".
+
+### Solution 1: Configure in Render Dashboard (Recommended & Instant)
+1. Go to your Static Site in the **Render Dashboard** (`dashboard.render.com`).
+2. Click on **Redirects/Rewrites** in the left sidebar menu.
+3. Click **Add Rule** and configure:
+   - **Type**: `Rewrite`
+   - **Source**: `/*`
+   - **Destination**: `/index.html`
+4. Click **Save Changes**. Now all client-side routes will be served by `index.html` without 404 errors!
+
+### Solution 2: Infrastructure as Code (`render.yaml`)
+A `render.yaml` file is included in the project root with the rewrite rule preconfigured for Render Blueprints:
+```yaml
+services:
+  - type: web
+    name: nebulosa-web
+    env: static
+    buildCommand: npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+```
+
+### Solution 3: Fallback `404.html`
+Vite is configured to automatically copy `dist/index.html` to `dist/404.html` on build. If Render or any other static host returns a 404 status code, it will still serve the React SPA bundle, which reads the current path and displays the correct page.
+
