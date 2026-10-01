@@ -6,11 +6,13 @@ import {
   Compass,
   TrendingUp,
   X,
-  Sparkles,
-  Layers,
-  RefreshCw
+  Sparkles
 } from 'lucide-react';
 import { HivePost, getTrendingTags } from '../services/hiveApi';
+import {
+  getNoiseTagsForContext,
+  normalizeTag
+} from '../data/topicNoiseConfig';
 
 interface TrendingTopicsCardProps {
   currentTag: string;
@@ -19,54 +21,7 @@ interface TrendingTopicsCardProps {
   currentSort?: string;
 }
 
-// Blacklist of spam, bot rings, and low-effort reward tags
-const SPAM_TAGS = new Set([
-  'pob',
-  'leo',
-  'burnpost',
-  'bbho',
-  'bbh',
-  'cpt',
-  'ctp',
-  'actifit',
-  'alive',
-  'cent',
-  'waiv',
-  'vyb',
-  'archon',
-  'neoxian',
-  'oneup',
-  'leofinance',
-  'inleo',
-  'creativecoin',
-  'proofofbrain',
-  'pimp',
-  'appreciator',
-  'palnet',
-  'arcadecolony',
-  'qurator',
-  'sportstalk',
-  'weedcash',
-  'splinterlands',
-  'spt',
-  'ecency',
-  'hive-engine',
-  'stem',
-  'stemng',
-  'lassecash',
-  'free-compliments',
-  'posh',
-  'curation',
-  'hive',
-  'polish',
-  'blog',
-  'percentmap',
-  'tribes',
-]);
-
-const DEFAULT_FALLBACK_TAGS = [
-  'X'
-];
+const DEFAULT_FALLBACK_TAGS = ['hive', 'technology', 'crypto', 'art', 'gaming', 'photography'];
 
 export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
   currentTag,
@@ -86,31 +41,38 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
     }
   });
 
+  // Calculate current noise tags for this context
+  const contextNoiseList = useMemo(() => {
+    return getNoiseTagsForContext(currentTag);
+  }, [currentTag]);
+
+  const noiseSet = useMemo(() => {
+    return new Set(contextNoiseList.map(normalizeTag));
+  }, [contextNoiseList]);
+
   // Fetch global trending tags from Hive blockchain when no tag is selected
-useEffect(() => {
+  useEffect(() => {
     let isMounted = true;
     if (!currentTag) {
       setLoadingChainTags(true);
       getTrendingTags(250)
         .then((tags) => {
           if (!isMounted) return;
-          
-          const cleanTags = (tags || [])
-            // Garante leitura tanto de t.tag quanto de t.name
-            .map((t) => ((t.tag || t.name) || '').toLowerCase().trim())
-            .filter((t) => t.length >= 2 && !t.startsWith('hive-') && !SPAM_TAGS.has(t));
 
-          // Se a filtragem eliminar todas as tags de spam, usa um fallback decente em vez de ficar em branco
+          const cleanTags = (tags || [])
+            .map((t) => ((t.tag || t.name) || '').toLowerCase().trim())
+            .filter((t) => t.length >= 2 && !t.startsWith('hive-') && !noiseSet.has(t));
+
           setBlockchainTags(
-            cleanTags.length > 0 
-              ? cleanTags 
-              : ['photography', 'crypto', 'technology', 'art', 'gaming', 'finance']
+            cleanTags.length > 0
+              ? cleanTags
+              : DEFAULT_FALLBACK_TAGS
           );
         })
         .catch((err) => {
           console.error("Erro ao carregar tags:", err);
           if (isMounted) {
-            setBlockchainTags(['photography', 'crypto', 'technology', 'art', 'gaming']);
+            setBlockchainTags(DEFAULT_FALLBACK_TAGS);
           }
         })
         .finally(() => {
@@ -120,7 +82,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, [currentTag]);
+  }, [currentTag, noiseSet]);
 
   const toggleFavTopic = (topic: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -154,7 +116,7 @@ useEffect(() => {
         // Category
         if (p.category && !p.category.startsWith('hive-')) {
           const cat = p.category.toLowerCase().trim();
-          if (!SPAM_TAGS.has(cat) && cat.length >= 2) {
+          if (!noiseSet.has(cat) && cat.length >= 2) {
             postTagsSet.add(cat);
           }
         }
@@ -180,7 +142,7 @@ useEffect(() => {
               !clean.startsWith('hive-') &&
               clean.length >= 2 &&
               clean.length < 24 &&
-              !SPAM_TAGS.has(clean)
+              !noiseSet.has(clean)
             ) {
               postTagsSet.add(clean);
             }
@@ -201,8 +163,8 @@ useEffect(() => {
       }
     }
 
-    // Filter out spam tags
-    let filtered = pool.filter((topic) => !SPAM_TAGS.has(topic.toLowerCase().trim()));
+    // Filter out context noise tags
+    let filtered = pool.filter((topic) => !noiseSet.has(topic.toLowerCase().trim()));
 
     // Search query filter
     if (searchQuery.trim()) {
@@ -219,24 +181,24 @@ useEffect(() => {
       if (!aFav && bFav) return 1;
       return 0;
     });
-  }, [currentTag, blockchainTags, feedPosts, favTopics, searchQuery]);
+  }, [currentTag, blockchainTags, feedPosts, favTopics, searchQuery, noiseSet]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4">
+    <div className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3.5" style={{ marginTop: '0px' }}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
             <TrendingUp className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <h3 className="font-bold text-sm text-gray-900 dark:text-white">Trending Topics</h3>
               <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded-full border border-blue-200/50 dark:border-blue-800/50">
-                {!currentTag ? 'Hive Blockchain' : 'Related Topics'}
+                {!currentTag ? 'Hive' : 'Contextual'}
               </span>
             </div>
-            <p className="text-[11px] text-gray-400 dark:text-slate-500">
+            <p className="text-[11px] text-gray-400 dark:text-slate-500 truncate">
               {!currentTag
                 ? 'Popular on Hive network'
                 : `Contextual to #${currentTag}`}
@@ -244,10 +206,14 @@ useEffect(() => {
           </div>
         </div>
 
-        <span className="text-[11px] font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
-          {rankedTopics.length} tags
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+
+          <span className="text-[11px] font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+            {rankedTopics.length}
+          </span>
+        </div>
       </div>
+
 
       {/* Search Input */}
       <div className="relative">
@@ -312,7 +278,7 @@ useEffect(() => {
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800/60 text-gray-700 dark:text-slate-300'
                 }`}
               >
-                {/* Topic name without number after */}
+                {/* Topic name */}
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`font-bold text-xs ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'}`}>
                     #
@@ -326,7 +292,10 @@ useEffect(() => {
                       active
                     </span>
                   )}
+
+                  {/* Favorite pin button */}
                   <button
+                    type="button"
                     onClick={(e) => toggleFavTopic(topic, e)}
                     className={`p-1 rounded-lg transition cursor-pointer ${
                       isFav

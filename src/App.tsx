@@ -156,7 +156,7 @@ function NebulosaApp() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6" style={{ paddingTop: '5px' }}>
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
         {standalonePage === 'write' && (
@@ -250,7 +250,7 @@ function NebulosaApp() {
 
         {/* ================= RESPONSIVE THREE-COLUMN LAYOUT ================= */}
         <div
-          className={`grid grid-cols-1 lg:grid-cols-[260px_1fr] xl:grid-cols-[260px_1fr_300px] gap-6 items-start ${
+          className={`grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,824px)_300px] justify-center gap-5 items-start ${
             (selectedPost && activeNav !== 'shorts') || standalonePage ? 'hidden' : 'grid'
           }`}
         >

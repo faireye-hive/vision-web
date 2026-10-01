@@ -202,7 +202,11 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
   };
 
   return (
-    <div id="recommended-users-card" className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800">
+      <div 
+        id="recommended-users-card" 
+        className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800"
+        style={{ marginTop: '0px' }}
+      >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">

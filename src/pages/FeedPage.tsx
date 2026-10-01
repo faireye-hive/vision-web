@@ -202,7 +202,7 @@ export const FeedPage: React.FC = () => {
   }, [posts, hideReblogs, followingMode, filterPostsList]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full min-w-0 max-w-[824px]">
       {/* Author Feed Filter Banner (When author filter is active) */}
       {feedAuthor && (
         <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
@@ -268,7 +268,7 @@ export const FeedPage: React.FC = () => {
       )}
 
       {/* Feed Controls Header */}
-      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100">
+      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-20" style={{ marginBottom: '5px', paddingBottom: '10px', borderRadius: '15px', paddingTop: '10px', paddingLeft: '10px', paddingRight: '10px', minHeight: '45px' }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center flex-wrap gap-2.5">
             <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
@@ -343,21 +343,30 @@ export const FeedPage: React.FC = () => {
             <button
               onClick={openContentFilterModal}
               className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
-                contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
+                contentFilterConfig.enabled && filteredOutStats.total > 0
                   ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+                  : contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
+                  ? 'bg-blue-50/50 dark:bg-blue-950/30 border-blue-200/60 dark:border-blue-900/40 text-blue-600 dark:text-blue-400'
                   : 'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
-              title="Manage muted words and authors filter"
+              title={
+                filteredOutStats.total > 0
+                  ? `${filteredOutStats.total} ${filteredOutStats.total === 1 ? 'post' : 'posts'} hidden by filters`
+                  : 'Manage muted words and authors filter'
+              }
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>Filters</span>
-              {(contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
+              {contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    contentFilterConfig.enabled ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
+                    filteredOutStats.total > 0
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                   }`}
+                  title={`${filteredOutStats.total} ${filteredOutStats.total === 1 ? 'post' : 'posts'} hidden`}
                 >
-                  {contentFilterConfig.words.length + contentFilterConfig.authors.length}
+                  {filteredOutStats.total}
                 </span>
               )}
             </button>
@@ -384,7 +393,7 @@ export const FeedPage: React.FC = () => {
 
       {/* Error Banner */}
       {error && (
-        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between">
+        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between" style={{ height: '30px', marginBottom: '5px', paddingTop: '10px', borderRadius: '15px', overflow: 'hidden' }}>
           <div>
             <p className="font-semibold">Unable to fetch feed from Hive RPC</p>
             <p className="text-gray-600 dark:text-slate-400 mt-0.5">{error}</p>
@@ -398,33 +407,6 @@ export const FeedPage: React.FC = () => {
         </div>
       )}
 
-      {/* Content Filter Notice */}
-      {!loading && contentFilterConfig.enabled && filteredOutStats.total > 0 && (
-        <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-150/70 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in">
-          <div className="flex items-center gap-2 min-w-0">
-            <ShieldAlert className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            <span className="truncate">
-              <strong className="font-bold">{filteredOutStats.total}</strong> {filteredOutStats.total === 1 ? 'post' : 'posts'} hidden by your content filters
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0 text-xs font-semibold">
-            <button
-              onClick={openContentFilterModal}
-              className="text-blue-700 dark:text-blue-300 hover:underline transition cursor-pointer"
-            >
-              Manage Filters
-            </button>
-            <span className="text-blue-300 dark:text-blue-700">•</span>
-            <button
-              onClick={toggleFilterEnabled}
-              className="text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition cursor-pointer font-normal text-[11px]"
-            >
-              Pause Filter
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Loading Skeleton */}
       {loading ? (
@@ -502,6 +484,7 @@ export const FeedPage: React.FC = () => {
             <PostCard
               key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
               post={post}
+              inFeed={true}
               onSelectPost={openPost}
               onSelectAuthor={handleSelectAuthor}
               onSelectTag={openTag}

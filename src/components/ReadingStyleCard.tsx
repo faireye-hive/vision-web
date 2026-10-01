@@ -117,7 +117,20 @@ export function ReadingStyleCard() {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100">
+    <div
+      className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100"
+      style={{
+        borderRadius: '15px',
+        paddingTop: '10px',
+        marginTop: '-20px',
+        marginBottom: '4px',
+        paddingLeft: '10px',
+        paddingRight: '10px',
+        paddingBottom: open ? '20px' : '10px',
+        height: open ? 'auto' : '45px',
+        overflow: open ? 'visible' : 'hidden'
+      }}
+    >
       <button
         type="button"
         onClick={toggleOpen}

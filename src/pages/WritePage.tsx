@@ -25,7 +25,8 @@ import {
   ChevronUp,
   Clock,
   Layers,
-  Plus
+  Plus,
+  X
 } from 'lucide-react';
 import { CATEGORY_DEFINITIONS } from '../data/categorySubtopics';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -37,11 +38,20 @@ interface WritePageProps {
   onClose: () => void;
   currentUser: CurrentUser | null;
   onRequireLogin: () => void;
+  /** Ignorado de propósito: a comunidade nunca é escolhida automaticamente. */
   defaultCommunity?: string;
   joinedCommunities?: Record<string, boolean>;
 }
 
 type PayoutOption = '50-50' | '100-hp' | 'decline';
+
+const PAYOUT_LABELS: Record<PayoutOption, string> = {
+  '50-50': '50% HBD / 50% HP',
+  '100-hp': '100% Hive Power',
+  decline: 'Payout declined'
+};
+
+const MAX_TAGS = 10;
 
 const TEMPLATES = [
   {
@@ -75,12 +85,36 @@ const TEMPLATES = [
   }
 ];
 
+// Chaves de rascunho. A comunidade NÃO é mais salva: cada post começa em "Personal Blog".
+const DRAFT_KEYS = {
+  title: 'hive_draft_title',
+  body: 'hive_draft_body',
+  tags: 'hive_draft_tags',
+  payout: 'hive_draft_payout',
+  lang: 'hive_draft_lang'
+} as const;
+const LEGACY_COMMUNITY_KEY = 'hive_draft_community';
+
 function readDraft(key: string, fallback = '') {
   try {
     return localStorage.getItem(key) ?? fallback;
   } catch {
     return fallback;
   }
+}
+
+function writeDraft(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage cheio/desativado: o rascunho só fica em memória
+  }
+}
+
+function removeDraft(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
 }
 
 function buildCommentOptions(author: string, permlink: string, payout: PayoutOption) {
@@ -95,42 +129,47 @@ function buildCommentOptions(author: string, permlink: string, payout: PayoutOpt
   });
 }
 
+const selectClass =
+  'w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500';
+
 export const WritePage: React.FC<WritePageProps> = ({
   onClose,
   currentUser,
   onRequireLogin,
-  defaultCommunity = '',
   joinedCommunities = {}
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
   const [showOptions, setShowOptions] = useState(false);
-  
-  const [title, setTitle] = useState(() => readDraft('hive_draft_title'));
-  const [body, setBody] = useState(() => readDraft('hive_draft_body'));
-  const [tagsInput, setTagsInput] = useState(() => readDraft('hive_draft_tags', 'hive'));
+
+  const [title, setTitle] = useState(() => readDraft(DRAFT_KEYS.title));
+  const [body, setBody] = useState(() => readDraft(DRAFT_KEYS.body));
+  const [tagsInput, setTagsInput] = useState(() => readDraft(DRAFT_KEYS.tags, 'hive'));
   const [payoutOption, setPayoutOption] = useState<PayoutOption>(() => {
-    const saved = readDraft('hive_draft_payout', '50-50');
+    const saved = readDraft(DRAFT_KEYS.payout, '50-50');
     return saved === '100-hp' || saved === 'decline' ? saved : '50-50';
   });
-  const [selectedCommunity, setSelectedCommunity] = useState(
-    () => defaultCommunity || readDraft('hive_draft_community')
-  );
-  const [language, setLanguage] = useState(() => readDraft('hive_draft_lang'));
+  // Sempre começa sem comunidade. Nada de prop, tag atual ou rascunho antigo.
+  const [selectedCommunity, setSelectedCommunity] = useState('');
+  const [language, setLanguage] = useState(() => readDraft(DRAFT_KEYS.lang));
   const [imageUrl, setImageUrl] = useState('');
   const [communities, setCommunities] = useState<HiveCommunity[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Limpa a chave antiga que guardava a comunidade escolhida automaticamente.
   useEffect(() => {
-    localStorage.setItem('hive_draft_title', title);
-    localStorage.setItem('hive_draft_body', body);
-    localStorage.setItem('hive_draft_tags', tagsInput);
-    localStorage.setItem('hive_draft_payout', payoutOption);
-    localStorage.setItem('hive_draft_community', selectedCommunity);
-    localStorage.setItem('hive_draft_lang', language);
-  }, [title, body, tagsInput, payoutOption, selectedCommunity, language]);
+    removeDraft(LEGACY_COMMUNITY_KEY);
+  }, []);
+
+  useEffect(() => {
+    writeDraft(DRAFT_KEYS.title, title);
+    writeDraft(DRAFT_KEYS.body, body);
+    writeDraft(DRAFT_KEYS.tags, tagsInput);
+    writeDraft(DRAFT_KEYS.payout, payoutOption);
+    writeDraft(DRAFT_KEYS.lang, language);
+  }, [title, body, tagsInput, payoutOption, language]);
 
   useEffect(() => {
     let mounted = true;
@@ -156,29 +195,39 @@ export const WritePage: React.FC<WritePageProps> = ({
     return [...map.entries()].map(([name, label]) => ({ name, label }));
   }, [communities, joinedCommunities, selectedCommunity]);
 
-  const insertAtCursor = useCallback((prefix: string, suffix = '', placeholder = '') => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setBody((prev) => prev + prefix + placeholder + suffix);
-      return;
-    }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = body.substring(start, end);
-    const inner = selected || placeholder;
-    const replacement = prefix + inner + suffix;
-    const next = body.substring(0, start) + replacement + body.substring(end);
-    setBody(next);
-    
-    const cursorStart = start + prefix.length;
-    const cursorEnd = cursorStart + inner.length;
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(cursorStart, cursorEnd);
-    }, 0);
-  }, [body]);
+  const communityLabel = useMemo(() => {
+    if (!selectedCommunity) return 'Personal Blog';
+    return communityOptions.find((c) => c.name === selectedCommunity)?.label || selectedCommunity;
+  }, [selectedCommunity, communityOptions]);
 
-  const applyTemplate = (template: typeof TEMPLATES[number]) => {
+  const tagList = useMemo(() => tagsInput.split(/\s+/).filter(Boolean), [tagsInput]);
+
+  const insertAtCursor = useCallback(
+    (prefix: string, suffix = '', placeholder = '') => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setBody((prev) => prev + prefix + placeholder + suffix);
+        return;
+      }
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = body.substring(start, end);
+      const inner = selected || placeholder;
+      const replacement = prefix + inner + suffix;
+      const next = body.substring(0, start) + replacement + body.substring(end);
+      setBody(next);
+
+      const cursorStart = start + prefix.length;
+      const cursorEnd = cursorStart + inner.length;
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(cursorStart, cursorEnd);
+      }, 0);
+    },
+    [body]
+  );
+
+  const applyTemplate = (template: (typeof TEMPLATES)[number]) => {
     setBody((prev) => (prev.trim() ? `${prev.trim()}\n\n${template.body}` : template.body));
     if (template.title && !title.trim()) setTitle(template.title);
     if (template.tags) {
@@ -187,7 +236,7 @@ export const WritePage: React.FC<WritePageProps> = ({
         template.tags!.split(/\s+/).forEach((tag) => {
           if (!current.includes(tag)) current.push(tag);
         });
-        return current.slice(0, 10).join(' ');
+        return current.slice(0, MAX_TAGS).join(' ');
       });
     }
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -198,9 +247,18 @@ export const WritePage: React.FC<WritePageProps> = ({
     if (!clean) return;
     setTagsInput((prev) => {
       const current = prev.split(/\s+/).filter(Boolean);
-      if (current.includes(clean) || current.length >= 10) return prev;
+      if (current.includes(clean) || current.length >= MAX_TAGS) return prev;
       return [...current, clean].join(' ');
     });
+  };
+
+  const removeTag = (tag: string) => {
+    setTagsInput((prev) =>
+      prev
+        .split(/\s+/)
+        .filter((t) => t && t !== tag)
+        .join(' ')
+    );
   };
 
   const clearDraft = () => {
@@ -210,9 +268,9 @@ export const WritePage: React.FC<WritePageProps> = ({
     setTagsInput('hive');
     setLanguage('');
     setImageUrl('');
-    ['hive_draft_title', 'hive_draft_body', 'hive_draft_tags', 'hive_draft_lang'].forEach((key) => {
-      localStorage.removeItem(key);
-    });
+    setSelectedCommunity('');
+    setPayoutOption('50-50');
+    Object.values(DRAFT_KEYS).forEach(removeDraft);
   };
 
   const handlePublish = useCallback(async () => {
@@ -239,11 +297,12 @@ export const WritePage: React.FC<WritePageProps> = ({
         .split(/\s+/)
         .filter((tag) => /^[a-z0-9-]+$/.test(tag));
 
-      if (language && /^[a-z]{2}$/.test(language) && !cleanTags.includes(language) && cleanTags.length < 10) {
+      if (language && /^[a-z]{2}$/.test(language) && !cleanTags.includes(language) && cleanTags.length < MAX_TAGS) {
         cleanTags.push(language);
       }
 
-      const tags = cleanTags.length > 0 ? cleanTags.slice(0, 10) : ['hive'];
+      const tags = cleanTags.length > 0 ? cleanTags.slice(0, MAX_TAGS) : ['hive'];
+      // Só posta em comunidade se o usuário escolheu uma; senão usa a primeira tag como categoria.
       const parentPermlink = selectedCommunity || tags[0] || 'hive';
       const permlink = `${title
         .toLowerCase()
@@ -252,7 +311,7 @@ export const WritePage: React.FC<WritePageProps> = ({
         .slice(0, 80)}-${Date.now().toString().slice(-5)}`;
 
       const jsonMetadata = JSON.stringify({
-        app: 'nebulosa-web/0.0.1',
+        app: 'nebulosa-web/0.0.4',
         format: 'markdown',
         tags,
         ...(language ? { languages: [language] } : {})
@@ -277,9 +336,7 @@ export const WritePage: React.FC<WritePageProps> = ({
           setIsSubmitting(false);
           if (response.success) {
             setSuccessMessage('Successfully published to the Hive blockchain!');
-            localStorage.removeItem('hive_draft_title');
-            localStorage.removeItem('hive_draft_body');
-            localStorage.removeItem('hive_draft_tags');
+            Object.values(DRAFT_KEYS).forEach(removeDraft);
             setTimeout(onClose, 900);
           } else {
             setErrorMessage(response.message || response.error || 'Hive Keychain failed to broadcast the post.');
@@ -322,19 +379,21 @@ export const WritePage: React.FC<WritePageProps> = ({
 
   const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
   const readingMinutes = wordCount === 0 ? 0 : Math.max(1, Math.round(wordCount / 200));
-  const previewHtml = markdownToSafeHtml(body || '*Start typing in Markdown to see the real-time article preview here...*');
+  const previewHtml = markdownToSafeHtml(
+    body || '*Start typing in Markdown to see the real-time article preview here...*'
+  );
   const languages = listKnownLanguages();
+  const languageLabel = languages.find((l) => l.code === language);
 
   return (
     <div id="write-page" className="w-full max-w-[1600px] mx-auto pb-12 animate-in fade-in duration-150">
-      
-      {/* Sticky Header Navbar */}
-      <header className="sticky top-16 z-20 bg-[#f7f8fa]/90 dark:bg-[#0b0f17]/90 backdrop-blur-md py-3 mb-4 border-b border-gray-200/60 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+      {/* Sticky Header */}
+      <header className="sticky top-16 z-20 bg-[#f7f8fa]/90 dark:bg-[#0b0f17]/90 backdrop-blur-md py-3 mb-3 border-b border-gray-200/60 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-gray-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition shadow-2xs"
+            className="p-2 rounded-xl text-gray-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition shadow-2xs cursor-pointer"
             title="Return to feed"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -350,13 +409,15 @@ export const WritePage: React.FC<WritePageProps> = ({
           </div>
         </div>
 
-        {/* Mobile Pane Toggle */}
+        {/* Mobile pane toggle */}
         <div className="lg:hidden flex bg-gray-200/70 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
           <button
             type="button"
             onClick={() => setMobilePane('edit')}
-            className={`px-4 py-1.5 rounded-lg transition ${
-              mobilePane === 'edit' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs' : 'text-gray-600 dark:text-slate-400'
+            className={`px-4 py-1.5 rounded-lg transition cursor-pointer ${
+              mobilePane === 'edit'
+                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+                : 'text-gray-600 dark:text-slate-400'
             }`}
           >
             Editor
@@ -364,19 +425,20 @@ export const WritePage: React.FC<WritePageProps> = ({
           <button
             type="button"
             onClick={() => setMobilePane('preview')}
-            className={`px-4 py-1.5 rounded-lg transition ${
-              mobilePane === 'preview' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs' : 'text-gray-600 dark:text-slate-400'
+            className={`px-4 py-1.5 rounded-lg transition cursor-pointer ${
+              mobilePane === 'preview'
+                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs'
+                : 'text-gray-600 dark:text-slate-400'
             }`}
           >
             Live Preview
           </button>
         </div>
 
-        {/* Right Actions Header */}
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setShowOptions(prev => !prev)}
+            onClick={() => setShowOptions((prev) => !prev)}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold border transition cursor-pointer ${
               showOptions
                 ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
@@ -392,7 +454,7 @@ export const WritePage: React.FC<WritePageProps> = ({
             type="button"
             onClick={handlePublish}
             disabled={isSubmitting || !title.trim() || !body.trim()}
-            className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-xs hover:shadow-md cursor-pointer"
+            className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-xs hover:shadow-md cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             {isSubmitting ? 'Broadcasting...' : 'Publish'}
@@ -400,31 +462,73 @@ export const WritePage: React.FC<WritePageProps> = ({
         </div>
       </header>
 
-      {/* Error & Success Banners */}
+      {/* Publish summary: sempre visível, mostra exatamente onde o post vai */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setShowOptions(true)}
+          title="Change where this post is published"
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-semibold transition cursor-pointer ${
+            selectedCommunity
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+              : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{communityLabel}</span>
+        </button>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
+          <Coins className="w-3.5 h-3.5 text-amber-500" />
+          {PAYOUT_LABELS[payoutOption]}
+        </span>
+        {languageLabel && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
+            <Globe className="w-3.5 h-3.5 text-indigo-500" />
+            {languageLabel.flag} {languageLabel.name}
+          </span>
+        )}
+      </div>
+
+      {/* Banners */}
       {(errorMessage || successMessage) && (
-        <div className={`mb-4 p-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-2xs animate-in fade-in ${
-          errorMessage
-            ? 'bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/50 dark:border-rose-900 dark:text-rose-300'
-            : 'bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-900 dark:text-emerald-300'
-        }`}>
+        <div
+          className={`mb-4 p-4 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-2xs animate-in fade-in ${
+            errorMessage
+              ? 'bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/50 dark:border-rose-900 dark:text-rose-300'
+              : 'bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-900 dark:text-emerald-300'
+          }`}
+        >
           <div className="flex items-center gap-2.5">
-            {errorMessage ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <Check className="w-5 h-5 flex-shrink-0" />}
+            {errorMessage ? (
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            ) : (
+              <Check className="w-5 h-5 flex-shrink-0" />
+            )}
             <span>{errorMessage || successMessage}</span>
           </div>
-          <button onClick={() => { setErrorMessage(null); setSuccessMessage(null); }} className="p-1 hover:opacity-75">
-            ✕
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMessage(null);
+              setSuccessMessage(null);
+            }}
+            className="p-1 hover:opacity-75 cursor-pointer"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Collapsible Publish Options Drawer */}
+      {/* Publish Options */}
       {showOptions && (
         <div className="mb-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-150 text-gray-900 dark:text-slate-100">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Community */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-4">
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+              <label
+                htmlFor="write-community"
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300"
+              >
                 <Layers className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Hive Community</span>
               </label>
@@ -432,7 +536,7 @@ export const WritePage: React.FC<WritePageProps> = ({
                 id="write-community"
                 value={selectedCommunity}
                 onChange={(event) => setSelectedCommunity(event.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={selectClass}
               >
                 <option value="">Personal Blog (No Community)</option>
                 {communityOptions.map((community) => (
@@ -443,9 +547,11 @@ export const WritePage: React.FC<WritePageProps> = ({
               </select>
             </div>
 
-            {/* Payout */}
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+              <label
+                htmlFor="write-payout"
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300"
+              >
                 <Coins className="w-3.5 h-3.5 text-amber-500" />
                 <span>Rewards Payout</span>
               </label>
@@ -453,7 +559,7 @@ export const WritePage: React.FC<WritePageProps> = ({
                 id="write-payout"
                 value={payoutOption}
                 onChange={(event) => setPayoutOption(event.target.value as PayoutOption)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={selectClass}
               >
                 <option value="50-50">50% HBD / 50% Hive Power</option>
                 <option value="100-hp">100% Hive Power</option>
@@ -461,9 +567,11 @@ export const WritePage: React.FC<WritePageProps> = ({
               </select>
             </div>
 
-            {/* Language */}
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+              <label
+                htmlFor="write-language"
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300"
+              >
                 <Globe className="w-3.5 h-3.5 text-indigo-500" />
                 <span>Language Tag</span>
               </label>
@@ -471,7 +579,7 @@ export const WritePage: React.FC<WritePageProps> = ({
                 id="write-language"
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={selectClass}
               >
                 <option value="">No Language Tag</option>
                 {languages.map((item) => (
@@ -482,17 +590,20 @@ export const WritePage: React.FC<WritePageProps> = ({
               </select>
             </div>
 
-            {/* Direct Image URL */}
             <div className="space-y-1.5">
-              <span className="block text-xs font-bold text-gray-700 dark:text-slate-300">
+              <label
+                htmlFor="write-image-url"
+                className="block text-xs font-bold text-gray-700 dark:text-slate-300"
+              >
                 Insert Direct Image URL
-              </span>
+              </label>
               <div className="flex gap-1.5">
                 <input
+                  id="write-image-url"
                   value={imageUrl}
                   onChange={(event) => setImageUrl(event.target.value)}
                   placeholder="https://..."
-                  className="min-w-0 flex-1 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs border border-gray-200/80 dark:border-slate-700 focus:outline-none"
+                  className="min-w-0 flex-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
@@ -502,15 +613,14 @@ export const WritePage: React.FC<WritePageProps> = ({
                     setImageUrl('');
                   }}
                   className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+                  title="Insert image"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-
           </div>
 
-          {/* Quick Starter Templates Bar */}
           <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-gray-500 dark:text-slate-400 flex items-center gap-1 mr-1">
               <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Templates:
@@ -519,6 +629,7 @@ export const WritePage: React.FC<WritePageProps> = ({
               <button
                 key={template.id}
                 type="button"
+                title={template.hint}
                 onClick={() => applyTemplate(template)}
                 className="text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-gray-700 dark:text-slate-300 hover:text-blue-600 font-semibold transition cursor-pointer"
               >
@@ -529,82 +640,131 @@ export const WritePage: React.FC<WritePageProps> = ({
         </div>
       )}
 
-      {/* 50 / 50 Split Screen Grid (Editor & Live Preview) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-        
-        {/* LEFT 50%: Markdown Editor */}
-        <section className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex flex-col justify-between space-y-4 ${
-          mobilePane === 'preview' ? 'hidden lg:flex' : 'flex'
-        }`}>
-          <div className="space-y-4 flex-1 flex flex-col">
-            
-            {/* Title Input */}
-            <input
-              id="write-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Article Title..."
-              className="w-full text-2xl sm:text-3xl font-extrabold bg-transparent text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-slate-600 focus:outline-none tracking-tight border-b border-gray-100 dark:border-slate-800 pb-3"
-            />
+      {/* Editor + Preview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        {/* Editor */}
+        <section
+          className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex-col gap-4 ${
+            mobilePane === 'preview' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
+          <input
+            id="write-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Article Title..."
+            maxLength={255}
+            className="w-full text-2xl sm:text-3xl font-extrabold bg-transparent text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-slate-600 focus:outline-none tracking-tight border-b border-gray-100 dark:border-slate-800 pb-3"
+          />
 
-            {/* Markdown Toolbar */}
-            <div className="flex flex-wrap items-center gap-1 p-1.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700/60">
-              <ToolButton label="Bold (⌘B)" onClick={() => insertAtCursor('**', '**', 'bold')}><Bold className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Italic (⌘I)" onClick={() => insertAtCursor('*', '*', 'italic')}><Italic className="w-4 h-4" /></ToolButton>
-              <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
-              <ToolButton label="Heading 1" onClick={() => insertAtCursor('# ', '', 'Heading')}><Heading1 className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Heading 2" onClick={() => insertAtCursor('## ', '', 'Subheading')}><Heading2 className="w-4 h-4" /></ToolButton>
-              <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
-              <ToolButton label="Quote" onClick={() => insertAtCursor('> ', '', 'quote')}><Quote className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Code Block" onClick={() => insertAtCursor('```\n', '\n```', 'code')}><Code className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Insert Link (⌘K)" onClick={() => insertAtCursor('[', '](https://)', 'link text')}><LinkIcon className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Insert Image" onClick={() => insertAtCursor('![alt](', ')', 'https://')}><ImageIcon className="w-4 h-4" /></ToolButton>
-              <ToolButton label="Bullet List" onClick={() => insertAtCursor('- ', '', 'item')}><List className="w-4 h-4" /></ToolButton>
-            </div>
-
-            {/* Main Textarea Area */}
-            <textarea
-              id="post-editor-textarea"
-              ref={textareaRef}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              placeholder="Write your article story in Markdown... Supports full formatting, code blocks, and embedded media."
-              className="w-full flex-1 min-h-[460px] p-4 bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl text-sm sm:text-base leading-relaxed text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 border border-gray-100 dark:border-slate-800 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition font-sans"
-            />
-
-            {/* Tags Input Section */}
-            <div className="pt-2 border-t border-gray-100 dark:border-slate-800 space-y-2">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300" htmlFor="write-tags">
-                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                <span>Tags (separated by spaces, max 10)</span>
-              </label>
-
-              <input
-                id="write-tags"
-                value={tagsInput}
-                onChange={(event) => setTagsInput(event.target.value)}
-                placeholder="e.g. hive photography art crypto"
-                className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-200 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              {/* Quick Tag Pills */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {CATEGORY_DEFINITIONS.slice(0, 8).map((category) => (
-                  <button
-                    key={category.tag}
-                    type="button"
-                    onClick={() => addTag(category.tag)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800/80 text-gray-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer font-medium"
-                  >
-                    {category.icon} #{category.tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+          <div className="flex flex-wrap items-center gap-1 p-1.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700/60">
+            <ToolButton label="Bold (⌘B)" onClick={() => insertAtCursor('**', '**', 'bold')}>
+              <Bold className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Italic (⌘I)" onClick={() => insertAtCursor('*', '*', 'italic')}>
+              <Italic className="w-4 h-4" />
+            </ToolButton>
+            <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+            <ToolButton label="Heading 1" onClick={() => insertAtCursor('# ', '', 'Heading')}>
+              <Heading1 className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Heading 2" onClick={() => insertAtCursor('## ', '', 'Subheading')}>
+              <Heading2 className="w-4 h-4" />
+            </ToolButton>
+            <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+            <ToolButton label="Quote" onClick={() => insertAtCursor('> ', '', 'quote')}>
+              <Quote className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Code Block" onClick={() => insertAtCursor('```\n', '\n```', 'code')}>
+              <Code className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Insert Link (⌘K)" onClick={() => insertAtCursor('[', '](https://)', 'link text')}>
+              <LinkIcon className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Insert Image" onClick={() => insertAtCursor('![alt](', ')', 'https://')}>
+              <ImageIcon className="w-4 h-4" />
+            </ToolButton>
+            <ToolButton label="Bullet List" onClick={() => insertAtCursor('- ', '', 'item')}>
+              <List className="w-4 h-4" />
+            </ToolButton>
           </div>
 
-          {/* Bottom Counter Bar */}
+          <textarea
+            id="post-editor-textarea"
+            ref={textareaRef}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="Write your article story in Markdown... Supports full formatting, code blocks, and embedded media."
+            className="w-full min-h-[460px] lg:min-h-[calc(100vh-26rem)] p-4 bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl text-sm sm:text-base leading-relaxed text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 border border-gray-100 dark:border-slate-800 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition font-sans"
+          />
+
+          {/* Tags */}
+          <div className="pt-3 border-t border-gray-100 dark:border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300"
+                htmlFor="write-tags"
+              >
+                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Tags (separated by spaces)</span>
+              </label>
+              <span
+                className={`text-[11px] font-semibold ${
+                  tagList.length > MAX_TAGS ? 'text-rose-600' : 'text-gray-400 dark:text-slate-500'
+                }`}
+              >
+                {tagList.length}/{MAX_TAGS}
+              </span>
+            </div>
+
+            <input
+              id="write-tags"
+              value={tagsInput}
+              onChange={(event) => setTagsInput(event.target.value)}
+              placeholder="e.g. hive photography art crypto"
+              className="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-200 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            {tagList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {tagList.map((tag, index) => (
+                  <span
+                    key={`${tag}-${index}`}
+                    className={`inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg text-[11px] font-semibold ${
+                      index === 0
+                        ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300'
+                    }`}
+                    title={index === 0 ? 'Main tag (used as category when there is no community)' : undefined}
+                  >
+                    #{tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {CATEGORY_DEFINITIONS.slice(0, 8).map((category) => (
+                <button
+                  key={category.tag}
+                  type="button"
+                  onClick={() => addTag(category.tag)}
+                  className="text-[11px] px-2.5 py-1 rounded-lg border border-dashed border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer font-medium"
+                >
+                  {category.icon} #{category.tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between text-xs text-gray-400 dark:text-slate-500 pt-3 border-t border-gray-100 dark:border-slate-800">
             <span className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
@@ -622,21 +782,23 @@ export const WritePage: React.FC<WritePageProps> = ({
           </div>
         </section>
 
-        {/* RIGHT 50%: Real-Time Live Preview */}
-        <section className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex flex-col justify-between ${
-          mobilePane === 'edit' ? 'hidden lg:flex' : 'flex'
-        }`}>
-          <div>
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100 dark:border-slate-800 text-xs font-bold text-gray-500 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                Real-Time Article Preview
-              </span>
-              <span className="text-[10px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">
-                Live Rendering
-              </span>
-            </div>
+        {/* Preview: fica fixa na tela enquanto você escreve */}
+        <section
+          className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex-col lg:sticky lg:top-36 lg:max-h-[calc(100vh-10rem)] overflow-hidden ${
+            mobilePane === 'edit' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
+          <div className="flex items-center justify-between px-5 sm:px-6 py-3 border-b border-gray-100 dark:border-slate-800 text-xs font-bold text-gray-500 dark:text-slate-400 flex-shrink-0">
+            <span className="flex items-center gap-1.5">
+              <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Preview
+            </span>
+            <span className="text-[10px] bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">
+              Live
+            </span>
+          </div>
 
+          <div className="overflow-y-auto px-5 sm:px-6 py-5 flex-1 min-h-0">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-6 break-words leading-tight">
               {title || 'Untitled Story...'}
             </h1>
@@ -646,12 +808,7 @@ export const WritePage: React.FC<WritePageProps> = ({
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           </div>
-
-          <div className="mt-8 pt-3 border-t border-gray-100 dark:border-slate-800 text-xs text-gray-400 dark:text-slate-500 text-right">
-            WYSIWYG Markdown Preview • Synchronized Real-Time Render
-          </div>
         </section>
-
       </div>
     </div>
   );

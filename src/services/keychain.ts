@@ -211,7 +211,7 @@ export class KeychainService {
   ): Promise<KeychainResponse> {
     const permlink = `re-${parentAuthor.replace(/[^a-z0-9]/g, '')}-${Date.now()}`;
     const jsonMetadata = JSON.stringify({
-      app: 'nebulosa-web/0.0.1',
+      app: 'nebulosa-web/0.0.4',
       format: 'markdown'
     });
 
@@ -243,7 +243,10 @@ export class KeychainService {
    * Reblog a post via custom_json
    */
   static async reblog(username: string, author: string, permlink: string): Promise<KeychainResponse> {
-    const json = JSON.stringify(['reblog', { account: username, author, permlink }]);
+    const cleanUser = username.replace(/^@/, '').trim().toLowerCase();
+    const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
+    const cleanPermlink = permlink.trim();
+    const json = JSON.stringify(['reblog', { account: cleanUser, author: cleanAuthor, permlink: cleanPermlink }]);
 
     if (!this.isInstalled()) {
       return {
@@ -253,16 +256,31 @@ export class KeychainService {
     }
 
     return new Promise((resolve) => {
-      window.hive_keychain!.requestCustomJson!(
-        username,
-        'follow',
-        'Posting',
-        json,
-        `Reblog @${author}/${permlink}`,
-        (response) => {
-          resolve(response);
+      try {
+        if (!window.hive_keychain?.requestCustomJson) {
+          resolve({
+            success: false,
+            error: 'Hive Keychain requestCustomJson is not available.'
+          });
+          return;
         }
-      );
+
+        window.hive_keychain.requestCustomJson(
+          cleanUser,
+          'follow',
+          'Posting',
+          json,
+          `Reblog @${cleanAuthor}/${cleanPermlink}`,
+          (response) => {
+            resolve(response || { success: false, error: 'No response from Keychain' });
+          }
+        );
+      } catch (err: any) {
+        resolve({
+          success: false,
+          error: err?.message || 'Error executing Keychain reblog'
+        });
+      }
     });
   }
 

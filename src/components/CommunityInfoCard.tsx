@@ -112,7 +112,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
   );
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100 space-y-0">
+    <div className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100 space-y-0" style={{ marginTop: '39px' }}>
       {/* Cover Banner Header */}
       <div className="relative h-24 sm:h-28 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 overflow-hidden">
         <img

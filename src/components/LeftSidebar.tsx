@@ -341,12 +341,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
   return (
-    <aside id="left-sidebar" className="space-y-4">
+    <aside id="left-sidebar" className="space-y-4" style={{ marginTop: '-10px' }}>
 
 
       {/* ================= CARD 2: CONTEXTUAL DISCOVERY ================= */}
       {activeNav === 'shorts' ? (
-        <div className="bg-white dark:bg-slate-900 p-5 text-gray-900 dark:text-slate-100 border-r border-slate-100 dark:border-slate-800 min-h-screen">
+        <div 
+          className="bg-white dark:bg-slate-900 p-5 text-gray-900 dark:text-slate-100 border-r border-slate-100 dark:border-slate-800 min-h-screen"
+          style={{ padding: '20px 10px 0px 10px', borderRadius: '15px', width: '250px', marginTop: '39px', marginBottom: '0px' }}
+        >
           <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
@@ -482,7 +485,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           onSelectTag={onSelectTag}
         />
       ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+        <div 
+          className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100"
+          style={{ paddingTop: '20px', marginTop: '39px', marginBottom: '0px', borderRadius: '15px', width: '250px', paddingLeft: '10px', paddingRight: '10px', paddingBottom: '10px' }}
+        >
 
         {/* Dynamic Header */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">

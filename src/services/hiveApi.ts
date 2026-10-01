@@ -4,7 +4,7 @@
  */
 import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
 import { getSafeImageUrl } from '../utils/sanitize';
-import { getSmartAccountsActivity } from './accountsCache';
+import { getSmartAccountsActivity, noteAccountActivity } from './accountsCache';
 
 export { apiCache, CACHE_TTL };
 
@@ -1247,7 +1247,7 @@ export async function getFollowedActiveAccounts(
       // contas ativas há < 7 dias são sempre re-checadas na abertura; contas
       // inativas há semanas/meses só voltam a ser buscadas de tempos em tempos.
       // Isso evita bater get_accounts toda hora em gente que não posta há muito tempo.
-      const activity = await getSmartAccountsActivity(following);
+      const activity = await getSmartAccountsActivity(following, forceRefresh);
 
       const activeWithTimestamp = Object.entries(activity)
         .filter(([, info]) => info.timestamp > sevenDaysAgoMs)
@@ -1316,7 +1316,8 @@ async function fetchFollowedCommentsFeedInternal(
   const cutoffMs = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
 
   try {
-    const activeUsers = await getFollowedActiveAccounts(cleanObserver, false);
+    await getFollowedRootFeed(cleanObserver, 20, forceRefresh).catch(() => [] as HivePost[]);
+    const activeUsers = await getFollowedActiveAccounts(cleanObserver, forceRefresh);
     if (!activeUsers || activeUsers.length === 0) return [];
 
     const targetUsers = activeUsers.slice(0, Math.min(activeUsers.length, Math.ceil(limit / 3) + 5));
@@ -1498,8 +1499,18 @@ async function fetchFollowedRootFeedInternal(
           reblog_entries: p.reblog_entries
         };
       });
+      // Se alguém "inativo" apareceu postando no feed, corrige o cache de atividade
+      // e derruba as listas derivadas para que o feed de comentários já o inclua.
+      const reactivated = noteAccountActivity(
+        normalized.filter((p) => !(p.reblogged_by && p.reblogged_by.length > 0)) // ignora reblogs
+      );
+      if (reactivated.length > 0) {
+        const safeObserver = cleanObserver.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        apiCache.invalidate(`followed_active_accounts:${cleanObserver}`);
+        apiCache.invalidatePattern(new RegExp(`^followed_(comments|mixed)_feed:${safeObserver}:`));
+      }
 
-      // Não cacheia páginas com cursor por muito tempo; a primeira página (sem cursor) pode ter TTL maior
+      // Não cacheia páginas com cursor por muito tempo; ...
       apiCache.set(cacheKey, normalized, startAuthor ? CACHE_TTL.FEED_PAGE : CACHE_TTL.FEED);
       return normalized;
     }

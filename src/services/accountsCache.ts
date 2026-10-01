@@ -73,7 +73,8 @@ function isCacheExpired(cachedItem: AccountActivityInfo): boolean {
 const pendingBatchFetches = new Map<string, Promise<void>>();
 
 export async function getSmartAccountsActivity(
-  followingUsers: string[]
+  followingUsers: string[],
+  forceRefresh: boolean = false
 ): Promise<Record<string, { timestamp: number; dateStr: string }>> {
   if (!followingUsers || followingUsers.length === 0) {
     return {};
@@ -87,7 +88,7 @@ export async function getSmartAccountsActivity(
     const cachedItem = cache[user];
 
     // Se não está no cache ou se expirou (incluindo a regra dos ativos < 7 dias)
-    if (!cachedItem || isCacheExpired(cachedItem)) {
+    if (forceRefresh || !cachedItem || isCacheExpired(cachedItem)) {
       usersToFetch.push(user);
     }
   }
@@ -174,4 +175,42 @@ export async function getSmartAccountsActivity(
   }
 
   return resultMap;
+}
+
+/**
+ * Chamada quando o feed principal traz posts novos. Se o autor está no cache
+ * com uma atividade mais antiga que o post, atualiza o timestamp dele.
+ * Retorna os autores que estavam inativos (> 7 dias) e voltaram a ficar ativos.
+ */
+export function noteAccountActivity(
+  posts: Array<{ author: string; created: string }>
+): string[] {
+  if (!posts || posts.length === 0) return [];
+
+  const cache = loadCache();
+  const now = Date.now();
+  const reactivated: string[] = [];
+  let dirty = false;
+
+  for (const p of posts) {
+    const entry = cache[p.author];
+    // Só mexe em quem já está no cache (contas seguidas); as demais serão buscadas normalmente
+    if (!entry || !p.created) continue;
+
+    const safe = p.created.endsWith('Z') ? p.created : `${p.created}Z`;
+    const t = new Date(safe).getTime();
+    if (isNaN(t) || t <= entry.timestamp) continue;
+
+    const wasInactive = now - entry.timestamp > 7 * DAY;
+
+    cache[p.author] = { timestamp: t, dateStr: p.created, fetchedAt: now };
+    dirty = true;
+
+    if (wasInactive && now - t <= 7 * DAY && !reactivated.includes(p.author)) {
+      reactivated.push(p.author);
+    }
+  }
+
+  if (dirty) saveCache(cache);
+  return reactivated;
 }

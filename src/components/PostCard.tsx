@@ -36,6 +36,7 @@ export interface PostCardProps {
   onRequireLogin?: () => void;
   onMuteAuthor?: (author: string) => void;
   onBlockWord?: (word: string) => void;
+  inFeed?: boolean;
 }
 
 const PostCardComponent: React.FC<PostCardProps> = ({
@@ -46,7 +47,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   currentUser,
   onRequireLogin,
   onMuteAuthor,
-  onBlockWord
+  onBlockWord,
+  inFeed = false
 }) => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   // Check if current user has already upvoted this post
@@ -214,331 +216,380 @@ const PostCardComponent: React.FC<PostCardProps> = ({
     }
   };
 
+  const hasBanner = Boolean((!isComment && rebloggedBy) || isComment);
+
   return (
-    <article
-      id={`post-card-${post.post_id || post.permlink}`}
-      onClick={() => onSelectPost(post)}
-      className="bg-white dark:bg-slate-900 border border-transparent dark:border-slate-800/80 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] dark:hover:border-slate-700 transition-all duration-200 cursor-pointer mb-4 group"
-    >
-      {/* Reblog Activity Banner */}
-      {!isComment && rebloggedBy && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-300 overflow-hidden">
-          <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
-          <div className="truncate flex-1">
-            <span className="text-purple-700 dark:text-purple-400">Reblogged by</span>
+  <article
+    id={`post-card-${post.post_id || post.permlink}`}
+    onClick={() => onSelectPost(post)}
+    className="bg-white dark:bg-slate-900 border border-transparent dark:border-slate-800/80 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] dark:hover:border-slate-700 transition-all duration-200 cursor-pointer mb-4 group"
+    style={
+      inFeed
+        ? {
+            borderRadius: '15px',
+            padding: '12px 14px',
+            marginBottom: '12px',
+            height: 'auto',
+            minHeight: 'auto',
+            overflow: 'hidden'
+          }
+        : {
+            borderRadius: '15px',
+            paddingLeft: '10px',
+            paddingRight: '10px',
+            paddingTop: '10px',
+            paddingBottom: '10px',
+            marginBottom: '8px',
+            minHeight: hasBanner ? '185px' : '157px',
+            height: window.innerWidth < 640 ? 'auto' : '157px'
+          }
+    }
+  >
+    {/* Reblog Activity Banner */}
+    {!isComment && rebloggedBy && (
+      <div className="flex items-center gap-2 mb-2.5 px-3 py-1 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/50 text-xs text-purple-900 dark:text-purple-300 w-full overflow-hidden">
+        <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+        <div className="truncate flex-1 min-w-0">
+          <span className="text-purple-700 dark:text-purple-400">Reblogged by</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectAuthor(rebloggedBy);
+            }}
+            className="font-bold text-purple-950 dark:text-purple-200 hover:underline ml-1 cursor-pointer truncate"
+          >
+            @{rebloggedBy}
+          </button>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 flex-shrink-0">
+          Reblog
+        </span>
+      </div>
+    )}
+
+    {/* Comment Activity Context Banner */}
+    {isComment && (
+      <div className="flex items-center gap-2 mb-2.5 px-3 py-1 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-300 w-full overflow-hidden">
+        <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+        <div className="truncate flex-1 min-w-0">
+          <span className="font-semibold text-blue-950 dark:text-blue-200">@{post.author}</span>
+          <span className="text-blue-700 dark:text-blue-400 ml-1">commented on</span>
+          {post.parent_author && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectAuthor(rebloggedBy);
+                onSelectAuthor(post.parent_author!);
               }}
-              className="font-bold text-purple-950 dark:text-purple-200 hover:underline ml-1 cursor-pointer"
+              className="font-semibold text-blue-900 dark:text-blue-300 hover:text-blue-950 dark:hover:text-blue-200 hover:underline mx-1 cursor-pointer truncate"
             >
-              @{rebloggedBy}
+              @{post.parent_author}
             </button>
-          </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100/80 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 flex-shrink-0">
-            Reblog
-          </span>
+          )}
+          {post.parent_permlink && (
+            <span className="text-blue-700/80 dark:text-blue-400/80 text-[11px] truncate hidden sm:inline">
+              • <span className="italic font-normal">"{String(post.parent_permlink).replace(/[-_]/g, ' ')}"</span>
+            </span>
+          )}
         </div>
-      )}
+        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex-shrink-0">
+          Comment
+        </span>
+      </div>
+    )}
 
-      {/* Comment Activity Context Banner */}
-      {isComment && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-300 overflow-hidden">
-          <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-          <div className="truncate flex-1">
-            <span className="font-semibold text-blue-950 dark:text-blue-200">@{post.author}</span>
-            <span className="text-blue-700 dark:text-blue-400 ml-1">commented on</span>
-            {post.parent_author && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectAuthor(post.parent_author!);
-                }}
-                className="font-semibold text-blue-900 dark:text-blue-300 hover:text-blue-950 dark:hover:text-blue-200 hover:underline mx-1 cursor-pointer"
-              >
-                @{post.parent_author}
-              </button>
-            )}
-            {post.parent_permlink && (
-              <span className="text-blue-700/80 dark:text-blue-400/80 text-[11px] truncate hidden sm:inline">
-                • <span className="italic font-normal">"{String(post.parent_permlink).replace(/[-_]/g, ' ')}"</span>
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex-shrink-0">
-            Comment
-          </span>
-        </div>
-      )}
-
-      {/* Header: Author avatar, Name, Community, Time */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectAuthor(post.author);
+    {/* Layout Principal em 2 Colunas */}
+    <div className={`flex gap-4 ${inFeed ? 'items-start' : 'items-stretch'}`}>
+      {/* Coluna da Esquerda: Thumbnail Expandida */}
+      {thumbnail && (
+        <div
+          className={`flex-shrink-0 rounded-2xl overflow-hidden bg-gray-100 dark:bg-slate-800 ${
+            inFeed ? 'w-32 h-28 sm:w-44 sm:h-[135px] self-start' : 'w-32 h-32 sm:w-44 sm:h-40'
+          }`}
+          style={inFeed ? { borderRadius: '15px' } : { height: window.innerWidth < 640 ? 'auto' : '137px', borderRadius: '15px' }}
+        >
+          <img
+            src={thumbnail}
+            alt=""
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+            style={inFeed ? undefined : { height: window.innerWidth < 640 ? '120px' : '135px' }}
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
             }}
-            className="flex-shrink-0 focus:outline-none"
-          >
-            <img
-              src={avatarUrl}
-              alt={post.author}
-              loading="lazy"
-              className="w-8 h-8 rounded-full bg-gray-100 object-cover hover:opacity-90 transition"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-              }}
-            />
-          </button>
+          />
+        </div>
+      )}
 
-          <div className="flex items-center gap-1.5 truncate text-xs">
+      {/* Coluna da Direita: Autor + Título + Descrição + Ações/Métricas */}
+      <div
+        className={`flex-1 min-w-0 flex flex-col ${
+          inFeed
+            ? thumbnail
+              ? 'min-h-[135px]'
+              : 'gap-2.5 min-h-0'
+            : ''
+        }`}
+        style={inFeed ? undefined : { minHeight: window.innerWidth < 640 ? '0' : (thumbnail ? '137px' : '110px') }}
+      >
+
+        {/* Header Superior: Autor, Comunidade, Tempo e Bookmark */}
+        <div className="flex items-center justify-between gap-2" style={{ marginBottom: '0px' }}>
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectAuthor(post.author);
               }}
-              className="font-bold text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate focus:outline-none transition-colors"
+              className="flex-shrink-0 focus:outline-none"
             >
-              {post.author}
+              <img
+                src={avatarUrl}
+                alt={post.author}
+                loading="lazy"
+                className="w-6 h-6 rounded-full bg-gray-100 object-cover hover:opacity-90 transition"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.ecency.com/u/hive/avatar/small';
+                }}
+              />
             </button>
 
-            <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
-              ({rep})
-            </span>
+            <div className="flex items-center gap-1.5 truncate text-xs">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectAuthor(post.author);
+                }}
+                className="font-bold text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate focus:outline-none transition-colors"
+              >
+                {post.author}
+              </button>
 
-            {(post.community_title || post.category) && (
-              <>
-                <span className="text-gray-400 dark:text-slate-600">•</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (post.community) onSelectTag(post.community);
-                    else if (post.category) onSelectTag(post.category);
-                  }}
-                  className="font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 truncate hidden sm:inline"
-                >
-                  {post.community_title || post.category}
-                </button>
-              </>
-            )}
+              <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
+                ({rep})
+              </span>
 
-            <span className="text-gray-400 dark:text-slate-600">•</span>
-            <span className="text-gray-400 dark:text-slate-500 font-normal">
-              {formatTime(post.created)}
-            </span>
+              {(post.community_title || post.category) && (
+                <>
+                  <span className="text-gray-400 dark:text-slate-600">•</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (post.community) onSelectTag(post.community);
+                      else if (post.category) onSelectTag(post.category);
+                    }}
+                    className="font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 truncate hidden sm:inline"
+                  >
+                    {post.community_title || post.category}
+                  </button>
+                </>
+              )}
+
+              <span className="text-gray-400 dark:text-slate-600">•</span>
+              <span className="text-gray-400 dark:text-slate-500 font-normal">
+                {formatTime(post.created)}
+              </span>
+            </div>
           </div>
+
+          <button
+            onClick={toggleBookmark}
+            className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition ${
+              isBookmarked
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
+            }`}
+            title={isBookmarked ? 'Bookmarked' : 'Save post'}
+          >
+            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
+          </button>
         </div>
 
-        <button
-          onClick={toggleBookmark}
-          className={`p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition ${isBookmarked ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
-            }`}
-          title={isBookmarked ? 'Bookmarked' : 'Save post'}
-        >
-          <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
-        </button>
-      </div>
-
-      {/* Middle Row: Thumbnail on LEFT, Title + Snippet on RIGHT */}
-      <div className="flex gap-4 items-start">
-        {thumbnail && (
-          <div className="flex-shrink-0 w-32 h-20 sm:w-40 sm:h-24 rounded-2xl overflow-hidden bg-gray-100 dark:bg-slate-800">
-            <img
-              src={thumbnail}
-              alt=""
-              loading="lazy"
-              className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0">
+        {/* Título e Snippet reduzido para 1 linha */}
+        <div className="flex-1 pt-2">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug">
             {displayTitle}
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 line-clamp-2 leading-relaxed mt-1.5">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 line-clamp-1 leading-relaxed mt-1">
             {snippet}
           </p>
         </div>
-      </div>
 
-      {/* Footer: Upvote Button, Comments, Reblog, Share, More */}
-      <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-gray-100 dark:border-slate-800/80 text-xs text-gray-500 dark:text-slate-400">
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-
-          {/* Upvote Button */}
-          <button
-            onClick={handleUpvote}
-            disabled={isVoting}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${upvoted
-                ? 'bg-rose-500 text-white shadow-xs'
-                : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+        {/* Rodapé de Ações (Métricas + Botoes) na Direita */}
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mt-auto">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+            {/* Upvote Button */}
+            <button
+              onClick={handleUpvote}
+              disabled={isVoting}
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition cursor-pointer ${
+                upvoted
+                  ? 'bg-rose-500 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
               } disabled:opacity-60`}
-            title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
-          >
-            {isVoting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-white text-white' : ''}`} />
-            )}
-          </button>
+              title={upvoted ? 'Upvoted (Click to remove upvote)' : 'Upvote with Hive Keychain'}
+            >
+              {isVoting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-white text-white' : ''}`} />
+              )}
+            </button>
 
-          {/* Comments Counter */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectPost(post, true);
-            }}
-            className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition group/comm cursor-pointer"
-            title={`${childrenCount} comments - click to view and discuss`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 group-hover/comm:text-blue-600 dark:group-hover/comm:text-blue-400 transition-colors" />
-            <span className="font-semibold text-xs">{childrenCount}</span>
-          </button>
-
-          {/* Reblog Button */}
-          {!isComment && (
+            {/* Comments Counter */}
             <button
               type="button"
-              onClick={handleReblog}
-              disabled={isReblogging || hasReblogged}
-              className={`flex items-center gap-1.5 transition cursor-pointer ${
-                hasReblogged
-                  ? 'text-purple-600 dark:text-purple-400 font-bold'
-                  : 'text-gray-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400'
-              } disabled:cursor-not-allowed`}
-              title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
-            >
-              {isReblogging ? (
-                <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
-              ) : (
-                <Repeat className={`w-3.5 h-3.5 ${hasReblogged ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-slate-500'}`} />
-              )}
-              <span className="text-xs">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
-            </button>
-          )}
-
-          {reblogSuccessToast && (
-            <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full animate-in fade-in">
-              Reblogged!
-            </span>
-          )}
-        </div>
-
-        {/* Right action icons: Share & More */}
-        <div className="flex items-center gap-2 text-gray-400 dark:text-slate-500 relative">
-          <button
-            onClick={handleShare}
-            className="p-1 hover:text-gray-600 dark:hover:text-slate-300 rounded transition cursor-pointer"
-            title="Share post"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="relative">
-            <button
               onClick={(e) => {
                 e.stopPropagation();
-                setShowMoreMenu(!showMoreMenu);
+                onSelectPost(post, true);
               }}
-              className={`p-1 rounded transition cursor-pointer ${
-                showMoreMenu ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-slate-800' : 'hover:text-gray-600 dark:hover:text-slate-300'
-              }`}
-              title="More post options"
+              className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition group/comm cursor-pointer"
+              title={`${childrenCount} comments - click to view and discuss`}
             >
-              <MoreHorizontal className="w-4 h-4" />
+              <MessageSquare className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 group-hover/comm:text-blue-600 dark:group-hover/comm:text-blue-400 transition-colors" />
+              <span className="font-semibold text-xs">{childrenCount}</span>
             </button>
 
-            {/* Dropdown Menu */}
-            {showMoreMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-20 cursor-default"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMoreMenu(false);
-                  }}
-                />
-                <div
-                  className="absolute right-0 bottom-full mb-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      onSelectPost(post);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>Open in Reader</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      handleShare();
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
-                  >
-                    <Share2 className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
-                    <span>Copy Hive Link</span>
-                  </button>
-
-                  {onMuteAuthor && (
-                    <button
-                      onClick={() => {
-                        setShowMoreMenu(false);
-                        onMuteAuthor(post.author);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-semibold border-t border-gray-100 dark:border-slate-800"
-                      title={`Mute @${post.author} across Feed & Discover`}
-                    >
-                      <UserX className="w-3.5 h-3.5" />
-                      <span>Mute @{post.author}</span>
-                    </button>
-                  )}
-
-                  {onBlockWord && post.category && (
-                    <button
-                      onClick={() => {
-                        setShowMoreMenu(false);
-                        onBlockWord(post.category);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-300 flex items-center gap-2 cursor-pointer font-medium"
-                      title={`Filter #${post.category} posts`}
-                    >
-                      <Hash className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      <span>Filter #{post.category}</span>
-                    </button>
-                  )}
-                </div>
-              </>
+            {/* Reblog Button */}
+            {!isComment && (
+              <button
+                type="button"
+                onClick={handleReblog}
+                disabled={isReblogging || hasReblogged}
+                className={`flex items-center gap-1.5 transition cursor-pointer ${
+                  hasReblogged
+                    ? 'text-purple-600 dark:text-purple-400 font-bold'
+                    : 'text-gray-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400'
+                } disabled:cursor-not-allowed`}
+                title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
+              >
+                {isReblogging ? (
+                  <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
+                ) : (
+                  <Repeat className={`w-3.5 h-3.5 ${hasReblogged ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                )}
+                <span className="text-xs">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
+              </button>
             )}
+
+            {reblogSuccessToast && (
+              <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full animate-in fade-in">
+                Reblogged!
+              </span>
+            )}
+          </div>
+
+          {/* Right action icons: Share & More */}
+          <div className="flex items-center gap-2 text-gray-400 dark:text-slate-500 relative">
+            <button
+              onClick={handleShare}
+              className="p-1 hover:text-gray-600 dark:hover:text-slate-300 rounded transition cursor-pointer"
+              title="Share post"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMoreMenu(!showMoreMenu);
+                }}
+                className={`p-1 rounded transition cursor-pointer ${
+                  showMoreMenu ? 'text-gray-900 dark:text-white bg-gray-100 dark:bg-slate-800' : 'hover:text-gray-600 dark:hover:text-slate-300'
+                }`}
+                title="More post options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showMoreMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20 cursor-default"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMoreMenu(false);
+                    }}
+                  />
+                  <div
+                    className="absolute right-0 bottom-full mb-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-30 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onSelectPost(post);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Open in Reader</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        handleShare();
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
+                      <span>Copy Hive Link</span>
+                    </button>
+
+                    {onMuteAuthor && (
+                      <button
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          onMuteAuthor(post.author);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-semibold border-t border-gray-100 dark:border-slate-800"
+                        title={`Mute @${post.author} across Feed & Discover`}
+                      >
+                        <UserX className="w-3.5 h-3.5" />
+                        <span>Mute @{post.author}</span>
+                      </button>
+                    )}
+
+                    {onBlockWord && post.category && (
+                      <button
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          onBlockWord(post.category);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-300 flex items-center gap-2 cursor-pointer font-medium"
+                        title={`Filter #${post.category} posts`}
+                      >
+                        <Hash className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Filter #{post.category}</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      <VoteWeightDialog
-        open={voteOpen}
-        username={currentUser?.username || ''}
-        author={post.author}
-        permlink={post.permlink}
-        onClose={() => setVoteOpen(false)}
-        onVoted={() => {
-          setUpvoted(true);
-          setVoteCountDelta((prev) => prev + 1);
-        }}
-      />
-    </article>
-  );
+    </div>
+
+    <VoteWeightDialog
+      open={voteOpen}
+      username={currentUser?.username || ''}
+      author={post.author}
+      permlink={post.permlink}
+      onClose={() => setVoteOpen(false)}
+      onVoted={() => {
+        setUpvoted(true);
+        setVoteCountDelta((prev) => prev + 1);
+      }}
+    />
+  </article>
+);
 };
 
 export const PostCard = React.memo(PostCardComponent);

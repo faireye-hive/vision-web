@@ -11,11 +11,11 @@
  *    Example: { tag: 'watercolor', label: 'Watercolor' }
  *
  * 2. To ADD A WHOLE NEW CATEGORY:
- *    Add a new object to the `CATEGORY_DEFINITIONS` array below with `tag`, `label`,
+ *    Add a new object to the `RAW_CATEGORY_DEFINITIONS` array below with `tag`, `label`,
  *    `icon`, and your list of `subtopics`.
  *
- * 3. To REORDER or RENAME subtopics:
- *    Simply change the `label` or rearrange the items in the `subtopics` array.
+ * NOTE: The exported CATEGORY_DEFINITIONS will automatically sort categories
+ * and subtopics alphabetically (A-Z) by their `label`.
  */
 
 export interface Subtopic {
@@ -32,7 +32,7 @@ export interface CategoryDefinition {
   subtopics: Subtopic[];
 }
 
-export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
+const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
   {
     tag: 'art',
     label: 'Art & Design',
@@ -47,9 +47,10 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'pixelart', label: 'Pixel Art' },
       { tag: 'sculpture', label: 'Sculpture & 3D' },
       { tag: 'conceptart', label: 'Concept Art' },
-      { tag: 'animation', label: 'Animation' },
+      { tag: 'portrait', label: 'Portrait' },
       { tag: 'design', label: 'Graphic Design' },
-      { tag: 'nft', label: 'NFTs & CryptoArt' }
+      { tag: 'nft', label: 'NFTs & CryptoArt' },
+      { tag: 'surrealism', label: 'Surrealism' }
     ]
   },
   {
@@ -151,7 +152,7 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
   },
   {
     tag: 'technology',
-    label: 'Technology & Dev',
+    label: 'Tech',
     icon: '💻',
     description: 'Software development, AI, open source, and gadget explorations',
     subtopics: [
@@ -162,7 +163,13 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'webdevelopment', label: 'Web Dev' },
       { tag: 'hardware', label: 'Hardware & Gadgets' },
       { tag: 'cybersecurity', label: 'Cybersecurity' },
-      { tag: 'devtools', label: 'Developer Tools' }
+      { tag: 'devtools', label: 'Developer Tools' },
+      { tag: 'robotics', label: 'Robotics' },
+      { tag: 'robot', label: 'Robot' },
+      { tag: 'science', label: 'Science' },
+      { tag: 'innovation', label: 'Innovation' },
+      { tag: 'humanoids', label: 'Humanoids' },
+      { tag: 'animatronics', label: 'animatronics' },
     ]
   },
   {
@@ -191,7 +198,12 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'freewrite', label: 'Daily Freewrite' },
       { tag: 'storytelling', label: 'Short Stories' },
       { tag: 'essays', label: 'Essays & Opinions' },
-      { tag: 'books', label: 'Book Reviews' }
+      { tag: 'books', label: 'Book Reviews' },
+      { tag: 'fiction', label: 'Fiction Story' },
+      { tag: 'story', label: 'Story' },
+      { tag: 'poem', label: 'Poem' },
+      { tag: 'poetry', label: 'Poetry' },
+      { tag: 'writers', label: 'Writers' },
     ]
   },
   {
@@ -274,7 +286,7 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'tutorials', label: 'Tutorials' },
     ]
   },
-    {
+  {
     tag: 'politics',
     label: 'Liberty & Freedom',
     icon: '⚖️',
@@ -285,6 +297,19 @@ export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
     ]
   },
 ];
+
+/**
+ * AUTOMATIC SORTING (A-Z)
+ * Sorts both categories and subtopics alphabetically by their display label.
+ */
+export const CATEGORY_DEFINITIONS: CategoryDefinition[] = RAW_CATEGORY_DEFINITIONS
+  .map((category) => ({
+    ...category,
+    subtopics: [...category.subtopics].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+    ),
+  }))
+  .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
 
 /**
  * Finds a category definition that matches the given tag,

@@ -17,7 +17,7 @@ export const SubscribedCommunitiesCard: React.FC<SubscribedCommunitiesCardProps>
   const subscribedList = Object.keys(joinedCommunities).filter((k) => joinedCommunities[k]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100 space-y-4">
+    <div className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100 space-y-4" style={{ marginTop: '0px' }}>
       <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">

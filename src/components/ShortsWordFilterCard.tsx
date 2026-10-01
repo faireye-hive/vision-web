@@ -47,7 +47,8 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
   return (
     <div
       id="shorts-word-filter-card"
-      className="bg-white dark:bg-slate-900 p-5 space-y-4 border-l border-slate-100 dark:border-slate-800"
+      className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 space-y-4 border border-slate-100 dark:border-slate-800"
+      style={{ marginTop: '0px' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">

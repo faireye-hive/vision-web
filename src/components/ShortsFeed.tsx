@@ -481,7 +481,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           title: `RE: ${targetContainer.permlink}`,
           body: composerText.trim(),
           json_metadata: {
-            app: 'nebulosa-web/0.0.1',
+            app: 'nebulosa-web/0.0.4',
             format: 'markdown',
             tags: ['snaps']
           },

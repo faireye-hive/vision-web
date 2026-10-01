@@ -52,7 +52,7 @@ export const PREDEFINED_CATEGORIES: PredefinedCategory[] = [
   },
   {
     id: 'technology',
-    name: 'Technology & Dev',
+    name: 'Tech',
     tag: 'technology',
     description: 'Programming, open-source, AI and hardware',
     icon: Laptop,
@@ -201,7 +201,7 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
     });
   };
 
-  const filteredCategories = useMemo(() => {
+const filteredCategories = useMemo(() => {
     let list = PREDEFINED_CATEGORIES;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -216,14 +216,21 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
     return [...list].sort((a, b) => {
       const aFav = favCategories.includes(a.id);
       const bFav = favCategories.includes(b.id);
+      
+      // 1. Favoritos continuam no topo
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
-      return 0;
+      
+      // 2. Entre os iguais (ambos favoritos ou ambos não favoritos), ordena A-Z pelo nome
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
   }, [searchQuery, favCategories]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4">
+    <div 
+      className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4"
+      style={{ padding: '5px', borderRadius: '15px', width: '250px', paddingTop: '20px', marginTop: '39px', marginBottom: '0px' }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between pb-1">
         <div className="flex items-center gap-2">

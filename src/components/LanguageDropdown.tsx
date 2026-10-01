@@ -145,7 +145,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
       {isOpen && (
         <div
           role="listbox"
-          className="absolute left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-40 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          className="absolute left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
         >
           {/* Search bar */}
           <div className="relative mb-2">
