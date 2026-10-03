@@ -54,7 +54,11 @@ export interface NavigationContextType {
   saveScrollPosition: () => void;
   restoreScrollPosition: () => void;
   goBack: () => void;
+  feedLayoutMode: FeedLayoutMode;
+  setFeedLayoutMode: (mode: FeedLayoutMode) => void;
 }
+
+export type FeedLayoutMode = 'list' | 'gallery';
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
@@ -78,6 +82,21 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [showContentFilterModal, setShowContentFilterModal] = useState<boolean>(false);
+
+  const [feedLayoutMode, setFeedLayoutModeState] = useState<FeedLayoutMode>(() => {
+    try {
+      return (localStorage.getItem('nebulosa_feed_layout') as FeedLayoutMode) || 'list';
+    } catch {
+      return 'list';
+    }
+  });
+
+  const setFeedLayoutMode = useCallback((mode: FeedLayoutMode) => {
+    setFeedLayoutModeState(mode);
+    try {
+      localStorage.setItem('nebulosa_feed_layout', mode);
+    } catch {}
+  }, []);
 
   const [communitySubTopic, setCommunitySubTopic] = useState<string>('');
   const feedScrollPositionRef = useRef<number>(0);
@@ -475,7 +494,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     feedScrollPositionRef,
     saveScrollPosition,
     restoreScrollPosition,
-    goBack
+    goBack,
+    feedLayoutMode,
+    setFeedLayoutMode
   }), [
     activeNav,
     handleNavChange,
@@ -509,7 +530,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     openContentFilterModal,
     saveScrollPosition,
     restoreScrollPosition,
-    goBack
+    goBack,
+    feedLayoutMode,
+    setFeedLayoutMode
   ]);
 
   return (

@@ -272,8 +272,20 @@ html.dark #sanitized-post-body pre code {
   margin-left: auto;
   margin-right: auto;
   max-width: 100%;
+  max-height: 480px;
+  width: auto;
   height: auto;
+  object-fit: contain;
   border-radius: 1rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.article-body img:hover {
+  opacity: 0.95;
+  transform: scale(1.008);
 }
 
 .article-body iframe {

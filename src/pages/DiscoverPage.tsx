@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useContentFilter } from '../context/ContentFilterContext';
 import { PostCard } from '../components/PostCard';
+import { GalleryPostCard } from '../components/GalleryPostCard';
 import { SortDropdown } from '../components/SortDropdown';
 import { LanguageDropdown } from '../components/LanguageDropdown';
 import { CategoryDropdown } from '../components/CategoryDropdown';
@@ -53,7 +54,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     handleSelectAuthor,
     handleSelectPost,
     openContentFilterModal,
-    setActiveNav
+    setActiveNav,
+    feedLayoutMode
   } = useNavigation();
 
   const {
@@ -507,20 +509,32 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           ))}
         </div>
       ) : displayedPosts.length > 0 ? (
-        <div className="space-y-4">
-          {displayedPosts.map((post, index) => (
-            <PostCard
-              key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
-              post={post}
-              onSelectPost={openPost}
-              onSelectAuthor={handleSelectAuthor}
-              onSelectTag={openTag}
-              currentUser={currentUser}
-              onRequireLogin={requestLogin}
-              onMuteAuthor={addFilterAuthor}
-              onBlockWord={addFilterWord}
-            />
-          ))}
+        <div className={feedLayoutMode === 'gallery' ? 'space-y-6' : 'space-y-4'}>
+          {feedLayoutMode === 'gallery'
+            ? displayedPosts.map((post) => (
+                <GalleryPostCard
+                  key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                  post={post}
+                  onSelectPost={openPost}
+                  onSelectAuthor={handleSelectAuthor}
+                  onSelectTag={openTag}
+                  currentUser={currentUser}
+                  onRequireLogin={requestLogin}
+                />
+              ))
+            : displayedPosts.map((post) => (
+                <PostCard
+                  key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                  post={post}
+                  onSelectPost={openPost}
+                  onSelectAuthor={handleSelectAuthor}
+                  onSelectTag={openTag}
+                  currentUser={currentUser}
+                  onRequireLogin={requestLogin}
+                  onMuteAuthor={addFilterAuthor}
+                  onBlockWord={addFilterWord}
+                />
+              ))}
 
           {/* Load More Button */}
           <div className="text-center pt-2 pb-8">

@@ -11,7 +11,7 @@ import {
   Heart,
   ExternalLink
 } from 'lucide-react';
-import { HivePost, getSimilarPosts, getHiveAvatarUrl, getPostThumbnail } from '../services/hiveApi';
+import { HivePost, getSimilarPosts, getHiveAvatarUrl, getPostThumbnail, getAccountPosts } from '../services/hiveApi';
 import { PostHeading } from '../utils/sanitize';
 
 interface PostSidebarProps {
@@ -34,6 +34,7 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
   const [internalActiveId, setInternalActiveId] = useState<string>('');
   const [similarPosts, setSimilarPosts] = useState<HivePost[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(true);
+  const [isAuthorFallback, setIsAuthorFallback] = useState(false);
 
   const activeHeadingId = externalActiveId || internalActiveId;
 
@@ -73,13 +74,31 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
   useEffect(() => {
     const controller = new AbortController();
     setLoadingSimilar(true);
+    setIsAuthorFallback(false);
 
     getSimilarPosts(post.author, post.permlink, controller.signal)
-      .then((data) => {
-        setSimilarPosts(data || []);
+      .then(async (data) => {
+        if (data && data.length > 0) {
+          setSimilarPosts(data);
+          setIsAuthorFallback(false);
+        } else {
+          // If Similar Stories failed or returned empty: fallback to author's recent posts (sort: 'posts', NOT 'blog'!)
+          const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
+          const filtered = (authorPosts || [])
+            .filter((p) => p.permlink !== post.permlink)
+            .slice(0, 4);
+          setSimilarPosts(filtered);
+          setIsAuthorFallback(true);
+        }
       })
-      .catch(() => {
-        setSimilarPosts([]);
+      .catch(async () => {
+        // Fallback on error: fetch author's posts (sort: 'posts')
+        const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
+        const filtered = (authorPosts || [])
+          .filter((p) => p.permlink !== post.permlink)
+          .slice(0, 4);
+        setSimilarPosts(filtered);
+        setIsAuthorFallback(true);
       })
       .finally(() => {
         setLoadingSimilar(false);
@@ -178,13 +197,23 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            {isAuthorFallback ? (
+              <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            )}
             <h3 className="font-bold text-xs uppercase tracking-wider text-gray-800 dark:text-slate-200">
-              Similar Stories
+              {isAuthorFallback ? `More by @${post.author}` : 'Similar Stories'}
             </h3>
           </div>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300">
-            HiveSense
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+              isAuthorFallback
+                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300'
+                : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300'
+            }`}
+          >
+            {isAuthorFallback ? 'Author Posts' : 'HiveSense'}
           </span>
         </div>
 

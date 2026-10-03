@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronUp,
   Heart,
@@ -13,7 +14,13 @@ import {
   UserX,
   Hash,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Send,
+  Image as ImageIcon
 } from 'lucide-react';
 import {
   HivePost,
@@ -84,6 +91,14 @@ const PostCardComponent: React.FC<PostCardProps> = ({
     }
   });
 
+  // Lightbox Gallery state for image clicks on feed post
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [quickCommentText, setQuickCommentText] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
+  const [commentSuccessToast, setCommentSuccessToast] = useState(false);
+  const [showCommentBox, setShowCommentBox] = useState(false);
+
   const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'small');
   const rawThumbnail = getPostThumbnail(post);
@@ -91,6 +106,120 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
   const rebloggedBy = getRebloggedBy(post);
   const snippet = getPostSnippet(post.body, isComment ? 240 : 170);
+
+  // Extract all images in the post for gallery view
+  const postImages = useMemo(() => {
+    const list: string[] = [];
+    if (rawThumbnail) list.push(rawThumbnail);
+
+    if (post.json_metadata) {
+      try {
+        const meta = typeof post.json_metadata === 'string' ? JSON.parse(post.json_metadata) : post.json_metadata;
+        if (Array.isArray(meta?.image)) {
+          for (const img of meta.image) {
+            if (typeof img === 'string' && img.startsWith('http') && !list.includes(img)) {
+              list.push(img);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (post.body) {
+      const mdImgRegex = /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/g;
+      let match;
+      while ((match = mdImgRegex.exec(post.body)) !== null) {
+        if (!list.includes(match[1])) list.push(match[1]);
+      }
+      const htmlImgRegex = /<img[^>]+src=["'](https?:\/\/[^"']+)["']/g;
+      while ((match = htmlImgRegex.exec(post.body)) !== null) {
+        if (!list.includes(match[1])) list.push(match[1]);
+      }
+    }
+
+    const filtered = Array.from(
+      new Set(list.filter((u) => u && !u.includes('avatar') && !u.startsWith('data:')))
+    );
+    return filtered.length > 0 ? filtered : (rawThumbnail ? [rawThumbnail] : []);
+  }, [post.json_metadata, post.body, rawThumbnail]);
+
+  // Wheel listener for the lightbox gallery modal
+  const lightboxImageContainerRef = React.useRef<HTMLDivElement>(null);
+  const lastLightboxWheelTimeRef = React.useRef(0);
+
+  useEffect(() => {
+    if (!showGallery) return;
+    const el = lightboxImageContainerRef.current;
+    if (!el) return;
+
+    const onLightboxWheel = (e: WheelEvent) => {
+      if (postImages.length <= 1) return;
+      if (Math.abs(e.deltaY) < 12 && Math.abs(e.deltaX) < 12) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const now = Date.now();
+      if (now - lastLightboxWheelTimeRef.current < 260) return;
+      lastLightboxWheelTimeRef.current = now;
+
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (delta > 0) {
+        setGalleryIndex((prev) => (prev < postImages.length - 1 ? prev + 1 : 0));
+      } else {
+        setGalleryIndex((prev) => (prev > 0 ? prev - 1 : postImages.length - 1));
+      }
+    };
+
+    el.addEventListener('wheel', onLightboxWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onLightboxWheel);
+  }, [showGallery, postImages.length]);
+
+  // Keyboard navigation for image gallery
+  useEffect(() => {
+    if (!showGallery) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowGallery(false);
+      } else if (e.key === 'ArrowLeft') {
+        setGalleryIndex((prev) => (prev > 0 ? prev - 1 : postImages.length - 1));
+      } else if (e.key === 'ArrowRight') {
+        setGalleryIndex((prev) => (prev < postImages.length - 1 ? prev + 1 : 0));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showGallery, postImages.length]);
+
+  const handleQuickComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickCommentText.trim()) return;
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      return;
+    }
+    setSendingComment(true);
+    try {
+      const res = await KeychainService.postComment(
+        currentUser.username,
+        post.author,
+        post.permlink,
+        quickCommentText.trim()
+      );
+      if (res.success) {
+        setCommentSuccessToast(true);
+        setQuickCommentText('');
+        setTimeout(() => setCommentSuccessToast(false), 3500);
+      } else {
+        alert(res.message || 'Comment could not be published via Keychain.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Comment failed.');
+    } finally {
+      setSendingComment(false);
+    }
+  };
 
   // Formatted comment title or post title
   const displayTitle = isComment
@@ -301,24 +430,36 @@ const PostCardComponent: React.FC<PostCardProps> = ({
 
     {/* Layout Principal em 2 Colunas */}
     <div className={`flex gap-4 ${inFeed ? 'items-start' : 'items-stretch'}`}>
-      {/* Coluna da Esquerda: Thumbnail Expandida */}
+      {/* Coluna da Esquerda: Thumbnail Expandida com clique exclusivo para abrir Galeria */}
       {thumbnail && (
         <div
-          className={`flex-shrink-0 rounded-2xl overflow-hidden bg-gray-100 dark:bg-slate-800 ${
+          onClick={(e) => {
+            e.stopPropagation();
+            setGalleryIndex(0);
+            setShowGallery(true);
+          }}
+          className={`flex-shrink-0 rounded-2xl overflow-hidden bg-gray-100 dark:bg-slate-800 cursor-zoom-in relative group/thumb ${
             inFeed ? 'w-32 h-28 sm:w-44 sm:h-[135px] self-start' : 'w-32 h-32 sm:w-44 sm:h-40'
           }`}
           style={inFeed ? { borderRadius: '15px' } : { height: window.innerWidth < 640 ? 'auto' : '137px', borderRadius: '15px' }}
+          title="Ver imagem na galeria"
         >
           <img
             src={thumbnail}
             alt=""
             loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+            className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
             style={inFeed ? undefined : { height: window.innerWidth < 640 ? '120px' : '135px' }}
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
+          {postImages.length > 1 && (
+            <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none flex items-center gap-1 shadow-sm">
+              <ImageIcon className="w-2.5 h-2.5" />
+              <span>{postImages.length}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -588,6 +729,226 @@ const PostCardComponent: React.FC<PostCardProps> = ({
         setVoteCountDelta((prev) => prev + 1);
       }}
     />
+
+    {/* ================= LIGHTBOX GALLERY MODAL (PORTAL) ================= */}
+    {showGallery && postImages.length > 0 && typeof document !== 'undefined' && createPortal(
+      <div
+        className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-5 select-none animate-in fade-in duration-200"
+        onClick={(e) => {
+          e.stopPropagation();
+          // If clicked in the top or bottom empty margin outside content, close gallery
+          if (e.target === e.currentTarget) {
+            setShowGallery(false);
+          }
+        }}
+      >
+        {/* Top Header Bar */}
+        <div
+          className="w-full flex items-center justify-between gap-3 px-2 sm:px-4 py-2 z-30 flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Author info & post title snippet */}
+          <div className="flex items-center gap-2.5 min-w-0 max-w-[65%]">
+            <img
+              src={avatarUrl}
+              alt={post.author}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/30 flex-shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs text-white">
+                <span className="font-bold truncate">@{post.author}</span>
+                <span className="text-[10px] text-white/50">• {formatTime(post.created)}</span>
+                {postImages.length > 1 && (
+                  <span className="text-[10px] font-semibold bg-white/15 px-2 py-0.5 rounded-full text-white/80 ml-1">
+                    {galleryIndex + 1} / {postImages.length}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-white/80 text-xs font-medium truncate">
+                {displayTitle}
+              </h3>
+            </div>
+          </div>
+
+          {/* Actions: View Full Post, Quick Comment Toggle, Close */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Shortcut to view full post */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowGallery(false);
+                onSelectPost(post);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-md cursor-pointer"
+              title="Open full post for reading"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>View Full Post</span>
+            </button>
+
+            {/* Quick Comment Toggle */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCommentBox((prev) => !prev);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer border ${
+                showCommentBox
+                  ? 'bg-white/20 text-white border-white/30'
+                  : 'bg-white/10 hover:bg-white/15 text-white/90 border-white/15'
+              }`}
+              title="Quick comment on this post"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Comment</span>
+            </button>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowGallery(false);
+              }}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/15 shadow-md group"
+              title="Close gallery (Esc)"
+            >
+              <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
+        </div>
+
+        {/* Central Image View with Wide Left & Right Click Navigation Zones and Mouse Wheel Support */}
+        <div
+          ref={lightboxImageContainerRef}
+          className="relative flex-1 w-full flex items-center justify-center min-h-0 py-2 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+          title="Mouse wheel to change image"
+        >
+          {/* Centered Image */}
+          <img
+            src={postImages[galleryIndex]}
+            alt={`Post image ${galleryIndex + 1}`}
+            className="max-h-[70vh] sm:max-h-[74vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-all duration-200 pointer-events-none select-none z-10"
+          />
+
+          {/* Left Navigation Zone: click anywhere on the left half to go to previous image */}
+          {postImages.length > 1 && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryIndex((prev) => (prev > 0 ? prev - 1 : postImages.length - 1));
+              }}
+              className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer flex items-center justify-start pl-3 sm:pl-6 group/prev"
+              title="Previous image (Click left side or left arrow)"
+            >
+              <div className="p-3 rounded-full bg-black/60 group-hover/prev:bg-black/90 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all group-hover/prev:scale-110 flex items-center justify-center">
+                <ChevronLeft className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Right Navigation Zone: click anywhere on the right half to go to next image */}
+          {postImages.length > 1 && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryIndex((prev) => (prev < postImages.length - 1 ? prev + 1 : 0));
+              }}
+              className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer flex items-center justify-end pr-3 sm:pr-6 group/next"
+              title="Next image (Click right side or right arrow)"
+            >
+              <div className="p-3 rounded-full bg-black/60 group-hover/next:bg-black/90 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all group-hover/next:scale-110 flex items-center justify-center">
+                <ChevronRight className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Comment Drawer & Thumbnail Strip */}
+        <div className="w-full flex flex-col items-center gap-2 z-30" onClick={(e) => e.stopPropagation()}>
+          {/* Quick Comment Drawer */}
+          {showCommentBox && (
+            <div className="w-full max-w-xl bg-slate-900/95 backdrop-blur-md border border-white/15 rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 space-y-2">
+              {commentSuccessToast ? (
+                <div className="p-2 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold text-center">
+                  Comment published successfully on Hive!
+                </div>
+              ) : (
+                <form onSubmit={handleQuickComment} className="flex gap-2 items-center">
+                  {currentUser ? (
+                    <img
+                      src={getHiveAvatarUrl(currentUser.username, 'small')}
+                      alt={currentUser.username}
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0 text-white/50 text-xs font-bold">
+                      ?
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={quickCommentText}
+                    onChange={(e) => setQuickCommentText(e.target.value)}
+                    placeholder={
+                      currentUser
+                        ? `Write a quick comment as @${currentUser.username}...`
+                        : 'Log in with Hive Keychain to comment...'
+                    }
+                    disabled={sendingComment}
+                    className="flex-1 bg-white/10 hover:bg-white/15 focus:bg-white/15 text-white placeholder-white/40 text-xs px-3.5 py-2 rounded-xl border border-white/15 focus:outline-none focus:border-blue-400 transition"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sendingComment || !quickCommentText.trim()}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer flex-shrink-0 shadow-sm"
+                  >
+                    {sendingComment ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    <span className="hidden sm:inline">Send</span>
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* Thumbnail Strip (if more than 1 image) */}
+          {postImages.length > 1 && (
+            <div className="w-full max-w-xl flex items-center justify-center gap-2 overflow-x-auto py-1 px-4 scrollbar-none">
+              {postImages.map((src, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGalleryIndex(i);
+                  }}
+                  className={`relative rounded-xl overflow-hidden flex-shrink-0 transition-all cursor-pointer ${
+                    i === galleryIndex
+                      ? 'ring-2 ring-blue-500 scale-105 opacity-100'
+                      : 'opacity-40 hover:opacity-80'
+                  }`}
+                  title={`Image ${i + 1}`}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-12 h-12 object-cover rounded-lg bg-black/40"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>,
+      document.body
+    )}
   </article>
 );
 };

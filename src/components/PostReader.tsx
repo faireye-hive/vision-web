@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   ArrowUp,
@@ -25,7 +26,13 @@ import {
   CornerDownRight,
   UserPlus,
   UserCheck,
-  VolumeX
+  VolumeX,
+  Quote,
+  Languages,
+  Highlighter,
+  ChevronLeft,
+  ChevronRight,
+  Image as ImageIcon
 } from 'lucide-react';
 import {
   HivePost,
@@ -33,7 +40,11 @@ import {
   calculateReputation,
   getHiveAvatarUrl,
   getPost,
-  getPostSnippet
+  getPostSnippet,
+  getAccount,
+  getAccountPosts,
+  getSimilarPosts,
+  getPostThumbnail
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
@@ -160,6 +171,291 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [tipMemo, setTipMemo] = useState('Thank you for this great post!');
   const [tipLoading, setTipLoading] = useState(false);
   const [tipNotice, setTipNotice] = useState<string | null>(null);
+
+  // Author cover background
+  const [authorCoverImage, setAuthorCoverImage] = useState<string | null>(null);
+  const [loadingCover, setLoadingCover] = useState(true);
+
+  // Related Stories / Fallback to Author's Latest Posts
+  const [relatedStories, setRelatedStories] = useState<HivePost[]>([]);
+  const [isAuthorFallback, setIsAuthorFallback] = useState(false);
+  const [loadingRelated, setLoadingRelated] = useState(false);
+
+  // Selection floating toolbar state (desktop only)
+  const bodyContainerRef = useRef<HTMLDivElement>(null);
+  const [selectionBubble, setSelectionBubble] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    text: string;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    text: ''
+  });
+
+  // Post Image Lightbox Gallery
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+
+  // Handle image clicks inside article body to open the gallery
+  const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'IMG' && target instanceof HTMLImageElement) {
+      const container = bodyContainerRef.current;
+      if (!container) return;
+      const allImgs = Array.from(container.querySelectorAll('img'))
+        .map((img) => img.src)
+        .filter((src) => src && !src.includes('avatar') && !src.startsWith('data:image/svg'));
+
+      const clickedSrc = target.src;
+      const idx = allImgs.indexOf(clickedSrc);
+      if (allImgs.length > 0) {
+        setGalleryImages(allImgs);
+        setGalleryIndex(idx !== -1 ? idx : 0);
+      }
+    }
+  }, []);
+
+  // Keyboard navigation for image gallery
+  useEffect(() => {
+    if (galleryIndex === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setGalleryIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setGalleryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : galleryImages.length - 1));
+      } else if (e.key === 'ArrowRight') {
+        setGalleryIndex((prev) => (prev !== null && prev < galleryImages.length - 1 ? prev + 1 : 0));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [galleryIndex, galleryImages.length]);
+
+  // Mouse wheel listener for the reader lightbox gallery
+  const readerLightboxRef = useRef<HTMLDivElement>(null);
+  const readerLastWheelTimeRef = useRef(0);
+
+  useEffect(() => {
+    if (galleryIndex === null) return;
+    const el = readerLightboxRef.current;
+    if (!el) return;
+
+    const onWheelNative = (e: WheelEvent) => {
+      if (galleryImages.length <= 1) return;
+      if (Math.abs(e.deltaY) < 12 && Math.abs(e.deltaX) < 12) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const now = Date.now();
+      if (now - readerLastWheelTimeRef.current < 260) return;
+      readerLastWheelTimeRef.current = now;
+
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (delta > 0) {
+        setGalleryIndex((prev) => (prev !== null && prev < galleryImages.length - 1 ? prev + 1 : 0));
+      } else {
+        setGalleryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : galleryImages.length - 1));
+      }
+    };
+
+    el.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => el.removeEventListener('wheel', onWheelNative);
+  }, [galleryIndex, galleryImages.length]);
+
+  // Fetch author profile background cover image
+  useEffect(() => {
+    let active = true;
+    setLoadingCover(true);
+    getAccount(post.author)
+      .then((acc) => {
+        if (!active || !acc) {
+          if (active) setLoadingCover(false);
+          return;
+        }
+        let cover = '';
+        if (acc.posting_json_metadata) {
+          try {
+            const parsed = JSON.parse(acc.posting_json_metadata);
+            cover = parsed?.profile?.cover_image || '';
+          } catch {}
+        }
+        if (!cover && acc.json_metadata) {
+          try {
+            const parsed = JSON.parse(acc.json_metadata);
+            cover = parsed?.profile?.cover_image || '';
+          } catch {}
+        }
+        if (active) {
+          setAuthorCoverImage(cover || null);
+          if (!cover) setLoadingCover(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoadingCover(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.author]);
+
+  // Fetch similar stories with fallback to author's recent posts (sort: 'posts', NOT 'blog'!)
+  useEffect(() => {
+    let active = true;
+    setLoadingRelated(true);
+    setIsAuthorFallback(false);
+
+    getSimilarPosts(post.author, post.permlink)
+      .then(async (data) => {
+        if (!active) return;
+        if (data && data.length > 0) {
+          setRelatedStories(data);
+          setIsAuthorFallback(false);
+        } else {
+          // Fallback: Author's latest created posts (sort: 'posts', NOT 'blog'!)
+          const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
+          if (!active) return;
+          const filtered = (authorPosts || [])
+            .filter((p) => p.permlink !== post.permlink)
+            .slice(0, 4);
+          setRelatedStories(filtered);
+          setIsAuthorFallback(true);
+        }
+      })
+      .catch(async () => {
+        if (!active) return;
+        const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
+        if (!active) return;
+        const filtered = (authorPosts || [])
+          .filter((p) => p.permlink !== post.permlink)
+          .slice(0, 4);
+        setRelatedStories(filtered);
+        setIsAuthorFallback(true);
+      })
+      .finally(() => {
+        if (active) setLoadingRelated(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.author, post.permlink]);
+
+  // Floating text selection listener (Desktop only, avoids conflicts on mobile)
+  useEffect(() => {
+    const handleSelection = () => {
+      // Disallow on touch/mobile devices to preserve native context menu
+      if (window.innerWidth < 768 || window.matchMedia('(pointer: coarse)').matches) {
+        setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      const text = sel.toString().trim();
+      if (!text || text.length < 2) {
+        setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      const anchor = sel.anchorNode;
+      if (!anchor || !bodyContainerRef.current?.contains(anchor)) {
+        setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+        return;
+      }
+
+      try {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+
+        setSelectionBubble({
+          visible: true,
+          x: Math.max(16, Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 120)),
+          y: Math.max(72, rect.top - 46),
+          text
+        });
+      } catch {
+        setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+      }
+    };
+
+    document.addEventListener('selectionchange', handleSelection);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelection);
+    };
+  }, []);
+
+  const handleQuoteSelection = () => {
+    if (!selectionBubble.text) return;
+    const quoteLines = selectionBubble.text
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n');
+    const quoteFormatted = `${quoteLines}\n\n`;
+
+    setNewCommentBody((prev) => {
+      return prev ? `${prev.trim()}\n\n${quoteFormatted}` : quoteFormatted;
+    });
+
+    setSelectionBubble((prev) => ({ ...prev, visible: false }));
+    window.getSelection()?.removeAllRanges();
+
+    const commentSection = document.getElementById('comments-section');
+    if (commentSection) {
+      commentSection.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => {
+        const textarea = commentSection.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+      }, 400);
+    }
+  };
+
+  const handleTranslateSelection = () => {
+    if (!selectionBubble.text) return;
+    const encoded = encodeURIComponent(selectionBubble.text.slice(0, 1500));
+    window.open(`https://translate.google.com/?sl=auto&tl=pt&text=${encoded}`, '_blank', 'noopener,noreferrer');
+    setSelectionBubble((prev) => ({ ...prev, visible: false }));
+  };
+
+  const handleHighlightSelection = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+
+    try {
+      const range = sel.getRangeAt(0);
+      const mark = document.createElement('mark');
+      mark.className = 'bg-amber-200/90 dark:bg-amber-400/35 text-gray-900 dark:text-amber-100 rounded px-1 py-0.5 shadow-2xs transition-colors';
+      mark.style.backgroundColor = 'rgba(254, 240, 138, 0.85)';
+
+      try {
+        range.surroundContents(mark);
+      } catch {
+        const contents = range.extractContents();
+        mark.appendChild(contents);
+        range.insertNode(mark);
+      }
+    } catch {
+      try {
+        document.execCommand('hiliteColor', false, '#fef08a');
+      } catch {}
+    }
+
+    setSelectionBubble((prev) => ({ ...prev, visible: false }));
+    sel.removeAllRanges();
+  };
 
   const onCloseRef = React.useRef(onClose);
   useEffect(() => {
@@ -626,7 +922,16 @@ export const PostReader: React.FC<PostReaderProps> = ({
       </div>
 
       {/* ================= POST CONTENT AREA ================= */}
-      <div className="px-5 sm:px-10 md:px-12 py-6 space-y-5 max-w-4xl mx-auto w-full">
+      <div
+        className="py-6 space-y-5 max-w-full"
+        style={{
+          marginLeft: '0px',
+          marginRight: '0px',
+          paddingLeft: '40px',
+          paddingRight: '40px',
+          width: '1200px'
+        }}
+      >
 
         {/* ================= COMMENT PARENT CONTEXT BANNER ================= */}
         {isComment && (
@@ -699,60 +1004,96 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* Big, Clear Post Title */}
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white leading-tight">
-          {isComment && (!post.title || post.title.startsWith('Re:'))
-            ? `Comment by @${post.author}`
-            : post.title}
-        </h1>
+        {/* ================= HERO TITLE BANNER ================= */}
+        {(() => {
+          const primaryTagOrCommunity =
+            post.community_title || (post.community ? post.community : post.category) || 'blog';
 
-        {/* Author details on mobile / tags row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gray-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 sm:hidden">
-            <span className="flex items-center gap-1" title={postDate.full}>
-              <Clock className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
-              <span>{postDate.relative}</span>
-            </span>
-            {(post.community_title || post.community) && (
-              <>
-                <span>•</span>
+          return (
+            <div
+              className="relative rounded-2xl sm:rounded-[22px] overflow-hidden flex flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40"
+              style={{
+                height: '160px',
+                paddingTop: '20px',
+                paddingBottom: '20px',
+                paddingLeft: '25px',
+                paddingRight: '25px',
+                marginLeft: '-25px',
+                marginRight: '-25px'
+              }}
+            >
+              {/* Skeleton placeholder while cover image or data is loading to prevent layout shift */}
+              {loadingCover && (
+                <div className="absolute inset-0 bg-blue-100/60 dark:bg-blue-950/40 animate-pulse z-0" />
+              )}
+
+              {/* Cover Image Background (Luminous, Lightened & Softly Blurred) */}
+              {authorCoverImage ? (
+                <img
+                  src={authorCoverImage}
+                  alt=""
+                  onLoad={() => setLoadingCover(false)}
+                  className="absolute inset-0 w-full h-full object-cover filter brightness-[1.15] contrast-[1.02] blur-[3.5px] scale-110 transition-opacity duration-300"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                    setAuthorCoverImage(null);
+                    setLoadingCover(false);
+                  }}
+                />
+              ) : (
+                /* Elegant scenic gradient fallback in light luminous blue tones */
+                <div className="absolute inset-0 bg-gradient-to-r from-[#1e3a8a]/40 via-[#2563eb]/30 to-[#38bdf8]/40 filter blur-[4px] scale-110" />
+              )}
+
+              {/* Light luminous tint overlay: clear & bright, with a soft blue tone from the project */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-950/35 via-blue-900/15 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
+
+              {/* Single Main Tag/Community Pill Badge inside the banner (top-left, flex-shrink-0 so never hidden) */}
+              <div className="relative z-10 flex-shrink-0">
                 <button
-                  onClick={() => {
-                    onSelectTag(post.community || post.category);
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (post.community) onSelectTag(post.community);
+                    else if (post.category) onSelectTag(post.category);
                     onClose();
                   }}
-                  className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-semibold backdrop-blur-md border border-blue-300/30 shadow-xs transition-colors cursor-pointer flex-shrink-0"
+                  title={`View #${primaryTagOrCommunity}`}
                 >
-                  {post.community_title || post.community}
+                  <span className="text-[11px] opacity-90">✦</span>
+                  <span className="capitalize">{primaryTagOrCommunity}</span>
                 </button>
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Tags list pills cleanly wrapped without clipping */}
-          {postTags.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {postTags.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    onSelectTag(t);
-                    onClose();
-                  }}
-                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium border border-gray-200/60 dark:border-slate-700 shadow-2xs transition cursor-pointer"
-                >
-                  <Hash className="w-2.5 h-2.5 text-gray-400 dark:text-slate-500" />
-                  <span>{t}</span>
-                </button>
-              ))}
+              {/* Big, Clear Post Title: uppercase, glued right below tag, expanding downwards, sharp letter contour only */}
+              <h1
+                className="relative z-10 font-black uppercase leading-snug tracking-tight text-white line-clamp-2 overflow-hidden text-ellipsis max-w-full"
+                title={post.title}
+                style={{
+                  fontSize: '30px',
+                  border: 'none',
+                  outline: 'none',
+                  textShadow:
+                    '0 1px 2px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.85), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+                  WebkitTextStroke: '0.6px #000000'
+                }}
+              >
+                {isComment && (!post.title || post.title.startsWith('Re:'))
+                  ? `Comment by @${post.author}`
+                  : post.title}
+              </h1>
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Main Article Body (DOMPurify protected) */}
         <div
           id="sanitized-post-body"
-          className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg"
+          ref={bodyContainerRef}
+          onClick={handleBodyClick}
+          className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg select-text"
           dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
         />
 
@@ -802,6 +1143,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <button
               onClick={() => setShowTipModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold text-xs transition cursor-pointer"
+              style={{ borderRadius: '5px', fontSize: '20px' }}
               title="Send tip to author"
             >
               <Coins className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -822,6 +1164,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     ? 'bg-rose-500 text-white'
                     : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400'
                   }`}
+                style={{ borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' }}
                 title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
               >
                 <Heart className={`w-4 h-4 ${hasVoted ? 'fill-white' : ''}`} />
@@ -873,6 +1216,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <button
               onClick={scrollToComments}
               className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 px-3 py-2 rounded-full transition cursor-pointer"
+              style={{ fontSize: '20px', borderRadius: '5px', borderWidth: '0.1px' }}
               title="Jump to Comments"
             >
               <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
@@ -882,6 +1226,95 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
 
         </div>
+
+        {/* ================= RELATED STORIES / MORE FROM AUTHOR ================= */}
+        {relatedStories.length > 0 && (
+          <div className="pt-6 border-t border-gray-100 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isAuthorFallback ? (
+                  <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                )}
+                <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white">
+                  {isAuthorFallback ? `More Stories by @${post.author}` : 'Similar Stories'}
+                </h3>
+              </div>
+              <span
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                  isAuthorFallback
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60'
+                    : 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-900/60'
+                }`}
+              >
+                {isAuthorFallback ? 'Author Posts' : 'HiveSense AI'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {relatedStories.map((relPost) => {
+                const thumb = getPostThumbnail(relPost);
+                return (
+                  <div
+                    key={`${relPost.author}/${relPost.permlink}`}
+                    onClick={() => {
+                      if (onSelectPost) {
+                        onSelectPost(relPost);
+                      }
+                    }}
+                    className="group flex gap-3 p-3 rounded-2xl bg-gray-50/70 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 border border-gray-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition shadow-2xs hover:shadow-xs cursor-pointer items-start"
+                  >
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={relPost.title}
+                        loading="lazy"
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover flex-shrink-0 bg-gray-200 dark:bg-slate-700 group-hover:scale-102 transition-transform"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getHiveAvatarUrl(relPost.author, 'medium');
+                        }}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-150 dark:border-blue-900/40 flex items-center justify-center flex-shrink-0">
+                        <img
+                          src={getHiveAvatarUrl(relPost.author, 'small')}
+                          alt={relPost.author}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1 flex flex-col justify-between h-full">
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-2 leading-snug transition-colors">
+                        {relPost.title}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-500 dark:text-slate-400 flex-wrap">
+                        <span className="font-semibold text-gray-700 dark:text-slate-300 truncate">
+                          @{relPost.author}
+                        </span>
+                        {relPost.created && (
+                          <>
+                            <span>•</span>
+                            <span>{formatPostDate(relPost.created).relative}</span>
+                          </>
+                        )}
+                        {relPost.category && (
+                          <>
+                            <span>•</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-medium truncate">
+                              #{relPost.category}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ================= DISCUSSION & COMMENTS ================= */}
         <section id="comments-section" className="pt-8 border-t border-gray-100 dark:border-slate-800 space-y-6">
@@ -926,6 +1359,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 type="submit"
                 disabled={commentLoading || !newCommentBody.trim()}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                style={{ borderRadius: '5px', borderWidth: '0.1px' }}
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
@@ -1096,6 +1530,161 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <span>Top ({readingProgress}%)</span>
         </button>
       </div>
+
+      {/* Floating Selection Action Toolbar (Desktop only) */}
+      {selectionBubble.visible && (
+        <div
+          className="fixed z-50 flex items-center gap-1 bg-gray-900/95 dark:bg-slate-800/95 text-white backdrop-blur-md px-2 py-1.5 rounded-2xl shadow-xl border border-white/10 animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            left: `${selectionBubble.x}px`,
+            top: `${selectionBubble.y}px`
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={handleQuoteSelection}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
+            title="Quote in discussion"
+          >
+            <Quote className="w-3.5 h-3.5 text-blue-400" />
+            <span>Quote</span>
+          </button>
+
+          <div className="w-px h-4 bg-white/20" />
+
+          <button
+            onClick={handleTranslateSelection}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
+            title="Translate with Google Translate"
+          >
+            <Languages className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Translate</span>
+          </button>
+
+          <div className="w-px h-4 bg-white/20" />
+
+          <button
+            onClick={handleHighlightSelection}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
+            title="Highlight text"
+          >
+            <Highlighter className="w-3.5 h-3.5 text-amber-400" />
+            <span>Marcar</span>
+          </button>
+        </div>
+      )}
+
+      {/* ================= POST IMAGE LIGHTBOX GALLERY (PORTAL) ================= */}
+      {galleryIndex !== null && galleryImages.length > 0 && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-5 select-none animate-in fade-in duration-200"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (e.target === e.currentTarget) {
+              setGalleryIndex(null);
+            }
+          }}
+        >
+          {/* Top bar: Counter & Close button */}
+          <div className="w-full flex items-center justify-between px-2 sm:px-4 py-2 z-30" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-white/90 text-xs sm:text-sm font-semibold bg-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+              <ImageIcon className="w-4 h-4 text-blue-400" />
+              <span>{galleryIndex + 1} / {galleryImages.length}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGalleryIndex(null);
+              }}
+              className="p-2 sm:p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/15 shadow-lg group"
+              title="Close gallery (Esc)"
+            >
+              <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
+
+          {/* Central Image View with Wide Left & Right Click Navigation Zones and Mouse Wheel Support */}
+          <div
+            ref={readerLightboxRef}
+            className="relative flex-1 w-full flex items-center justify-center min-h-0 py-2 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            title="Mouse wheel to change image"
+          >
+            {/* Centered Image */}
+            <img
+              src={galleryImages[galleryIndex]}
+              alt={`Post image ${galleryIndex + 1}`}
+              className="max-h-[75vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-all duration-200 pointer-events-none select-none z-10"
+            />
+
+            {/* Left Navigation Zone: click anywhere on the left half to go to previous image */}
+            {galleryImages.length > 1 && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGalleryIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : galleryImages.length - 1));
+                }}
+                className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer flex items-center justify-start pl-3 sm:pl-6 group/prev"
+                title="Previous image (Click left side or left arrow)"
+              >
+                <div className="p-3 rounded-full bg-black/60 group-hover/prev:bg-black/90 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all group-hover/prev:scale-110 flex items-center justify-center">
+                  <ChevronLeft className="w-6 h-6" />
+                </div>
+              </div>
+            )}
+
+            {/* Right Navigation Zone: click anywhere on the right half to go to next image */}
+            {galleryImages.length > 1 && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGalleryIndex((prev) => (prev !== null && prev < galleryImages.length - 1 ? prev + 1 : 0));
+                }}
+                className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer flex items-center justify-end pr-3 sm:pr-6 group/next"
+                title="Next image (Click right side or right arrow)"
+              >
+                <div className="p-3 rounded-full bg-black/60 group-hover/next:bg-black/90 text-white backdrop-blur-md border border-white/20 shadow-xl transition-all group-hover/next:scale-110 flex items-center justify-center">
+                  <ChevronRight className="w-6 h-6" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Thumbnail preview strip */}
+          {galleryImages.length > 1 && (
+            <div
+              className="w-full max-w-xl flex items-center justify-center gap-2 overflow-x-auto py-2 px-4 z-30 scrollbar-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {galleryImages.map((src, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGalleryIndex(i);
+                  }}
+                  className={`relative rounded-xl overflow-hidden flex-shrink-0 transition-all cursor-pointer ${
+                    i === galleryIndex
+                      ? 'ring-2 ring-blue-500 scale-105 opacity-100'
+                      : 'opacity-50 hover:opacity-80'
+                  }`}
+                  title={`Image ${i + 1}`}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-14 h-14 object-cover rounded-lg bg-black/40"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
     </article>
   );
