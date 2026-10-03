@@ -13,6 +13,7 @@ export const ALLOWED_IMAGE_DOMAINS = [
   '3speak.tv',
   'actifit.io',
   'skatehype.com',
+  'img.truvvle.com'
 ];
 
 export function isAllowedImageHost(url: string): boolean {

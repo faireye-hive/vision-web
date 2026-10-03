@@ -17,7 +17,8 @@ import {
   HivePost,
   calculateReputation,
   getHiveAvatarUrl,
-  getPostThumbnail
+  getPostThumbnail,
+  getPostSnippet
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { getSafeImageUrl } from '../utils/sanitize';
@@ -74,16 +75,15 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
   const [sendingComment, setSendingComment] = useState(false);
   const [commentSuccessToast, setCommentSuccessToast] = useState(false);
 
-  // Refs for mouse wheel image flipping
-  const cardImageContainerRef = useRef<HTMLDivElement>(null);
+  // Refs for mouse wheel image flipping in lightbox
   const lightboxImageContainerRef = useRef<HTMLDivElement>(null);
-  const lastCardWheelTimeRef = useRef(0);
   const lastLightboxWheelTimeRef = useRef(0);
 
   const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'small');
   const rawThumbnail = getPostThumbnail(post);
   const thumbnail = getSafeImageUrl(rawThumbnail, { width: 900 });
+  const snippet = getPostSnippet(post.body, 100);
 
   // Extract all images in the post for gallery view
   const postImages = useMemo(() => {
@@ -124,33 +124,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
     return filtered.length > 0 ? filtered : rawThumbnail ? [rawThumbnail] : [];
   }, [post.json_metadata, post.body, rawThumbnail]);
 
-  // Mouse wheel listener for the card image: scrolling inside the image flips pictures forward or backward!
-  useEffect(() => {
-    const el = cardImageContainerRef.current;
-    if (!el) return;
 
-    const onCardWheel = (e: WheelEvent) => {
-      if (postImages.length <= 1) return;
-      if (Math.abs(e.deltaY) < 12 && Math.abs(e.deltaX) < 12) return;
-      
-      e.preventDefault();
-      e.stopPropagation();
-
-      const now = Date.now();
-      if (now - lastCardWheelTimeRef.current < 260) return;
-      lastCardWheelTimeRef.current = now;
-
-      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (delta > 0) {
-        setCardImageIndex((prev) => (prev < postImages.length - 1 ? prev + 1 : 0));
-      } else {
-        setCardImageIndex((prev) => (prev > 0 ? prev - 1 : postImages.length - 1));
-      }
-    };
-
-    el.addEventListener('wheel', onCardWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onCardWheel);
-  }, [postImages.length]);
 
   // Mouse wheel listener for the Lightbox Gallery modal
   useEffect(() => {
@@ -361,13 +335,12 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
       {/* Featured Locked Space Container with Uncropped Resized Image & Title Overlay */}
       {currentImageSrc ? (
         <div
-          ref={cardImageContainerRef}
           onClick={() => {
             setGalleryIndex(cardImageIndex);
             setShowGallery(true);
           }}
           className="relative w-full h-[480px] sm:h-[520px] bg-slate-950/5 dark:bg-black/60 overflow-hidden cursor-zoom-in group/img flex items-center justify-center select-none"
-          title="Click to view image in full gallery. Mouse wheel to change image."
+          title="Click to view image in full gallery"
         >
           {/* Uncropped Image: Resized to fit perfectly within the reserved space */}
           <img
@@ -425,7 +398,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 e.stopPropagation();
                 onSelectPost(post);
               }}
-              className="font-black text-white text-base sm:text-lg leading-snug line-clamp-2 cursor-pointer hover:underline pointer-events-auto"
+              className="font-black text-white text-base sm:text-lg leading-snug line-clamp-1 cursor-pointer hover:underline pointer-events-auto"
               style={{
                 textShadow:
                   '0 1px 2px #000, 0 2px 6px rgba(0,0,0,0.95), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
@@ -435,6 +408,13 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             >
               {post.title}
             </h2>
+            <p className="text-white/90 text-[11px] sm:text-xs line-clamp-1 mt-0.5 font-medium pointer-events-none"
+               style={{
+                 textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+               }}
+            >
+              {snippet}
+            </p>
           </div>
         </div>
       ) : (
@@ -470,7 +450,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           <button
             type="button"
             onClick={() => setShowCommentBox((prev) => !prev)}
-            className={`p-2 rounded-full transition cursor-pointer border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition cursor-pointer border ${
               showCommentBox
                 ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
                 : 'bg-gray-50 dark:bg-slate-800/80 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border-gray-200/60 dark:border-slate-700'
@@ -478,6 +458,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             title="Comment"
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-bold">{post.children || 0}</span>
           </button>
 
           {/* Share */}

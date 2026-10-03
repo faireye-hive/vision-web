@@ -20,7 +20,9 @@ const SIZES: { id: ReadingSize; label: string }[] = [
 ];
 
 const FAMILIES: { id: ReadingFamily; label: string }[] = [
+  { id: 'google', label: 'Google Sans' },
   { id: 'system', label: 'System' },
+  { id: 'source', label: 'Source Serif' },
   { id: 'serif', label: 'Serif' },
   { id: 'mono', label: 'Mono' },
 ];

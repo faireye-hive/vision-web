@@ -1,5 +1,5 @@
 export type ReadingSize = 'sm' | 'md' | 'lg' | 'xl';
-export type ReadingFamily = 'system' | 'serif' | 'mono';
+export type ReadingFamily = 'system' | 'google' | 'serif' | 'source' | 'mono';
 export type ReadingTone = 'default' | 'ink' | 'warm' | 'contrast';
 export type ReadingAmbient =
   | 'default'
@@ -25,7 +25,7 @@ export const READING_STYLE_KEY = 'nebulosa_reading_style';
 
 export const DEFAULT_READING_STYLE: ReadingStyle = {
   size: 'md',
-  family: 'system',
+  family: 'google',
   tone: 'default',
   ambient: 'default',
 };
@@ -39,7 +39,9 @@ const SIZE_PX: Record<ReadingSize, string> = {
 
 const FAMILY_STACK: Record<ReadingFamily, string> = {
   system: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`,
+  google: `'Google Sans Flex', 'Helvetica', 'Arial', sans-serif`,
   serif: `Georgia, 'Iowan Old Style', 'Palatino Linotype', Palatino, serif`,
+  source: `'Source Serif Pro', 'Georgia', serif`,
   mono: `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`,
 };
 
