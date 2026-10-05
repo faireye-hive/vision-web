@@ -80,6 +80,39 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const apiCursorRef = useRef<{ author: string; permlink: string } | null>(null);
   const username = currentUser?.username || '';
 
+  // Mobile Pull-to-Refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 10) {
+      touchStartYRef.current = e.touches[0].clientY;
+    } else {
+      touchStartYRef.current = null;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartYRef.current === null) return;
+    if (window.scrollY <= 10) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - touchStartYRef.current;
+      if (diff > 0) {
+        setPullDistance(Math.min(diff * 0.45, 65));
+      } else {
+        setPullDistance(0);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= 45) {
+      fetchPosts(true);
+    }
+    setPullDistance(0);
+    touchStartYRef.current = null;
+  };
+
   const rememberCursor = (page: HivePost[]) => {
     const tail = page[page.length - 1];
     if (tail) apiCursorRef.current = { author: tail.author, permlink: tail.permlink };
@@ -307,7 +340,25 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   }, [posts, communitySubTopic, filterPostsList]);
 
   return (
-    <div className="space-y-4 w-full min-w-0 max-w-[824px]">
+    <div
+      className="space-y-4 w-full min-w-0 max-w-[824px]"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Mobile Pull-to-Refresh Indicator */}
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center transition-all overflow-hidden sm:hidden"
+          style={{ height: `${pullDistance}px` }}
+        >
+          <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50">
+            <RefreshCw className={`w-3.5 h-3.5 ${pullDistance >= 45 ? 'animate-spin' : ''}`} />
+            <span>{pullDistance >= 45 ? 'Release to refresh' : 'Pull to refresh'}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header controls bar */}
       <div
         className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-30 flex items-center justify-between"
@@ -322,8 +373,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           borderRadius: '15px'
         }}
       >
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap min-w-0">
-          <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap min-w-0">
+          <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0 hidden sm:inline-block">
             {isCommunitiesFeed ? 'Communities' : 'Discover'}
           </span>
 
@@ -334,16 +385,18 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             onSortChange={(newSort) => setSort(newSort)}
           />
 
-          {/* Language Selector */}
+          {/* Language Selector (Hidden on mobile, since it is in the top navbar as the Globe symbol without 'Global'; present on desktop) */}
           {!isCommunitiesFeed && (
-            <LanguageDropdown
-              id="discover-header-language-dropdown"
-              selectedLanguage={selectedLanguage}
-              onSelectLanguage={(langCode) => {
-                setSelectedLanguage(langCode);
-                setFeedAuthor(null);
-              }}
-            />
+            <div className="hidden sm:inline-block">
+              <LanguageDropdown
+                id="discover-header-language-dropdown"
+                selectedLanguage={selectedLanguage}
+                onSelectLanguage={(langCode) => {
+                  setSelectedLanguage(langCode);
+                  setFeedAuthor(null);
+                }}
+              />
+            </div>
           )}
 
           {/* Category Dropdown */}
@@ -404,10 +457,10 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Content Filters */}
+          {/* Content Filters (Symbol + count only on mobile, full text on desktop) */}
           <button
             onClick={openContentFilterModal}
-            className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
+            className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition shadow-2xs cursor-pointer border ${
               contentFilterConfig.enabled && filteredOutStats.total > 0
                 ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
                 : contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
@@ -421,7 +474,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             }
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Filters</span>
+            <span className="hidden sm:inline">Filters</span>
             {contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
               <span
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -455,9 +508,10 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             </span>
           )*/}
 
+          {/* Desktop-only manual refresh button; on mobile we use pull-to-refresh */}
           <button
             onClick={() => fetchPosts(true)}
-            className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex items-center justify-center"
             title="Force refresh"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />

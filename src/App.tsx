@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarksProvider } from './context/BookmarksContext';
 import { ContentFilterProvider, useContentFilter } from './context/ContentFilterContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
-import { NotificationsProvider } from './context/NotificationsContext';
+import { NotificationsProvider, useNotifications } from './context/NotificationsContext';
 
 // First-screen pages stay eager. The rest load when the route opens.
 import { FeedPage } from './pages/FeedPage';
@@ -16,6 +16,7 @@ import { PostSidebar } from './components/PostSidebar';
 import { ContentFilterModal } from './components/ContentFilterModal';
 import { NotificationToastHost } from './components/NotificationToastHost';
 import { RightRail } from './components/RightRail';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 import { HivePost } from './services/hiveApi';
 import { requestLogin } from './utils/authEvents';
@@ -85,7 +86,9 @@ function NebulosaApp() {
     setShowStatsModal,
     openStatsModal,
     showContentFilterModal,
-    setShowContentFilterModal
+    setShowContentFilterModal,
+    selectedLanguage,
+    setSelectedLanguage
   } = useNavigation();
 
   const shortsFilter = useShortsWordFilter();
@@ -100,6 +103,8 @@ function NebulosaApp() {
     clearFilterAuthors,
     toggleFilterEnabled
   } = useContentFilter();
+
+  const { unreadCount: unreadNotificationsCount } = useNotifications();
 
   // Theme Management
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
@@ -153,10 +158,12 @@ function NebulosaApp() {
         onLogout={logout}
         isDark={theme === 'dark'}
         onToggleTheme={handleToggleTheme}
+        selectedLanguage={selectedLanguage}
+        onSelectLanguage={setSelectedLanguage}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6" style={{ paddingTop: '5px' }}>
+      {/* Main Container with safe bottom padding for mobile bar */}
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
         {standalonePage === 'write' && (
@@ -377,6 +384,32 @@ function NebulosaApp() {
 
       {/* Ghost Notification Toast */}
       <NotificationToastHost />
+
+      {/* Mobile Bottom Navigation Bar (Hidden on desktop md:) */}
+      <MobileBottomNav
+        activeNav={activeNav}
+        onNavChange={handleNavChange}
+        currentUser={currentUser}
+        onOpenWrite={openWritePage}
+        onOpenNotifications={openNotificationsPage}
+        onOpenStats={openStatsModal}
+        onOpenCommunities={openCommunitiesModal}
+        onOpenManageCommunities={openManageCommunitiesModal}
+        onOpenManageFollowing={openFollowingManager}
+        onOpenAccount={(user) => openAuthorProfile(user)}
+        onToggleTheme={handleToggleTheme}
+        isDark={theme === 'dark'}
+        unreadNotificationsCount={unreadNotificationsCount}
+        selectedPost={selectedPost}
+        onClosePost={handleClosePost}
+        onOpenLogin={requestLogin}
+        onLogout={logout}
+        currentSort={sort}
+        onSortChange={(s) => setSort(s)}
+        currentTag={tag}
+        onSelectTag={(t) => setTag(t)}
+        onOpenFilters={() => setShowContentFilterModal(true)}
+      />
     </div>
   );
 }

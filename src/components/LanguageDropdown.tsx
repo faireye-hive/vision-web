@@ -17,12 +17,14 @@ interface LanguageDropdownProps {
   selectedLanguage: string; // 'global' or 'en', 'es', 'de', etc.
   onSelectLanguage: (langCode: string) => void;
   id?: string;
+  iconOnly?: boolean;
 }
 
 export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
   selectedLanguage,
   onSelectLanguage,
   id = 'discover-language-dropdown',
+  iconOnly = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,44 +110,70 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
 
   return (
     <div ref={dropdownRef} className="relative inline-block text-left" id={id}>
-      {/* Trigger Button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        title={`Language filter: currently ${currentOption.name}. Click to change language.`}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
-          selectedLanguage !== 'global'
-            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-xs'
-            : isOpen
-              ? 'bg-gray-200/90 dark:bg-slate-700 text-gray-800 dark:text-slate-100 border-gray-300 dark:border-slate-600'
-              : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
-        }`}
-      >
-        {selectedLanguage === 'global' ? (
-          <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-        ) : (
-          <span className="text-xs leading-none">{currentOption.flag}</span>
-        )}
-        <span>{currentOption.name}</span>
-        {selectedLanguage !== 'global' && (
-          <span className="text-[10px] font-mono px-1 py-0.2 bg-indigo-100/70 dark:bg-indigo-900/60 rounded text-indigo-800 dark:text-indigo-300 uppercase font-bold">
-            {selectedLanguage}
-          </span>
-        )}
-        <ChevronDown
-          className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
+      {/* Trigger Button: iconOnly for mobile top bar (Globe without 'Global' text) vs standard button for desktop */}
+      {iconOnly ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          title={`Language: ${currentOption.name}. Click to change language.`}
+          className={`p-2 rounded-full transition cursor-pointer relative flex items-center justify-center ${
+            selectedLanguage !== 'global'
+              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+              : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800'
           }`}
-        />
-      </button>
+        >
+          {selectedLanguage === 'global' ? (
+            <Globe className="w-4 h-4 text-gray-600 dark:text-slate-300" />
+          ) : (
+            <span className="text-sm leading-none">{currentOption.flag}</span>
+          )}
+          {selectedLanguage !== 'global' && (
+            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-mono px-1 py-0.2 bg-blue-600 text-white rounded-full uppercase font-bold leading-none">
+              {selectedLanguage}
+            </span>
+          )}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          title={`Language filter: currently ${currentOption.name}. Click to change language.`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+            selectedLanguage !== 'global'
+              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-xs'
+              : isOpen
+                ? 'bg-gray-200/90 dark:bg-slate-700 text-gray-800 dark:text-slate-100 border-gray-300 dark:border-slate-600'
+                : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
+          }`}
+        >
+          {selectedLanguage === 'global' ? (
+            <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          ) : (
+            <span className="text-xs leading-none">{currentOption.flag}</span>
+          )}
+          <span>{currentOption.name}</span>
+          {selectedLanguage !== 'global' && (
+            <span className="text-[10px] font-mono px-1 py-0.2 bg-indigo-100/70 dark:bg-indigo-900/60 rounded text-indigo-800 dark:text-indigo-300 uppercase font-bold">
+              {selectedLanguage}
+            </span>
+          )}
+          <ChevronDown
+            className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
+              isOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
+            }`}
+          />
+        </button>
+      )}
 
       {/* Floating Menu */}
       {isOpen && (
         <div
           role="listbox"
-          className="absolute left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          className={`absolute ${iconOnly ? 'right-0' : 'left-0 sm:left-auto sm:right-0 md:left-0'} mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200`}
         >
           {/* Search bar */}
           <div className="relative mb-2">

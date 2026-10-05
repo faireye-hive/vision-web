@@ -17,8 +17,16 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileTop, setMobileTop] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      setMobileTop(rect.bottom + 6);
+    }
+  }, [isOpen]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
@@ -83,7 +91,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
         title={`Subtopics for ${category.label}. Currently: ${
           activeSubtopic ? activeSubtopic.label : isCategoryRoot ? `All in ${category.label}` : 'Select subtopic'
         }`}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+        className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
           activeSubtopic
             ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
             : isOpen
@@ -92,21 +100,22 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
         }`}
       >
         <Hash className={`w-3 h-3 ${activeSubtopic ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
-        <span className="truncate max-w-[120px]">
+        <span className="truncate max-w-[80px] sm:max-w-[120px]">
           {activeSubtopic ? activeSubtopic.label : 'Subtopics'}
         </span>
         <ChevronDown
-          className={`w-3 h-3 transition-transform duration-150 ${
+          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 transition-transform duration-150 ${
             activeSubtopic ? 'text-white/80' : 'text-gray-400 dark:text-slate-500'
           } ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
-      {/* Floating Menu */}
+      {/* Floating Menu - Centered horizontally with page on mobile, standard dropdown on desktop */}
       {isOpen && (
         <div
           role="listbox"
-          className="absolute left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          style={mobileTop !== null && typeof window !== 'undefined' && window.innerWidth < 640 ? { top: `${mobileTop}px` } : undefined}
+          className="fixed inset-x-3 max-w-xs mx-auto sm:inset-auto sm:absolute sm:left-0 sm:right-auto sm:top-auto sm:mt-1.5 sm:w-64 sm:max-w-none sm:mx-0 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_35px_rgba(0,0,0,0.18)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
         >
           {/* Header */}
           <div className="px-2 py-1 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 mb-1.5 pb-1.5">

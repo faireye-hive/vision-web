@@ -63,7 +63,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         title="Browse topic categories"
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+        className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
           currentCategory
             ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-xs'
             : isOpen
@@ -76,11 +76,11 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
         ) : (
           <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
         )}
-        <span className="truncate max-w-[120px]">
+        <span className={`truncate max-w-[120px] ${currentCategory ? 'hidden sm:inline' : ''}`}>
           {currentCategory ? currentCategory.label : 'Categories'}
         </span>
         <ChevronDown
-          className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
+          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
             isOpen ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
           }`}
         />
@@ -88,17 +88,54 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200">
+        <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-24px)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-800 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200">
           <div className="px-3 pb-2 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
             <span className="font-bold text-gray-800 dark:text-white text-[11px] uppercase tracking-wider">
               Browse Categories
             </span>
-            <span className="text-[10px] text-gray-400 dark:text-slate-500">
-              {CATEGORY_DEFINITIONS.length} topics
-            </span>
+            <div className="flex items-center gap-2">
+              {currentCategory && (
+                <button
+                  type="button"
+                  onClick={() => handleSelect('')}
+                  className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                >
+                  Clear (All)
+                </button>
+              )}
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">
+                {CATEGORY_DEFINITIONS.length} topics
+              </span>
+            </div>
           </div>
 
           <div className="max-h-80 overflow-y-auto py-1 px-1 space-y-1">
+            {/* Option to clear category filter and return to All */}
+            <div
+              className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition cursor-pointer group mb-1 border-b border-gray-100 dark:border-slate-800/80 pb-2 ${
+                !currentCategory
+                  ? 'bg-blue-50/80 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
+                  : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800'
+              }`}
+              onClick={() => handleSelect('')}
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-base select-none">🌐</span>
+                <div className="truncate min-w-0">
+                  <div className="font-medium text-gray-900 dark:text-slate-100 leading-tight truncate">
+                    All Categories
+                  </div>
+                  <div className="text-[10px] text-gray-400 dark:text-slate-500">
+                    Reset category filter and view all topics
+                  </div>
+                </div>
+              </div>
+
+              {!currentCategory && (
+                <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1" />
+              )}
+            </div>
+
             {CATEGORY_DEFINITIONS.map((cat) => {
               const isSelected = currentCategory?.tag === cat.tag;
               const isExpanded = expandedCat === cat.tag;

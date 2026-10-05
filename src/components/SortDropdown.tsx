@@ -109,19 +109,19 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         title={`Sort feed: currently ${selectedOption.label}. Click to select another ranking.`}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+        className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
           isOpen
             ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-xs'
             : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
         <SelectedIcon className={`w-3.5 h-3.5 ${selectedOption.iconColor}`} />
-        <span>{selectedOption.label}</span>
+        <span className="hidden sm:inline">{selectedOption.label}</span>
         {selectedOption.badge === 'Live' && (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse hidden sm:inline-block" />
         )}
         <ChevronDown
-          className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
+          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
             isOpen ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
           }`}
         />
