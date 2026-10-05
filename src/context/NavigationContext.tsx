@@ -127,10 +127,16 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     const loadShell = (author: string, permlink: string) => {
       const current = selectedPostRef.current;
+      const isCompletePost = Boolean(
+        current &&
+        current.body &&
+        current.body.length > 250
+      );
       const alreadyOpen = Boolean(
         current &&
         current.author.replace(/^@/, '') === author &&
-        current.permlink === permlink
+        current.permlink === permlink &&
+        isCompletePost
       );
       if (alreadyOpen) return;
 
@@ -392,7 +398,19 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setSelectedPost(post);
     setStandalonePage(null);
     navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
-  }, [navigate, saveScrollPosition]);
+
+    // If the post was passed with an incomplete or truncated body (e.g. from Similar Stories HiveSense 200-char snippet),
+    // immediately fetch the complete full post from Hive RPC so the reader renders the entire article:
+    if (!post.body || post.body.length <= 250) {
+      getPost(post.author, post.permlink, currentUser?.username || '')
+        .then((fullPost) => {
+          if (fullPost && fullPost.body) {
+            setSelectedPost(fullPost);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch full post for selected post:', err));
+    }
+  }, [navigate, saveScrollPosition, currentUser?.username]);
 
   const handleClosePost = useCallback(() => {
     setSelectedPost(null);

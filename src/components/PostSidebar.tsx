@@ -233,7 +233,10 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
               return (
                 <div
                   key={`${simPost.author}/${simPost.permlink}`}
-                  onClick={() => onSelectPost(simPost)}
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                    onSelectPost(simPost);
+                  }}
                   className="group flex gap-2.5 items-start p-2 rounded-2xl hover:bg-gray-50 dark:hover:bg-slate-800/60 transition cursor-pointer"
                 >
                   {thumb ? (

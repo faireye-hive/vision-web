@@ -477,10 +477,47 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Full post resolution (guarantees complete body if opened from truncated sources like Similar Stories)
+  const [fullPost, setFullPost] = useState<HivePost | null>(null);
+  const [loadingFullBody, setLoadingFullBody] = useState<boolean>(false);
+
+  useEffect(() => {
+    // If post already has a full body (> 250 chars), use it directly
+    if (post.body && post.body.length > 250) {
+      setFullPost(post);
+      setLoadingFullBody(false);
+      return;
+    }
+
+    // Otherwise, fetch the full post from Hive RPC
+    let active = true;
+    setLoadingFullBody(true);
+    getPost(post.author, post.permlink, currentUser?.username || '')
+      .then((data) => {
+        if (!active) return;
+        if (data && data.body) {
+          setFullPost(data);
+        }
+      })
+      .catch((err) => {
+        if (!active) console.error('Failed to load full post in reader:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingFullBody(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.author, post.permlink, post.body, currentUser?.username]);
+
+  const currentPost = fullPost && fullPost.author.replace(/^@/, '') === post.author.replace(/^@/, '') && fullPost.permlink === post.permlink ? fullPost : post;
+  const isTruncated = loadingFullBody || !currentPost.body || currentPost.body.length <= 250;
+
   // Parse HTML and headings safely with DOMPurify
   const { html: safeHtmlContent, headings } = useMemo(() => {
-    return markdownToSafeHtmlWithHeadings(post.body || '');
-  }, [post.body]);
+    return markdownToSafeHtmlWithHeadings(currentPost.body || '');
+  }, [currentPost.body]);
 
   // Inform parent / sidebar about extracted headings
   useEffect(() => {
@@ -1089,13 +1126,28 @@ export const PostReader: React.FC<PostReaderProps> = ({
         })()}
 
         {/* Main Article Body (DOMPurify protected) */}
-        <div
-          id="sanitized-post-body"
-          ref={bodyContainerRef}
-          onClick={handleBodyClick}
-          className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg select-text"
-          dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
-        />
+        {isTruncated ? (
+          <div className="space-y-4 py-8 animate-pulse">
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
+              <span>Loading full story content from Hive blockchain...</span>
+            </div>
+            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-full" />
+            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-5/6" />
+            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-4/6" />
+            <div className="h-48 bg-gray-100 dark:bg-slate-800/60 rounded-2xl w-full" />
+            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-full" />
+            <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded w-3/4" />
+          </div>
+        ) : (
+          <div
+            id="sanitized-post-body"
+            ref={bodyContainerRef}
+            onClick={handleBodyClick}
+            className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg select-text"
+            dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
+          />
+        )}
 
         {/* Full Tags Section at bottom of post */}
         {postTags.length > 0 && (
@@ -1259,6 +1311,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   <div
                     key={`${relPost.author}/${relPost.permlink}`}
                     onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'instant' });
                       if (onSelectPost) {
                         onSelectPost(relPost);
                       }
