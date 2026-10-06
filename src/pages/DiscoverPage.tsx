@@ -414,7 +414,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       {/* Header controls bar - Auto-hide on scroll down, show on scroll up on mobile */}
       <div
-        className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 z-30 flex items-center justify-between transition-all duration-300 ease-out sticky top-0 sm:static ${
+        className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 z-35 flex items-center justify-between transition-all duration-300 ease-out sticky top-0 sm:relative ${
           headerVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-16 opacity-0 pointer-events-none sm:translate-y-0 sm:opacity-100 sm:pointer-events-auto'
