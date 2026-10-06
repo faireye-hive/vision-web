@@ -17,6 +17,7 @@ import { ContentFilterModal } from './components/ContentFilterModal';
 import { NotificationToastHost } from './components/NotificationToastHost';
 import { RightRail } from './components/RightRail';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { MobileSideDrawer } from './components/MobileSideDrawer';
 
 import { HivePost } from './services/hiveApi';
 import { requestLogin } from './utils/authEvents';
@@ -42,7 +43,7 @@ function RouteFallback() {
 }
 
 function NebulosaApp() {
-  const { currentUser, login, logout, joinedCommunities, toggleJoinCommunity } = useAuth();
+  const { currentUser, login, logout, joinedCommunities, toggleJoinCommunity, followingUsersList } = useAuth();
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
 
@@ -385,6 +386,21 @@ function NebulosaApp() {
       {/* Ghost Notification Toast */}
       <NotificationToastHost />
 
+      {/* Mobile Swipe-from-Edge Drawer for Trending Topics & Followed Creators */}
+      <MobileSideDrawer
+        activeNav={activeNav}
+        tag={tag}
+        setTag={setTag}
+        sort={sort}
+        feedAuthor={feedAuthor}
+        setFeedAuthor={setFeedAuthor}
+        currentUser={currentUser}
+        followingUsersList={followingUsersList}
+        openFollowingManager={openFollowingManager}
+        discoverPosts={discoverPosts}
+        disabled={Boolean(selectedPost || standalonePage || activeNav === 'shorts')}
+      />
+
       {/* Mobile Bottom Navigation Bar (Hidden on desktop md:) */}
       <MobileBottomNav
         activeNav={activeNav}
@@ -409,6 +425,7 @@ function NebulosaApp() {
         currentTag={tag}
         onSelectTag={(t) => setTag(t)}
         onOpenFilters={() => setShowContentFilterModal(true)}
+        hasStandalonePage={standalonePage !== null}
       />
     </div>
   );

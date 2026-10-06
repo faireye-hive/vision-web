@@ -50,6 +50,7 @@ export interface MobileBottomNavProps {
   currentTag?: string;
   onSelectTag?: (tag: string) => void;
   onOpenFilters?: () => void;
+  hasStandalonePage?: boolean;
 }
 
 const POPULAR_MOBILE_TAGS = [
@@ -89,7 +90,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onSortChange,
   currentTag = '',
   onSelectTag,
-  onOpenFilters
+  onOpenFilters,
+  hasStandalonePage = false,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showDiscoverSortPopover, setShowDiscoverSortPopover] = useState(false);
@@ -100,10 +102,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     }
 
     // When tapping Discover while ALREADY on Discover: toggle Sort / Tags popover!
-    if (tab === 'discover' && activeNav === 'discover' && !selectedPost) {
-      setShowDiscoverSortPopover((prev) => !prev);
-      return;
-    }
+  if (tab === 'discover' && activeNav === 'discover' && !selectedPost && !hasStandalonePage) {
+    setShowDiscoverSortPopover((prev) => !prev);
+    return;
+  }
 
     setShowDiscoverSortPopover(false);
     onNavChange(tab);
@@ -126,10 +128,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const isFeedActive = activeNav === 'feed' && !selectedPost;
-  const isDiscoverActive = activeNav === 'discover' && !selectedPost;
-  const isShortsActive = (activeNav === 'shorts' || activeNav === 'waves') && !selectedPost;
-  const isCommunitiesActive = activeNav === 'communities' && !selectedPost;
+  const isFeedActive = activeNav === 'feed' && !selectedPost  && !hasStandalonePage;
+  const isDiscoverActive = activeNav === 'discover' && !selectedPost && !hasStandalonePage;
+  const isShortsActive = (activeNav === 'shorts' || activeNav === 'waves') && !selectedPost && !hasStandalonePage;
+  const isCommunitiesActive = activeNav === 'communities' && !selectedPost && !hasStandalonePage;
 
   return (
     <>

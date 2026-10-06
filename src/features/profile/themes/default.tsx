@@ -40,11 +40,124 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1024;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isMobile;
+};
+
 const ThemeHeader: React.FC<ThemeProps> = (props) => {
+  const isMobile = useIsMobile();
   const { account, profile, reputation, isOwner, isFollowing, onFollowToggle, isMuted, onMuteToggle, onOpenCustomizer } = props;
   const metaProfile = profile?.metadata?.profile || {};
   const coverImage = metaProfile.cover_image ? getSafeImageUrl(metaProfile.cover_image, { width: 1400 }) : null;
   const avatarUrl = getHiveAvatarUrl(account?.name || '', 'large');
+
+  if (isMobile) {
+    return (
+      <div className="relative mb-4 w-full">
+        {/* Mobile Cover Banner */}
+        <div className="w-full bg-slate-900 overflow-hidden relative shadow-md rounded-2xl h-36 xs:h-40">
+          {coverImage ? (
+            <img 
+              src={coverImage} 
+              className="w-full h-full object-cover opacity-85 absolute inset-0" 
+              alt="Cover" 
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 absolute inset-0" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        </div>
+
+        {/* Mobile Avatar + Action Buttons Row */}
+        <div className="flex items-end justify-between px-2 -mt-9 relative z-10">
+          <div className="relative group/avatar shrink-0">
+            <div className="w-[74px] h-[74px] rounded-full border-4 border-white dark:border-[#0a0f1d] overflow-hidden bg-slate-800 shadow-md">
+              <img 
+                src={avatarUrl} 
+                className="w-full h-full object-cover" 
+                alt="Avatar" 
+              />
+            </div>
+            <div className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0a0f1d] shadow-sm" />
+          </div>
+
+          <div className="flex items-center gap-2 mb-1">
+            {isOwner ? (
+              <button 
+                type="button"
+                onClick={onOpenCustomizer}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Customize</span>
+              </button>
+            ) : (
+              <>
+                <button 
+                  type="button"
+                  onClick={onFollowToggle}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer ${
+                    isFollowing 
+                    ? 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 hover:bg-rose-500/20 hover:text-rose-400 border border-gray-200 dark:border-slate-700' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {isFollowing ? <UserMinus className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                  <span>{isFollowing ? 'Following' : 'Follow'}</span>
+                </button>
+
+                {onMuteToggle && (
+                  <button 
+                    type="button"
+                    onClick={onMuteToggle}
+                    className={`p-2 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer ${
+                      isMuted 
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700'
+                    }`}
+                    title={isMuted ? 'Unmute this account' : 'Mute this account on Hive'}
+                  >
+                    {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Name & Username */}
+        <div className="px-2 mt-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-black text-gray-900 dark:text-white tracking-tight leading-tight">
+              {metaProfile.name || account?.name}
+            </h1>
+            <div className="flex items-center gap-1 bg-blue-500/90 px-2 py-0.5 rounded-full text-white text-[10px] font-black shadow-xs shrink-0">
+              <Activity className="w-3 h-3" />
+              <span>{reputation}</span>
+            </div>
+          </div>
+          <p className="text-gray-500 dark:text-slate-400 font-bold text-xs mt-0.5">
+            @{account?.name}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mb-6">
@@ -161,8 +274,65 @@ const ThemeHeader: React.FC<ThemeProps> = (props) => {
 };
 
 const ThemeSidebar: React.FC<ThemeProps> = (props) => {
+  const isMobile = useIsMobile();
   const { profile, followerCount, followingCount, postCount, account } = props;
   const metaProfile = profile?.metadata?.profile || {};
+
+  if (isMobile) {
+    return (
+      <div className="w-full space-y-3 mb-2">
+        {/* Mobile About Box */}
+        <div className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800 p-4 rounded-2xl shadow-xs space-y-3 w-full">
+          {metaProfile.about ? (
+            <p className="text-gray-700 dark:text-slate-200 text-xs sm:text-sm font-medium leading-relaxed">
+              {metaProfile.about}
+            </p>
+          ) : (
+            <p className="text-gray-400 dark:text-slate-500 text-xs italic">No bio available.</p>
+          )}
+
+          {/* Location, Website, Joined row */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-gray-600 dark:text-slate-400 pt-1">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <MapPin className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+              <span>{metaProfile.location || "Earth"}</span>
+            </div>
+            
+            {metaProfile.website && (
+              <a 
+                href={String(metaProfile.website).startsWith('http') ? String(metaProfile.website) : `https://${String(metaProfile.website)}`} 
+                target="_blank" rel="noopener noreferrer" 
+                className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline shrink-0 max-w-[200px] truncate"
+              >
+                <LinkIcon className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                <span className="truncate">{String(metaProfile.website).replace(/^https?:\/\//, '')}</span>
+              </a>
+            )}
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Calendar className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
+              <span>Joined {formatDate(account?.created || '')}</span>
+            </div>
+          </div>
+
+          {/* Mobile Stats Grid */}
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100 dark:border-slate-800/60">
+            {[
+              { label: 'Posts', value: postCount, color: 'text-blue-600 dark:text-blue-400', icon: FileText },
+              { label: 'Followers', value: followerCount, color: 'text-emerald-600 dark:text-emerald-400', icon: UserPlus },
+              { label: 'Following', value: followingCount, color: 'text-violet-600 dark:text-violet-400', icon: UserMinus }
+            ].map((stat, idx) => (
+              <div key={`${stat.label}-${idx}`} className="bg-gray-50 dark:bg-slate-900/70 rounded-xl p-2.5 text-center border border-gray-100 dark:border-slate-800">
+                <stat.icon className={`w-3.5 h-3.5 mx-auto mb-1 ${stat.color} opacity-80`} />
+                <p className="text-base font-black text-gray-900 dark:text-white mb-0.5">{stat.value}</p>
+                <p className="text-[9px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-tighter">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pt-4 sm:pt-20">
@@ -234,6 +404,7 @@ const ThemeSidebar: React.FC<ThemeProps> = (props) => {
 };
 
 const ThemeFeed: React.FC<ThemeProps> = (props) => {
+  const isMobile = useIsMobile();
   const { 
     account, posts, comments, replies, mentions, activeTab, setActiveTab, onSelectPost, 
     onVote, onReblog, loadingMore, onLoadMore, onCommentReply, tabLoading, hasMore 
@@ -305,9 +476,12 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
   const showQuickReply = activeTab === 'replies';
 
   return (
-    <div className="space-y-6 pt-6 max-w-full" style={{ marginBottom: '18px', marginLeft: '-19px', width: '894px' }}>
+    <div 
+      className={isMobile ? "space-y-4 pt-1 w-full max-w-full overflow-hidden" : "space-y-6 pt-6 max-w-full"} 
+      style={isMobile ? undefined : { marginBottom: '18px', marginLeft: '-19px', width: '894px' }}
+    >
       {/* Tab Navigation with Icons */}
-      <div key="feed-tabs" className="flex items-center gap-4 border-b border-gray-100 dark:border-slate-800 pb-1 overflow-x-auto no-scrollbar">
+      <div key="feed-tabs" className="flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 pb-1 overflow-x-auto no-scrollbar">
         {[
           { id: 'blog', label: 'Blog', icon: Rss, pb: '12px' },
           { id: 'posts', label: 'Posts', icon: PenLine, pb: '12px' },
@@ -318,7 +492,7 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
           <button 
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`text-xs font-black uppercase tracking-widest transition-all relative flex-shrink-0 flex items-center gap-2 cursor-pointer ${
+            className={`text-xs font-black uppercase tracking-widest transition-all relative flex-shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
               activeTab === tab.id 
               ? 'text-blue-600 dark:text-blue-400' 
               : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
@@ -333,13 +507,13 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
       </div>
 
       {/* Feed Content */}
-      <div key="feed-content" className="space-y-5 max-w-full" style={{ width: '893px' }}>
+      <div key="feed-content" className={isMobile ? "space-y-4 w-full max-w-full" : "space-y-5 max-w-full"} style={isMobile ? undefined : { width: '893px' }}>
         {tabLoading ? (
           <div className="space-y-4 w-full">
             {[1, 2, 3].map((n) => (
               <div 
                 key={n}
-                className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-4 flex flex-col sm:flex-row gap-4 h-auto sm:h-[180px] w-full max-w-[894px] animate-pulse"
+                className={`bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-4 flex flex-col sm:flex-row gap-4 h-auto sm:h-[180px] w-full animate-pulse ${isMobile ? '' : 'max-w-[894px]'}`}
               >
                 <div className="w-full sm:w-[262px] h-36 sm:h-full bg-slate-200 dark:bg-slate-800/70 rounded-[15px] shrink-0" />
                 <div className="flex-1 flex flex-col justify-between py-1 space-y-2">
@@ -481,17 +655,19 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
             return (
               <div 
                 key={post.post_id || `${post.author}/${post.permlink}-${index}`} 
-                className={`group bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/5 transition-all duration-300 w-full max-w-[894px] ${
-                  isCommentOrReply ? 'h-auto min-h-[140px]' : (showQuickReply ? 'h-auto min-h-[180px]' : 'h-auto sm:h-[180px]')
+                className={`group bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/5 transition-all duration-300 w-full ${
+                  isMobile ? 'max-w-full' : 'max-w-[894px]'
+                } ${
+                  isCommentOrReply ? 'h-auto min-h-[140px]' : (showQuickReply ? 'h-auto min-h-[180px]' : (isMobile ? 'h-auto' : 'h-auto sm:h-[180px]'))
                 }`}
-                style={{ padding: '16px', width: '894px' }}
+                style={isMobile ? { padding: '14px', width: '100%' } : { padding: '16px', width: '894px' }}
               >
                 <div className="flex flex-col sm:flex-row h-full gap-3 sm:gap-0">
                   {/* Thumbnail OR Article Skeleton Placeholder - only for blog/posts */}
                   {!isCommentOrReply && (
                     thumbnail ? (
                       <div 
-                        className="w-full sm:w-[262px] h-44 sm:h-full overflow-hidden cursor-pointer shrink-0 flex items-center justify-center"
+                        className={isMobile ? "w-full h-44 rounded-xl overflow-hidden cursor-pointer shrink-0 mb-2.5" : "w-full sm:w-[262px] h-44 sm:h-full overflow-hidden cursor-pointer shrink-0 flex items-center justify-center"}
                         onClick={() => onSelectPost(post)}
                       >
                         <img 
@@ -499,7 +675,11 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                           alt="Thumbnail" 
                           loading="lazy"
-                          style={{ 
+                          style={isMobile ? { 
+                            maxHeight: '176px',
+                            borderRadius: '12px',
+                            width: '100%'
+                          } : { 
                             maxHeight: '144px',
                             borderRadius: '15px', 
                             borderWidth: '1px', 
@@ -512,13 +692,13 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                       </div>
                     ) : (
                       <div 
-                        className="w-full sm:w-[262px] h-36 sm:h-full overflow-hidden cursor-pointer shrink-0 flex items-center justify-center"
+                        className={isMobile ? "w-full h-28 rounded-xl overflow-hidden cursor-pointer shrink-0 mb-2.5" : "w-full sm:w-[262px] h-36 sm:h-full overflow-hidden cursor-pointer shrink-0 flex items-center justify-center"}
                         onClick={() => onSelectPost(post)}
                         title="Read article"
                       >
                         <div 
                           className="w-full h-full sm:max-h-[144px] rounded-[15px] bg-slate-50 dark:bg-slate-900/50 border border-gray-100 dark:border-slate-800 p-4 flex flex-col justify-between group-hover/card:border-blue-400/50 transition-all duration-300 relative overflow-hidden"
-                          style={{ marginRight: '12px' }}
+                          style={isMobile ? undefined : { marginRight: '12px' }}
                         >
                           {/* Decorative Watermark */}
                           <div className="absolute -right-4 -bottom-4 opacity-[0.03] dark:opacity-[0.05] pointer-events-none transform rotate-12 group-hover/card:scale-110 transition-transform duration-500">
@@ -634,7 +814,9 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
 
                       {post.title && !post.title.startsWith('RE:') && (
                         <h4 
-                          className="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors cursor-pointer truncate block w-full min-w-0 shrink-0 mb-1"
+                          className={`text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors cursor-pointer block w-full min-w-0 shrink-0 mb-1 ${
+                            isMobile ? 'line-clamp-2' : 'truncate'
+                          }`}
                           onClick={() => onSelectPost(post)}
                           title={post.title}
                         >
@@ -755,6 +937,23 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
 };
 
 const DefaultLayout: React.FC<ThemeProps> = (props) => {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0a0f1d] pb-24 px-2.5 selection:bg-blue-500/30 selection:text-blue-500 max-w-full overflow-x-hidden">
+        <ThemeHeader {...props} />
+        <ThemeSidebar {...props} />
+        <ThemeFeed {...props} />
+        <footer className="py-12 text-center border-t border-gray-100 dark:border-slate-900 mt-8">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] dark:text-white opacity-25">
+            {defaultTheme.name}
+          </p>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0a0f1d] animate-in fade-in duration-500 transition-colors selection:bg-blue-500/30 selection:text-blue-500">
       <ThemeHeader {...props} />
