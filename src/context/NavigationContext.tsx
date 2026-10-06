@@ -129,12 +129,13 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       const current = selectedPostRef.current;
       const isCompletePost = Boolean(
         current &&
-        current.body &&
-        current.body.length > 250
+        typeof current.body === 'string' &&
+        current.body.trim().length > 0 &&
+        !current.is_truncated
       );
       const alreadyOpen = Boolean(
         current &&
-        current.author.replace(/^@/, '') === author &&
+        current.author.replace(/^@/, '').toLowerCase() === author.toLowerCase() &&
         current.permlink === permlink &&
         isCompletePost
       );
@@ -400,12 +401,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
 
     // If the post was passed with an incomplete or truncated body (e.g. from Similar Stories HiveSense 200-char snippet),
-    // immediately fetch the complete full post from Hive RPC so the reader renders the entire article:
-    if (!post.body || post.body.length <= 250) {
+    // fetch the complete full post from Hive RPC so the reader renders the entire article:
+    if (!post.body || post.is_truncated) {
       getPost(post.author, post.permlink, currentUser?.username || '')
         .then((fullPost) => {
           if (fullPost && fullPost.body) {
-            setSelectedPost(fullPost);
+            setSelectedPost({ ...fullPost, is_truncated: false });
           }
         })
         .catch((err) => console.error('Failed to fetch full post for selected post:', err));

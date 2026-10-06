@@ -80,9 +80,57 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const apiCursorRef = useRef<{ author: string; permlink: string } | null>(null);
   const username = currentUser?.username || '';
 
+  // Responsive mobile detection (mobile defaults to gallery mode)
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 640 : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Mobile Pull-to-Refresh state
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartYRef = useRef<number | null>(null);
+
+  // Smart auto-hiding header on mobile (hides on scroll down, reappears on scroll up)
+  const [headerVisible, setHeaderVisible] = useState<boolean>(true);
+  const lastScrollYRef = useRef<number>(0);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = window.scrollY;
+          const diff = currentScrollY - lastScrollYRef.current;
+
+          // Always visible near the top
+          if (currentScrollY < 40) {
+            setHeaderVisible(true);
+          } else if (diff > 8) {
+            // User scrolling down -> hide header
+            setHeaderVisible(false);
+          } else if (diff < -8) {
+            // User scrolling up -> show header
+            setHeaderVisible(true);
+          }
+
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY <= 10) {
@@ -329,19 +377,24 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       }
     }
 
+    const useGalleryLayout = isMobile || feedLayoutMode === 'gallery';
+
     return {
       displayedPosts: uniquePosts,
+      useGalleryLayout,
       filteredOutStats: {
         total: filterRes.totalHiddenCount,
         byWord: filterRes.hiddenByWordCount,
         byAuthor: filterRes.hiddenByAuthorCount
       }
     };
-  }, [posts, communitySubTopic, filterPostsList]);
+  }, [posts, communitySubTopic, filterPostsList, isMobile, feedLayoutMode]);
+
+  const useGalleryLayout = isMobile || feedLayoutMode === 'gallery';
 
   return (
     <div
-      className="space-y-4 w-full min-w-0 max-w-[824px]"
+      className="space-y-3 sm:space-y-4 w-full min-w-0 max-w-[824px] px-0"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -359,9 +412,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         </div>
       )}
 
-      {/* Header controls bar */}
+      {/* Header controls bar - Auto-hide on scroll down, show on scroll up on mobile */}
       <div
-        className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-30 flex items-center justify-between"
+        className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 z-30 flex items-center justify-between transition-all duration-300 ease-out sticky top-0 sm:static ${
+          headerVisible
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : '-translate-y-16 opacity-0 pointer-events-none sm:translate-y-0 sm:opacity-100 sm:pointer-events-auto'
+        }`}
         style={{
           height: '45px',
           minHeight: '45px',
@@ -563,19 +620,34 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           ))}
         </div>
       ) : displayedPosts.length > 0 ? (
-        <div className={feedLayoutMode === 'gallery' ? 'space-y-6' : 'space-y-4'}>
-          {feedLayoutMode === 'gallery'
-            ? displayedPosts.map((post) => (
-                <GalleryPostCard
-                  key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
-                  post={post}
-                  onSelectPost={openPost}
-                  onSelectAuthor={handleSelectAuthor}
-                  onSelectTag={openTag}
-                  currentUser={currentUser}
-                  onRequireLogin={requestLogin}
-                />
-              ))
+        <div className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}>
+          {useGalleryLayout
+            ? displayedPosts.map((post) => {
+                const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
+                return isComment ? (
+                  <PostCard
+                    key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                    post={post}
+                    onSelectPost={openPost}
+                    onSelectAuthor={handleSelectAuthor}
+                    onSelectTag={openTag}
+                    currentUser={currentUser}
+                    onRequireLogin={requestLogin}
+                    onMuteAuthor={addFilterAuthor}
+                    onBlockWord={addFilterWord}
+                  />
+                ) : (
+                  <GalleryPostCard
+                    key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                    post={post}
+                    onSelectPost={openPost}
+                    onSelectAuthor={handleSelectAuthor}
+                    onSelectTag={openTag}
+                    currentUser={currentUser}
+                    onRequireLogin={requestLogin}
+                  />
+                );
+              })
             : displayedPosts.map((post) => (
                 <PostCard
                   key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}

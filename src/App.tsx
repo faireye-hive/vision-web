@@ -163,7 +163,7 @@ function NebulosaApp() {
       />
 
       {/* Main Container with safe bottom padding for mobile bar */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-1 sm:px-6 py-2 sm:py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
         {standalonePage === 'write' && (

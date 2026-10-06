@@ -261,7 +261,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
   return (
     <article
       id={`gallery-card-${post.post_id || post.permlink}`}
-      className="bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-3xl overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 mb-6 group flex flex-col"
+      className="bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 mb-3 sm:mb-6 group flex flex-col"
     >
       {/* Header: Author + Community + Timestamp + Bookmark */}
       <div className="flex items-center justify-between p-4 pb-3">
@@ -336,11 +336,15 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
       {currentImageSrc ? (
         <div
           onClick={() => {
-            setGalleryIndex(cardImageIndex);
-            setShowGallery(true);
+            if (typeof window !== 'undefined' && window.innerWidth < 640) {
+              onSelectPost(post);
+            } else {
+              setGalleryIndex(cardImageIndex);
+              setShowGallery(true);
+            }
           }}
-          className="relative w-full h-[480px] sm:h-[520px] bg-slate-950/5 dark:bg-black/60 overflow-hidden cursor-zoom-in group/img flex items-center justify-center select-none"
-          title="Click to view image in full gallery"
+          className="relative w-full h-[220px] xs:h-[250px] sm:h-[480px] md:h-[520px] bg-slate-950/5 dark:bg-black/60 overflow-hidden cursor-pointer sm:cursor-zoom-in group/img flex items-center justify-center select-none"
+          title="Open post"
         >
           {/* Uncropped Image: Resized to fit perfectly within the reserved space */}
           <img
@@ -392,13 +396,13 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           )}
 
           {/* Title directly ON the image with text-stroke/outline */}
-          <div className="absolute bottom-0 inset-x-0 p-4 sm:p-5 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-10 pointer-events-none">
+          <div className="absolute bottom-0 inset-x-0 p-3.5 sm:p-5 pt-16 bg-gradient-to-t from-black/95 via-black/60 to-transparent z-10 pointer-events-none">
             <h2
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectPost(post);
               }}
-              className="font-black text-white text-base sm:text-lg leading-snug line-clamp-1 cursor-pointer hover:underline pointer-events-auto"
+              className="font-black text-white text-sm sm:text-lg leading-tight sm:leading-snug line-clamp-3 sm:line-clamp-2 cursor-pointer hover:underline pointer-events-auto break-words"
               style={{
                 textShadow:
                   '0 1px 2px #000, 0 2px 6px rgba(0,0,0,0.95), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
@@ -408,7 +412,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             >
               {post.title}
             </h2>
-            <p className="text-white/90 text-[11px] sm:text-xs line-clamp-1 mt-0.5 font-medium pointer-events-none"
+            <p className="text-white/90 text-[11px] sm:text-xs line-clamp-1 mt-0.5 font-medium pointer-events-none hidden xs:block"
                style={{
                  textShadow: '0 1px 2px rgba(0,0,0,0.8)'
                }}

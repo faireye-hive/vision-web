@@ -11,7 +11,8 @@ import {
   ChevronDown,
   SlidersHorizontal,
   ShieldAlert,
-  EyeOff
+  EyeOff,
+  Users
 } from 'lucide-react';
 import {
   HivePost,
@@ -26,6 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useContentFilter } from '../context/ContentFilterContext';
 import { PostCard } from '../components/PostCard';
+import { GalleryPostCard } from '../components/GalleryPostCard';
 import { appendUniquePosts } from '../utils/posts';
 import { requestLogin } from '../utils/authEvents';
 
@@ -89,6 +91,49 @@ export const FeedPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const queryGen = useRef(0);
   const username = currentUser?.username || '';
+
+  // Responsive mobile detection (mobile defaults to gallery mode)
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth < 640 : false;
+  });
+
+  // Mobile Pull-to-Refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 5) {
+      touchStartYRef.current = e.touches[0].clientY;
+    } else {
+      touchStartYRef.current = null;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartYRef.current !== null && window.scrollY <= 5) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - touchStartYRef.current;
+      if (diff > 0) {
+        setPullDistance(Math.min(Math.floor(diff * 0.4), 60));
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= 45) {
+      fetchPosts(true);
+    }
+    setPullDistance(0);
+    touchStartYRef.current = null;
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const openPost = useCallback((post: HivePost, jump?: boolean) => {
     handleSelectPost(post, true, Boolean(jump));
@@ -202,7 +247,25 @@ export const FeedPage: React.FC = () => {
   }, [posts, hideReblogs, followingMode, filterPostsList]);
 
   return (
-    <div className="space-y-4 w-full min-w-0 max-w-[824px]">
+    <div
+      className="space-y-4 w-full min-w-0 max-w-[824px]"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Mobile Pull-to-Refresh Indicator */}
+      {pullDistance > 0 && (
+        <div
+          className="flex items-center justify-center transition-all overflow-hidden sm:hidden"
+          style={{ height: `${pullDistance}px` }}
+        >
+          <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50">
+            <RefreshCw className={`w-3.5 h-3.5 ${pullDistance >= 45 ? 'animate-spin' : ''}`} />
+            <span>{pullDistance >= 45 ? 'Release to refresh' : 'Pull to refresh'}</span>
+          </div>
+        </div>
+      )}
+
       {/* Author Feed Filter Banner (When author filter is active) */}
       {feedAuthor && (
         <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
@@ -268,48 +331,83 @@ export const FeedPage: React.FC = () => {
       )}
 
       {/* Feed Controls Header */}
-      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-20" style={{ marginBottom: '5px', paddingBottom: '10px', borderRadius: '15px', paddingTop: '10px', paddingLeft: '10px', paddingRight: '10px', minHeight: '45px' }}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center flex-wrap gap-2.5">
-            <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
+      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-3 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-20" style={{ marginBottom: '5px', borderRadius: '15px', minHeight: '45px' }}>
+        <div className="flex flex-row items-center justify-between gap-1.5 sm:gap-3">
+          <div className="flex items-center flex-wrap sm:flex-nowrap gap-1 sm:gap-2.5 min-w-0">
+            {/* "Your Feed" title (hidden on mobile to save space) */}
+            <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base hidden sm:inline">
               Your Feed
             </span>
 
-            {/* Feed Mode Selector Dropdown */}
+            {/* Feed Mode Selector Dropdown: compact icon-only on mobile, full on desktop */}
             <div className="relative inline-flex items-center">
-              <select
-                id="following-feed-mode-select"
-                value={followingMode}
-                onChange={(e) => {
-                  const mode = e.target.value as 'root' | 'comments' | 'mixed';
-                  setFollowingMode(mode);
-                  try {
-                    localStorage.setItem('hive_following_mode', mode);
-                  } catch {}
-                }}
-                className="appearance-none bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
-                title="Filter following feed mode"
-              >
-                <option value="root">Root Posts</option>
-                <option value="comments">Comments</option>
-                <option value="mixed">Mixed</option>
-              </select>
-              <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 dark:text-blue-400">
-                {followingMode === 'root' ? (
-                  <FileText className="w-3.5 h-3.5" />
-                ) : followingMode === 'comments' ? (
-                  <MessageSquare className="w-3.5 h-3.5" />
-                ) : (
-                  <Shuffle className="w-3.5 h-3.5" />
-                )}
+              {/* Mobile compact select (icon only + chevron) */}
+              <div className="sm:hidden relative inline-flex items-center gap-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold px-2 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 shadow-2xs">
+                <span className="text-blue-600 dark:text-blue-400">
+                  {followingMode === 'root' ? (
+                    <FileText className="w-3.5 h-3.5" />
+                  ) : followingMode === 'comments' ? (
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  ) : (
+                    <Shuffle className="w-3.5 h-3.5" />
+                  )}
+                </span>
+                <ChevronDown className="w-3 h-3 text-gray-500 dark:text-slate-400" />
+                <select
+                  id="following-feed-mode-select-mobile"
+                  value={followingMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'root' | 'comments' | 'mixed';
+                    setFollowingMode(mode);
+                    try {
+                      localStorage.setItem('hive_following_mode', mode);
+                    } catch {}
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  title="Filter following feed mode"
+                >
+                  <option value="root">Root Posts</option>
+                  <option value="comments">Comments</option>
+                  <option value="mixed">Mixed</option>
+                </select>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-slate-400" />
+
+              {/* Desktop full select */}
+              <div className="hidden sm:inline-flex relative items-center">
+                <select
+                  id="following-feed-mode-select"
+                  value={followingMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'root' | 'comments' | 'mixed';
+                    setFollowingMode(mode);
+                    try {
+                      localStorage.setItem('hive_following_mode', mode);
+                    } catch {}
+                  }}
+                  className="appearance-none bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
+                  title="Filter following feed mode"
+                >
+                  <option value="root">Root Posts</option>
+                  <option value="comments">Comments</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-600 dark:text-blue-400">
+                  {followingMode === 'root' ? (
+                    <FileText className="w-3.5 h-3.5" />
+                  ) : followingMode === 'comments' ? (
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  ) : (
+                    <Shuffle className="w-3.5 h-3.5" />
+                  )}
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-slate-400" />
+              </div>
             </div>
 
-            {/* Reblogs Checkmark Toggle */}
+            {/* Reblogs Checkmark Toggle: icon-only on mobile, full text on desktop */}
             {followingMode !== 'comments' && (
               <label
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
                   !hideReblogs
                     ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100/70'
                     : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -323,26 +421,28 @@ export const FeedPage: React.FC = () => {
                   className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
                 />
                 <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                <span>Reblogs</span>
+                <span className="hidden sm:inline">Reblogs</span>
               </label>
             )}
 
-            {/* Manage Followed Link */}
+            {/* Manage Followed Link: compact icon button on mobile, text on desktop */}
             {currentUser && (
               <button
                 onClick={openFollowingManager}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1 cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-1.5 sm:px-0 sm:py-0 rounded-xl bg-blue-50/60 dark:bg-blue-950/40 sm:bg-transparent border border-blue-150 dark:border-blue-900/40 sm:border-0 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-0.5 sm:ml-1 cursor-pointer transition shadow-2xs sm:shadow-none"
+                title="Manage Followed authors"
               >
-                Manage Followed
+                <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <span className="hidden sm:inline">Manage Followed</span>
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0 flex-wrap">
-            {/* Content Filters Button */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {/* Content Filters Button: icon and badge only on mobile, text on desktop */}
             <button
               onClick={openContentFilterModal}
-              className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer border ${
+              className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition shadow-2xs cursor-pointer border ${
                 contentFilterConfig.enabled && filteredOutStats.total > 0
                   ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
                   : contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
@@ -356,7 +456,7 @@ export const FeedPage: React.FC = () => {
               }
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Filters</span>
+              <span className="hidden sm:inline">Filters</span>
               {contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -371,18 +471,10 @@ export const FeedPage: React.FC = () => {
               )}
             </button>
 
-            {/* Cached Status Badge */}
-            <span
-              className="text-[11px] font-medium text-slate-500 bg-slate-100/90 dark:bg-slate-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1 cursor-default"
-              title="Fast instant navigation powered by client cache"
-            >
-              <Zap className="w-3 h-3 text-amber-500" />
-              <span>Cached</span>
-            </span>
-
+            {/* Force refresh button (desktop only; mobile uses pull-to-refresh) */}
             <button
               onClick={() => fetchPosts(true)}
-              className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex"
               title="Force refresh"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
@@ -479,21 +571,35 @@ export const FeedPage: React.FC = () => {
           </button>
         </div>
       ) : displayedPosts.length > 0 ? (
-        <div className="space-y-4">
-          {displayedPosts.map((post, index) => (
-            <PostCard
-              key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
-              post={post}
-              inFeed={true}
-              onSelectPost={openPost}
-              onSelectAuthor={handleSelectAuthor}
-              onSelectTag={openTag}
-              currentUser={currentUser}
-              onRequireLogin={requestLogin}
-              onMuteAuthor={addFilterAuthor}
-              onBlockWord={addFilterWord}
-            />
-          ))}
+        <div className={isMobile ? "space-y-3 sm:space-y-6" : "space-y-4"}>
+          {displayedPosts.map((post, index) => {
+            const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
+            const useGallery = isMobile && !isComment;
+            return useGallery ? (
+              <GalleryPostCard
+                key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                post={post}
+                onSelectPost={openPost}
+                onSelectAuthor={handleSelectAuthor}
+                onSelectTag={openTag}
+                currentUser={currentUser}
+                onRequireLogin={requestLogin}
+              />
+            ) : (
+              <PostCard
+                key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                post={post}
+                inFeed={true}
+                onSelectPost={openPost}
+                onSelectAuthor={handleSelectAuthor}
+                onSelectTag={openTag}
+                currentUser={currentUser}
+                onRequireLogin={requestLogin}
+                onMuteAuthor={addFilterAuthor}
+                onBlockWord={addFilterWord}
+              />
+            );
+          })}
 
           {/* Load More Button */}
           <div className="text-center pt-2 pb-8">

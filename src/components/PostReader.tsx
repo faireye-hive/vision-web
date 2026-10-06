@@ -480,27 +480,47 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Full post resolution (guarantees complete body if opened from truncated sources like Similar Stories)
   const [fullPost, setFullPost] = useState<HivePost | null>(null);
   const [loadingFullBody, setLoadingFullBody] = useState<boolean>(false);
+  const [loadBodyError, setLoadBodyError] = useState<boolean>(false);
 
   useEffect(() => {
-    // If post already has a full body (> 250 chars), use it directly
-    if (post.body && post.body.length > 250) {
+    setLoadBodyError(false);
+
+    // If post already has a full, non-truncated body, use it directly without re-fetching
+    const hasCompleteBody = Boolean(
+      post.body &&
+      post.body.trim().length > 0 &&
+      !post.is_truncated &&
+      !(post.body.length === 200 && post.body.endsWith('...'))
+    );
+
+    if (hasCompleteBody) {
       setFullPost(post);
       setLoadingFullBody(false);
       return;
     }
 
-    // Otherwise, fetch the full post from Hive RPC
+    // Otherwise (empty body, explicit is_truncated, or missing body), fetch the full post from Hive RPC
     let active = true;
     setLoadingFullBody(true);
     getPost(post.author, post.permlink, currentUser?.username || '')
       .then((data) => {
         if (!active) return;
-        if (data && data.body) {
-          setFullPost(data);
+        if (data && typeof data.body === 'string') {
+          setFullPost({ ...data, is_truncated: false });
+        } else if (post.body) {
+          setFullPost({ ...post, is_truncated: false });
+        } else {
+          setLoadBodyError(true);
         }
       })
       .catch((err) => {
-        if (!active) console.error('Failed to load full post in reader:', err);
+        if (!active) return;
+        console.error('Failed to load full post in reader:', err);
+        if (post.body) {
+          setFullPost({ ...post, is_truncated: false });
+        } else {
+          setLoadBodyError(true);
+        }
       })
       .finally(() => {
         if (active) setLoadingFullBody(false);
@@ -509,10 +529,19 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => {
       active = false;
     };
-  }, [post.author, post.permlink, post.body, currentUser?.username]);
+  }, [post.author, post.permlink, post.body, post.is_truncated, currentUser?.username]);
 
-  const currentPost = fullPost && fullPost.author.replace(/^@/, '') === post.author.replace(/^@/, '') && fullPost.permlink === post.permlink ? fullPost : post;
-  const isTruncated = loadingFullBody || !currentPost.body || currentPost.body.length <= 250;
+  const currentPost =
+    fullPost &&
+    fullPost.author.replace(/^@/, '').toLowerCase() === post.author.replace(/^@/, '').toLowerCase() &&
+    fullPost.permlink === post.permlink
+      ? fullPost
+      : post;
+
+  // Only show skeleton loader if fetch is actively loading AND we don't have a full body yet
+  const isBodyLoading =
+    loadingFullBody &&
+    (!currentPost.body || currentPost.body.trim().length === 0 || Boolean(currentPost.is_truncated));
 
   // Parse HTML and headings safely with DOMPurify
   const { html: safeHtmlContent, headings } = useMemo(() => {
@@ -789,23 +818,23 @@ export const PostReader: React.FC<PostReaderProps> = ({
   return (
     <article
       id="in-place-post-reader"
-      className="bg-white dark:bg-slate-900 rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
+      className="bg-white dark:bg-slate-900 rounded-none sm:rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border-0 sm:border border-gray-100/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
     >
       {/* Top Reading Progress Line */}
       <div
-        className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600 sticky top-16 z-30 transition-all duration-150"
+        className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600 sticky top-0 md:top-16 z-30 transition-all duration-150"
         style={{ width: `${readingProgress}%` }}
       />
 
       {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-16 z-20 border-b border-gray-100 dark:border-slate-800 gap-3">
+      <div className="flex items-center justify-between px-2.5 sm:px-6 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 md:top-16 z-20 border-b border-gray-100 dark:border-slate-800 gap-2 sm:gap-3">
 
-        {/* Left: Back button + Author details */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        {/* Left: Back button (desktop only) + Author details */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             id="back-to-feed-btn"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
             title="Back to Feed (Esc)"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -832,11 +861,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <div className="min-w-0 flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
             <button
               onClick={() => onSelectAuthor(post.author)}
-              className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer text-xs sm:text-sm"
+              className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer text-xs sm:text-sm max-w-[110px] xs:max-w-[140px] sm:max-w-none"
             >
               @{post.author}
             </button>
-            <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+            <span className="hidden sm:inline-flex text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
               {rep}
             </span>
 
@@ -847,7 +876,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   type="button"
                   onClick={() => handleToggleFollowAuthor(post.author)}
                   disabled={followLoading === post.author.toLowerCase()}
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
                     isFollowing(post.author)
                       ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600'
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
@@ -918,11 +947,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
         </div>
 
         {/* Right Actions: Shortcut to Comments, Share, Ecency, Close */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Header Shortcut to Comments */}
           <button
             onClick={scrollToComments}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer flex-shrink-0"
             title={`Jump directly to ${totalCommentsCount} comments`}
           >
             <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -932,7 +961,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           <button
             onClick={handleCopyLink}
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex"
             title="Copy Hive link"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="w-4 h-4" />}
@@ -942,7 +971,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             href={`https://ecency.com/@${post.author}/${post.permlink}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex"
             title="View on Ecency.com"
           >
             <ExternalLink className="w-4 h-4" />
@@ -950,7 +979,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer flex-shrink-0"
             title="Close post (Esc)"
           >
             <X className="w-4 h-4" />
@@ -959,16 +988,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       </div>
 
       {/* ================= POST CONTENT AREA ================= */}
-      <div
-        className="py-6 space-y-5 max-w-full"
-        style={{
-          marginLeft: '0px',
-          marginRight: '0px',
-          paddingLeft: '40px',
-          paddingRight: '40px',
-          width: '1200px'
-        }}
-      >
+      <div className="py-4 sm:py-6 space-y-5 w-full max-w-full px-2 sm:px-10">
 
         {/* ================= COMMENT PARENT CONTEXT BANNER ================= */}
         {isComment && (
@@ -1048,16 +1068,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           return (
             <div
-              className="relative rounded-2xl sm:rounded-[22px] overflow-hidden flex flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40"
-              style={{
-                height: '160px',
-                paddingTop: '20px',
-                paddingBottom: '20px',
-                paddingLeft: '25px',
-                paddingRight: '25px',
-                marginLeft: '-25px',
-                marginRight: '-25px'
-              }}
+              className="relative rounded-xl sm:rounded-[22px] overflow-hidden flex flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 p-4 sm:p-6 min-h-[140px]"
             >
               {/* Skeleton placeholder while cover image or data is loading to prevent layout shift */}
               {loadingCover && (
@@ -1104,17 +1115,16 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 </button>
               </div>
 
-              {/* Big, Clear Post Title: uppercase, glued right below tag, expanding downwards, sharp letter contour only */}
+              {/* Big, Clear Post Title: uppercase, glued right below tag, expanding downwards, full title without truncation */}
               <h1
-                className="relative z-10 font-black uppercase leading-snug tracking-tight text-white line-clamp-2 overflow-hidden text-ellipsis max-w-full"
+                className="relative z-10 font-black uppercase leading-tight sm:leading-snug tracking-tight text-white max-w-full break-words text-lg sm:text-2xl md:text-3xl"
                 title={post.title}
                 style={{
-                  fontSize: '30px',
                   border: 'none',
                   outline: 'none',
                   textShadow:
                     '0 1px 2px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.85), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-                  WebkitTextStroke: '0.6px #000000'
+                  WebkitTextStroke: '0.5px #000000'
                 }}
               >
                 {isComment && (!post.title || post.title.startsWith('Re:'))
@@ -1126,7 +1136,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         })()}
 
         {/* Main Article Body (DOMPurify protected) */}
-        {isTruncated ? (
+        {isBodyLoading ? (
           <div className="space-y-4 py-8 animate-pulse">
             <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
               <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
@@ -1145,8 +1155,41 @@ export const PostReader: React.FC<PostReaderProps> = ({
             ref={bodyContainerRef}
             onClick={handleBodyClick}
             className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg select-text"
-            dangerouslySetInnerHTML={{ __html: safeHtmlContent }}
-          />
+          >
+            {safeHtmlContent && safeHtmlContent.trim().length > 0 ? (
+              <div dangerouslySetInnerHTML={{ __html: safeHtmlContent }} />
+            ) : loadBodyError ? (
+              <div className="py-8 text-center space-y-3">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Unable to load content from the Hive blockchain at this moment.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoadingFullBody(true);
+                    setLoadBodyError(false);
+                    getPost(post.author, post.permlink, currentUser?.username || '', true)
+                      .then((data) => {
+                        if (data && typeof data.body === 'string') {
+                          setFullPost({ ...data, is_truncated: false });
+                        } else {
+                          setLoadBodyError(true);
+                        }
+                      })
+                      .catch(() => setLoadBodyError(true))
+                      .finally(() => setLoadingFullBody(false));
+                  }}
+                  className="px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold transition cursor-pointer"
+                >
+                  Retry Loading
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm italic text-gray-400 dark:text-slate-500 py-4">
+                No story content found.
+              </p>
+            )}
+          </div>
         )}
 
         {/* Full Tags Section at bottom of post */}
@@ -1530,7 +1573,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       <button
         id="floating-comments-shortcut-btn"
         onClick={scrollToComments}
-        className="fixed right-5 sm:right-7 bottom-24 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg border border-gray-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 text-gray-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
+        className="fixed right-4 sm:right-7 bottom-32 sm:bottom-24 z-40 flex items-center gap-2 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg border border-gray-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 text-gray-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
         title={`Jump directly to comments (${totalCommentsCount})`}
       >
         <div className="relative flex items-center justify-center">
@@ -1548,39 +1591,42 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
       {/* ================= FLOATING SCROLL NAVIGATION (FOLLOWS USER DOWN THE PAGE) ================= */}
       <div
-        className={`fixed bottom-6 right-5 sm:right-7 z-40 flex items-center gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 dark:border-slate-700 transition-all duration-300 ${
+        className={`fixed bottom-20 sm:bottom-6 right-4 sm:right-7 z-40 flex items-center gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 dark:border-slate-700 transition-all duration-300 ${
           scrolledDown ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
+        {/* Back and Comments buttons: desktop only, since on mobile we have top X and floating comment button */}
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition cursor-pointer shadow-2xs"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition cursor-pointer shadow-2xs"
           title="Back to Feed (Esc)"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back</span>
         </button>
 
-        <div className="h-4 w-px bg-gray-200 dark:bg-slate-700" />
+        <div className="hidden sm:block h-4 w-px bg-gray-200 dark:bg-slate-700" />
 
         <button
           onClick={scrollToComments}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/50 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold transition cursor-pointer"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/50 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-bold transition cursor-pointer"
           title={`Jump to ${totalCommentsCount} Comments`}
         >
           <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span>{totalCommentsCount}</span>
         </button>
 
-        <div className="h-4 w-px bg-gray-200 dark:bg-slate-700" />
+        <div className="hidden sm:block h-4 w-px bg-gray-200 dark:bg-slate-700" />
 
+        {/* Scroll to Top button: visible on both mobile and desktop! On mobile it's the only one here */}
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
           title="Scroll to Top"
         >
-          <ArrowUp className="w-3.5 h-3.5" />
-          <span>Top ({readingProgress}%)</span>
+          <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span className="hidden sm:inline">Top ({readingProgress}%)</span>
+          <span className="sm:hidden font-mono text-[10px]">{readingProgress}%</span>
         </button>
       </div>
 

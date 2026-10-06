@@ -53,6 +53,7 @@ export interface HivePost {
   reblogged_by?: string[];
   first_reblogged_by?: string;
   reblog_entries?: Array<{ account: string; timestamp?: string }>;
+  is_truncated?: boolean;
 }
 
 export interface HiveAccountProfile {
@@ -1687,7 +1688,8 @@ export async function getSimilarPosts(
       depth: 0,
       children: item.children || 0,
       net_rshares: item.net_rshares || 0,
-      is_paidout: Boolean(item.is_paidout)
+      is_paidout: Boolean(item.is_paidout),
+      is_truncated: true
     }));
 
     apiCache.set(cacheKey, similar, 10 * 60 * 1000); // 10 min cache
