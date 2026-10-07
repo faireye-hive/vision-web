@@ -100,7 +100,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
     };
   }, [isOpen]);
 
-  // Swipe from left edge (0 to 45px) to OPEN the drawer
+  // Swipe from left edge area (0 to 95px) to OPEN the drawer without triggering Android system back gesture
   useEffect(() => {
     if (disabled || isOpen) return;
 
@@ -111,8 +111,8 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       const touch = e.touches[0];
-      // Edge zone (within 45px of screen left edge)
-      if (touch.clientX <= 45) {
+      // Generous zone (within 95px) so user doesn't need to touch right at the device bezel
+      if (touch.clientX <= 95) {
         startX = touch.clientX;
         startY = touch.clientY;
         isTracking = true;
@@ -128,7 +128,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
       const deltaY = touch.clientY - startY;
 
       // Swiped right with horizontal dominance
-      if (deltaX > 45 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      if (deltaX > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
         isTracking = false;
         setIsOpen(true);
       }
@@ -149,6 +149,48 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
     };
   }, [disabled, isOpen]);
 
+  // Swipe left anywhere on screen (inside drawer or anywhere outside/backdrop) to CLOSE
+  useEffect(() => {
+    if (disabled || !isOpen) return;
+
+    let closeStartX = 0;
+    let closeStartY = 0;
+    let isCloseTracking = false;
+
+    const handleCloseTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      closeStartX = e.touches[0].clientX;
+      closeStartY = e.touches[0].clientY;
+      isCloseTracking = true;
+    };
+
+    const handleCloseTouchMove = (e: TouchEvent) => {
+      if (!isCloseTracking || e.touches.length !== 1) return;
+      const deltaX = e.touches[0].clientX - closeStartX;
+      const deltaY = e.touches[0].clientY - closeStartY;
+
+      // Swiped left anywhere on screen
+      if (deltaX < -35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+        isCloseTracking = false;
+        setIsOpen(false);
+      }
+    };
+
+    const handleCloseTouchEnd = () => {
+      isCloseTracking = false;
+    };
+
+    window.addEventListener('touchstart', handleCloseTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleCloseTouchMove, { passive: true });
+    window.addEventListener('touchend', handleCloseTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleCloseTouchStart);
+      window.removeEventListener('touchmove', handleCloseTouchMove);
+      window.removeEventListener('touchend', handleCloseTouchEnd);
+    };
+  }, [disabled, isOpen]);
+
   // Swipe left inside drawer to CLOSE
   const drawerTouchStartX = useRef<number | null>(null);
   const drawerTouchStartY = useRef<number | null>(null);
@@ -164,7 +206,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
     const deltaY = e.touches[0].clientY - (drawerTouchStartY.current || 0);
 
     // Swiped left
-    if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+    if (deltaX < -35 && Math.abs(deltaX) > Math.abs(deltaY)) {
       drawerTouchStartX.current = null;
       setIsOpen(false);
     }
@@ -198,11 +240,12 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
 
   return (
     <>
-      {/* ================= MINIMAL MOBILE LATERAL EDGE INDICATOR ================= */}
+      {/* ================= MINIMAL MOBILE LATERAL EDGE INDICATOR WITH GENEROUS INVISIBLE TOUCH TARGET ================= */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed left-0 top-[42%] -translate-y-1/2 z-30 sm:hidden flex items-center justify-start pl-0 pr-2.5 py-4 group cursor-pointer focus:outline-none select-none"
+          className="fixed left-0 top-[42%] -translate-y-1/2 z-30 sm:hidden flex items-center justify-start pl-0 pr-10 py-10 group cursor-pointer focus:outline-none select-none touch-manipulation"
+          style={{ width: '60px', height: '90px' }}
           title={
             activeNav === 'discover'
               ? 'Swipe right to open Trending Topics'
@@ -210,14 +253,15 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
           }
           aria-label={activeNav === 'discover' ? 'Open Trending Topics' : 'Open Followed Creators'}
         >
-          {/* Subtle, discreet lateral edge line that doesn't clutter the UI */}
-          <div className="w-1 group-hover:w-1.5 h-10 rounded-r-full bg-blue-500/50 dark:bg-blue-400/40 group-hover:bg-blue-600 transition-all shadow-[0_0_6px_rgba(59,130,246,0.3)]" />
+          {/* Subtle lateral edge line that doesn't clutter the UI, with generous invisible padding around it */}
+          <div className="w-1.5 group-hover:w-2 h-11 rounded-r-full bg-blue-500/70 dark:bg-blue-400/50 group-hover:bg-blue-600 transition-all shadow-[0_0_8px_rgba(59,130,246,0.35)]" />
         </button>
       )}
 
-      {/* ================= BACKDROP OVERLAY ================= */}
+      {/* ================= BACKDROP OVERLAY (CLOSE ON TAP OR SWIPE OUTSIDE) ================= */}
       <div
         onClick={() => setIsOpen(false)}
+        onTouchEnd={() => setIsOpen(false)}
         className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-50 transition-opacity duration-200 sm:hidden ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}

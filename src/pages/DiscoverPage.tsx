@@ -36,6 +36,18 @@ interface DiscoverPageProps {
   onClearSubTopic?: () => void;
 }
 
+// Unique key for a post in the feed (reblogs of the same post stay distinct)
+const postKey = (post: HivePost) =>
+  `${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`;
+
+// Unique, DOM-safe id for a post wrapper (used for debugging & stable element identification)
+const postDomId = (post: HivePost, index?: number) =>
+  typeof index === 'number'
+    ? `discover-post-wrapper-${index}`
+    : `discover-post-${post.author}-${post.permlink}${
+        post.first_reblogged_by ? `-reblog-${post.first_reblogged_by}` : ''
+      }`.replace(/[^a-zA-Z0-9_-]/g, '_');
+
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
   onPostsLoaded
@@ -370,7 +382,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     const uniquePosts: HivePost[] = [];
 
     for (const post of filterRes.visiblePosts) {
-      const key = `${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}`;
+      const key = postKey(post);
       if (!seen.has(key)) {
         seen.add(key);
         uniquePosts.push(post);
@@ -394,6 +406,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
   return (
     <div
+      id="discover-page"
       className="space-y-3 sm:space-y-4 w-full min-w-0 max-w-[824px] px-0"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -402,19 +415,29 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       {/* Mobile Pull-to-Refresh Indicator */}
       {pullDistance > 0 && (
         <div
+          id="discover-pull-refresh"
           className="flex items-center justify-center transition-all overflow-hidden sm:hidden"
           style={{ height: `${pullDistance}px` }}
         >
-          <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50">
-            <RefreshCw className={`w-3.5 h-3.5 ${pullDistance >= 45 ? 'animate-spin' : ''}`} />
-            <span>{pullDistance >= 45 ? 'Release to refresh' : 'Pull to refresh'}</span>
+          <div
+            id="discover-pull-refresh-pill"
+            className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50"
+          >
+            <RefreshCw
+              id="discover-pull-refresh-icon"
+              className={`w-3.5 h-3.5 ${pullDistance >= 45 ? 'animate-spin' : ''}`}
+            />
+            <span id="discover-pull-refresh-label">
+              {pullDistance >= 45 ? 'Release to refresh' : 'Pull to refresh'}
+            </span>
           </div>
         </div>
       )}
 
       {/* Header controls bar - Auto-hide on scroll down, show on scroll up on mobile */}
       <div
-        className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 z-35 flex items-center justify-between transition-all duration-300 ease-out sticky top-0 sm:relative ${
+        id="discover-header"
+        className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 z-30 flex items-center justify-between transition-all duration-300 ease-out sticky top-0 sm:relative ${
           headerVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-16 opacity-0 pointer-events-none sm:translate-y-0 sm:opacity-100 sm:pointer-events-auto'
@@ -430,8 +453,14 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           borderRadius: '15px'
         }}
       >
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap min-w-0">
-          <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0 hidden sm:inline-block">
+        <div
+          id="discover-header-left"
+          className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap min-w-0"
+        >
+          <span
+            id="discover-header-title"
+            className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0 hidden sm:inline-block"
+          >
             {isCommunitiesFeed ? 'Communities' : 'Discover'}
           </span>
 
@@ -444,7 +473,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
           {/* Language Selector (Hidden on mobile, since it is in the top navbar as the Globe symbol without 'Global'; present on desktop) */}
           {!isCommunitiesFeed && (
-            <div className="hidden sm:inline-block">
+            <div id="discover-header-language-wrapper" className="hidden sm:inline-block">
               <LanguageDropdown
                 id="discover-header-language-dropdown"
                 selectedLanguage={selectedLanguage}
@@ -483,9 +512,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
           {/* Active Tag Filter Chip (when tag is custom and not from activeCategory) */}
           {tag && !activeCategory && (
-            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs font-semibold">
-              <span>#{tag}</span>
+            <div
+              id="discover-tag-chip"
+              className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs font-semibold"
+            >
+              <span id="discover-tag-chip-label">#{tag}</span>
               <button
+                id="discover-tag-chip-clear-btn"
                 onClick={() => {
                   setTag('');
                   setFeedAuthor(null);
@@ -493,29 +526,34 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                 className="hover:text-blue-900 dark:hover:text-blue-100 font-bold ml-0.5 cursor-pointer"
                 title="Clear topic filter"
               >
-                <X className="w-3 h-3" />
+                <X id="discover-tag-chip-clear-icon" className="w-3 h-3" />
               </button>
             </div>
           )}
 
           {/* Active Community Subtopic Filter Chip */}
           {communitySubTopic && (
-            <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs font-semibold animate-in fade-in">
-              <span>Topic: #{communitySubTopic}</span>
+            <div
+              id="discover-subtopic-chip"
+              className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full text-xs font-semibold animate-in fade-in"
+            >
+              <span id="discover-subtopic-chip-label">Topic: #{communitySubTopic}</span>
               <button
+                id="discover-subtopic-chip-clear-btn"
                 onClick={() => setCommunitySubTopic('')}
                 className="hover:text-indigo-900 dark:hover:text-indigo-100 font-bold ml-0.5 cursor-pointer"
                 title="Clear subtopic filter"
               >
-                <X className="w-3 h-3" />
+                <X id="discover-subtopic-chip-clear-icon" className="w-3 h-3" />
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div id="discover-header-right" className="flex items-center gap-2 flex-shrink-0">
           {/* Content Filters (Symbol + count only on mobile, full text on desktop) */}
           <button
+            id="discover-filters-btn"
             onClick={openContentFilterModal}
             className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition shadow-2xs cursor-pointer border ${
               contentFilterConfig.enabled && filteredOutStats.total > 0
@@ -530,10 +568,14 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                 : 'Manage muted words and authors filter'
             }
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span className="hidden sm:inline">Filters</span>
+            <SlidersHorizontal
+              id="discover-filters-icon"
+              className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"
+            />
+            <span id="discover-filters-label" className="hidden sm:inline">Filters</span>
             {contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
               <span
+                id="discover-filters-count"
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                   filteredOutStats.total > 0
                     ? 'bg-blue-600 text-white'
@@ -549,41 +591,52 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {/* Cache Status Badge */}
           {/*sort === 'created' ? (
             <span
+              id="discover-cache-badge-live"
               className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 cursor-default"
               title="Real-time newly created blockchain posts"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Live</span>
+              <span id="discover-cache-badge-live-dot" className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span id="discover-cache-badge-live-label">Live</span>
             </span>
           ) : (
             <span
+              id="discover-cache-badge-cached"
               className="text-[11px] font-medium text-slate-500 bg-slate-100/90 dark:bg-slate-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1 cursor-default"
               title="Fast instant navigation powered by client cache"
             >
-              <Zap className="w-3 h-3 text-amber-500" />
-              <span>Cached</span>
+              <Zap id="discover-cache-badge-cached-icon" className="w-3 h-3 text-amber-500" />
+              <span id="discover-cache-badge-cached-label">Cached</span>
             </span>
           )*/}
 
           {/* Desktop-only manual refresh button; on mobile we use pull-to-refresh */}
           <button
+            id="discover-refresh-btn"
             onClick={() => fetchPosts(true)}
             className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex items-center justify-center"
             title="Force refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+            <RefreshCw
+              id="discover-refresh-icon"
+              className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`}
+            />
           </button>
         </div>
       </div>
 
       {/* Error banner */}
       {error && (
-        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between" style={{ height: '30px', marginBottom: '5px', paddingTop: '10px', borderRadius: '15px', overflow: 'hidden' }}>
-          <div>
-            <p className="font-semibold">Unable to fetch feed from Hive RPC</p>
-            <p className="text-gray-600 dark:text-slate-400 mt-0.5">{error}</p>
+        <div
+          id="discover-error-banner"
+          className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between"
+          style={{ height: '30px', marginBottom: '5px', paddingTop: '10px', borderRadius: '15px', overflow: 'hidden' }}
+        >
+          <div id="discover-error-content">
+            <p id="discover-error-title" className="font-semibold">Unable to fetch feed from Hive RPC</p>
+            <p id="discover-error-message" className="text-gray-600 dark:text-slate-400 mt-0.5">{error}</p>
           </div>
           <button
+            id="discover-error-retry-btn"
             onClick={() => fetchPosts(true)}
             className="px-3 py-1 bg-rose-600 text-white rounded-lg font-semibold hover:bg-rose-700 transition ml-3 flex-shrink-0 cursor-pointer"
           >
@@ -595,39 +648,86 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       {/* Posts stream */}
       {loading ? (
-        <div className="space-y-4">
+        <div id="discover-skeleton-list" className="space-y-4">
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
+              id={`discover-skeleton-card-${i}`}
               className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none animate-pulse space-y-4 border border-gray-100 dark:border-slate-800"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-800" />
-                <div className="space-y-1.5">
-                  <div className="w-24 h-3 rounded bg-gray-200 dark:bg-slate-800" />
-                  <div className="w-16 h-2 rounded bg-gray-200 dark:bg-slate-800" />
+              <div id={`discover-skeleton-header-${i}`} className="flex items-center gap-3">
+                <div id={`discover-skeleton-avatar-${i}`} className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-800" />
+                <div id={`discover-skeleton-author-${i}`} className="space-y-1.5">
+                  <div id={`discover-skeleton-author-name-${i}`} className="w-24 h-3 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div id={`discover-skeleton-author-meta-${i}`} className="w-16 h-2 rounded bg-gray-200 dark:bg-slate-800" />
                 </div>
               </div>
-              <div className="flex gap-4">
-                <div className="w-36 h-24 rounded-2xl bg-gray-200 dark:bg-slate-800 flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="w-3/4 h-4 rounded bg-gray-200 dark:bg-slate-800" />
-                  <div className="w-full h-3 rounded bg-gray-200 dark:bg-slate-800" />
-                  <div className="w-2/3 h-3 rounded bg-gray-200 dark:bg-slate-800" />
+              <div id={`discover-skeleton-body-${i}`} className="flex gap-4">
+                <div id={`discover-skeleton-thumb-${i}`} className="w-36 h-24 rounded-2xl bg-gray-200 dark:bg-slate-800 flex-shrink-0" />
+                <div id={`discover-skeleton-text-${i}`} className="flex-1 space-y-2">
+                  <div id={`discover-skeleton-title-${i}`} className="w-3/4 h-4 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div id={`discover-skeleton-line-1-${i}`} className="w-full h-3 rounded bg-gray-200 dark:bg-slate-800" />
+                  <div id={`discover-skeleton-line-2-${i}`} className="w-2/3 h-3 rounded bg-gray-200 dark:bg-slate-800" />
                 </div>
               </div>
             </div>
           ))}
         </div>
       ) : displayedPosts.length > 0 ? (
-        <div className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}>
+        <div
+          id="discover-posts-list"
+          className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}
+        >
           {useGalleryLayout
-            ? displayedPosts.map((post) => {
+            ? displayedPosts.map((post, postIndex) => {
                 const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
                 return isComment ? (
+                  <div
+                    key={postKey(post)}
+                    id={postDomId(post, postIndex)}
+                    className="discover_post_item_wrapper relative"
+                  >
+                    <PostCard
+                      post={post}
+                      postIndex={postIndex}
+                      onSelectPost={openPost}
+                      onSelectAuthor={handleSelectAuthor}
+                      onSelectTag={openTag}
+                      currentUser={currentUser}
+                      onRequireLogin={requestLogin}
+                      onMuteAuthor={addFilterAuthor}
+                      onBlockWord={addFilterWord}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    key={postKey(post)}
+                    id={postDomId(post, postIndex)}
+                    className="discover_post_item_wrapper relative"
+                  >
+                    <GalleryPostCard
+                      post={post}
+                      postIndex={postIndex}
+                      onSelectPost={openPost}
+                      onSelectAuthor={handleSelectAuthor}
+                      onSelectTag={openTag}
+                      currentUser={currentUser}
+                      onRequireLogin={requestLogin}
+                      onMuteAuthor={addFilterAuthor}
+                      onBlockWord={addFilterWord}
+                    />
+                  </div>
+                );
+              })
+            : displayedPosts.map((post, postIndex) => (
+                <div
+                  key={postKey(post)}
+                  id={postDomId(post, postIndex)}
+                  className="discover_post_item_wrapper relative"
+                >
                   <PostCard
-                    key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
                     post={post}
+                    postIndex={postIndex}
                     onSelectPost={openPost}
                     onSelectAuthor={handleSelectAuthor}
                     onSelectTag={openTag}
@@ -636,34 +736,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                     onMuteAuthor={addFilterAuthor}
                     onBlockWord={addFilterWord}
                   />
-                ) : (
-                  <GalleryPostCard
-                    key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
-                    post={post}
-                    onSelectPost={openPost}
-                    onSelectAuthor={handleSelectAuthor}
-                    onSelectTag={openTag}
-                    currentUser={currentUser}
-                    onRequireLogin={requestLogin}
-                  />
-                );
-              })
-            : displayedPosts.map((post) => (
-                <PostCard
-                  key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
-                  post={post}
-                  onSelectPost={openPost}
-                  onSelectAuthor={handleSelectAuthor}
-                  onSelectTag={openTag}
-                  currentUser={currentUser}
-                  onRequireLogin={requestLogin}
-                  onMuteAuthor={addFilterAuthor}
-                  onBlockWord={addFilterWord}
-                />
+                </div>
               ))}
 
           {/* Load More Button */}
-          <div className="text-center pt-2 pb-8">
+          <div id="discover-load-more-wrapper" className="text-center pt-2 pb-8">
             <button
               id="load-more-posts-btn"
               onClick={handleLoadMore}
@@ -672,8 +749,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               className="px-6 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
             >
               {loadingMore ? (
-                <span className="flex items-center gap-2">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+                <span id="discover-load-more-loading" className="flex items-center gap-2">
+                  <RefreshCw
+                    id="discover-load-more-spinner"
+                    className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400"
+                  />
                   Loading more stories...
                 </span>
               ) : (
@@ -683,22 +763,35 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           </div>
         </div>
       ) : filteredOutStats.total > 0 ? (
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
-          <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
-          <div>
-            <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are hidden by your filters</h3>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+        <div
+          id="discover-filtered-empty"
+          className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100"
+        >
+          <EyeOff id="discover-filtered-empty-icon" className="w-12 h-12 text-blue-400 mx-auto" />
+          <div id="discover-filtered-empty-content">
+            <h3 id="discover-filtered-empty-title" className="text-base font-bold text-gray-800 dark:text-white">
+              All loaded posts are hidden by your filters
+            </h3>
+            <p
+              id="discover-filtered-empty-text"
+              className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed"
+            >
               {filteredOutStats.total} {filteredOutStats.total === 1 ? 'post' : 'posts'} matched your muted words or authors.
             </p>
           </div>
-          <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
+          <div
+            id="discover-filtered-empty-actions"
+            className="flex items-center justify-center gap-3 flex-wrap pt-1"
+          >
             <button
+              id="discover-filtered-empty-adjust-btn"
               onClick={openContentFilterModal}
               className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
             >
               Adjust Content Filters
             </button>
             <button
+              id="discover-filtered-empty-pause-btn"
               onClick={toggleFilterEnabled}
               className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
             >
@@ -707,14 +800,18 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           </div>
         </div>
       ) : (
-        <div className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
-          <Compass className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto" />
-          <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
+        <div
+          id="discover-empty"
+          className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100"
+        >
+          <Compass id="discover-empty-icon" className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto" />
+          <p id="discover-empty-text" className="text-sm text-gray-500 dark:text-slate-400 font-medium">
             {selectedLanguage !== 'global'
               ? 'No recent posts found for this language filter.'
               : 'No posts found in this feed.'}
           </p>
           <button
+            id="discover-empty-reset-btn"
             onClick={() => {
               setTag('');
               setSelectedLanguage('global');

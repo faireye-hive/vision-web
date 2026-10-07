@@ -28,6 +28,7 @@ import {
   UserCheck,
   VolumeX,
   Quote,
+  Plus,
   Languages,
   Highlighter,
   ChevronLeft,
@@ -574,6 +575,35 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
   // Comment context state
   const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
+  const isPeakSnap = useMemo(() => {
+    if (!isComment) return false;
+    const pAuthor = post.parent_author?.toLowerCase() || '';
+    const pPerm = post.parent_permlink?.toLowerCase() || '';
+    const cat = post.category?.toLowerCase() || '';
+    return (
+      pAuthor === 'peak.snaps' ||
+      cat === 'peak-snaps' ||
+      pPerm.includes('peak-snaps') ||
+      pPerm.startsWith('snap-')
+    );
+  }, [isComment, post.parent_author, post.parent_permlink, post.category]);
+
+  const isEcencyWave = useMemo(() => {
+    if (!isComment) return false;
+    const pAuthor = post.parent_author?.toLowerCase() || '';
+    const pPerm = post.parent_permlink?.toLowerCase() || '';
+    const cat = post.category?.toLowerCase() || '';
+    return (
+      pAuthor === 'ecency.waves' ||
+      pAuthor === 'ecency.stats' ||
+      cat === 'ecency-waves' ||
+      pPerm.includes('ecency-wave') ||
+      pPerm.startsWith('wave-')
+    );
+  }, [isComment, post.parent_author, post.parent_permlink, post.category]);
+
+  const isMicroblog = isPeakSnap || isEcencyWave;
+
   const [parentPost, setParentPost] = useState<HivePost | null>(null);
   const [loadingParent, setLoadingParent] = useState<boolean>(false);
 
@@ -645,6 +675,46 @@ export const PostReader: React.FC<PostReaderProps> = ({
       removeFilterAuthor(cleanTarget);
     } else {
       addFilterAuthor(cleanTarget);
+    }
+  };
+
+  // State for expanding long parent comments in quote container
+  const [expandedParentComment, setExpandedParentComment] = useState(false);
+
+  // Keychain Reblog state and handler
+  const [isReblogging, setIsReblogging] = useState(false);
+  const [hasReblogged, setHasReblogged] = useState(() => {
+    if (currentUser?.username && post.reblogged_by) {
+      return post.reblogged_by.some(
+        (u: any) => (typeof u === 'string' ? u : u?.account || '').toLowerCase() === currentUser.username.toLowerCase()
+      );
+    }
+    return false;
+  });
+
+  const handleReblog = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      if (onRequireLogin) onRequireLogin();
+      else window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+      return;
+    }
+    if (isReblogging || hasReblogged) return;
+    const confirmed = window.confirm(`Reblog "@${post.author}/${post.permlink}" to your followers?`);
+    if (!confirmed) return;
+
+    setIsReblogging(true);
+    try {
+      const res = await KeychainService.reblog(currentUser.username, post.author, post.permlink);
+      if (res.success) {
+        setHasReblogged(true);
+      } else {
+        alert(res.message || res.error || 'Reblog was not completed in Keychain.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Reblog request failed.');
+    } finally {
+      setIsReblogging(false);
     }
   };
 
@@ -826,6 +896,85 @@ export const PostReader: React.FC<PostReaderProps> = ({
         style={{ width: `${readingProgress}%` }}
       />
 
+      {/* ================= FORUM QUOTE CONTAINER FOR REPLIED-TO COMMENT (MOBILE: PLACED ON TOP BEFORE USER PHOTO & COMMENT) ================= */}
+      {isComment && !isMicroblog && (
+        <div className="sm:hidden px-2.5 pt-2.5 pb-1 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800/80">
+          <div
+            onClick={() => {
+              if (parentPost && onSelectPost) {
+                onSelectPost(parentPost);
+              }
+            }}
+            className="rounded-2xl bg-gradient-to-b from-blue-50/90 via-indigo-50/40 to-blue-50/30 dark:from-slate-800/90 dark:via-slate-850 dark:to-slate-900 border border-blue-200/80 dark:border-blue-900/50 p-3 shadow-2xs hover:shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer group active:scale-[0.99] space-y-2"
+            title="Tap anywhere to open parent discussion"
+          >
+            {/* Reblog-style highlighted Reply banner with parent avatar */}
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-blue-100/80 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-950 dark:text-blue-200 w-full overflow-hidden shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <img
+                  src={getHiveAvatarUrl(post.parent_author || '', 'small')}
+                  alt={post.parent_author || ''}
+                  className="w-5 h-5 rounded-full object-cover ring-1 ring-blue-400/60 bg-gray-100 dark:bg-slate-700 flex-shrink-0 shadow-2xs"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
+                  }}
+                />
+                <div className="truncate flex items-center gap-1 min-w-0">
+                  <span className="text-blue-700 dark:text-blue-400 font-medium">Replying to</span>
+                  <span className="font-bold text-blue-950 dark:text-blue-100 truncate">@{post.parent_author}</span>
+                  {parentPost?.created && (
+                    <span className="text-blue-600/70 dark:text-blue-400/70 text-[11px] truncate">
+                      • {formatPostDate(parentPost.created).relative}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-200/90 dark:bg-blue-900/80 text-blue-900 dark:text-blue-100 flex-shrink-0 shadow-2xs">
+                Reply
+              </span>
+            </div>
+
+            {/* Inner box with distinct border showing the replied-to comment text */}
+            <div className="bg-white/95 dark:bg-slate-900/90 rounded-xl p-3 border border-blue-150/90 dark:border-slate-800 shadow-2xs space-y-1.5">
+              {parentPost?.title && !parentPost.title.startsWith('Re: ') && (
+                <div className="font-bold text-xs text-gray-900 dark:text-slate-100 line-clamp-1 pb-1 border-b border-gray-100 dark:border-slate-800/80">
+                  {parentPost.title}
+                </div>
+              )}
+
+              {parentPost ? (
+                <div className="text-xs sm:text-sm text-gray-800 dark:text-slate-200 leading-relaxed">
+                  <p className={expandedParentComment ? '' : 'line-clamp-4'}>
+                    {getPostSnippet(parentPost.body, expandedParentComment ? 3000 : 320)}
+                  </p>
+                  {(parentPost.body?.length || 0) > 320 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedParentComment(!expandedParentComment);
+                      }}
+                      className="inline-flex items-center gap-1 mt-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer"
+                    >
+                      <span>{expandedParentComment ? 'Show Less' : 'More...'}</span>
+                    </button>
+                  )}
+                </div>
+              ) : loadingParent ? (
+                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 animate-pulse py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Loading replied comment from Hive...</span>
+                </div>
+              ) : post.parent_permlink ? (
+                <p className="text-xs text-gray-500 dark:text-slate-400 italic">
+                  Replying to discussion thread: "{String(post.parent_permlink).replace(/[-_]/g, ' ')}"
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
       <div className="flex items-center justify-between px-2.5 sm:px-6 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 md:top-16 z-20 border-b border-gray-100 dark:border-slate-800 gap-2 sm:gap-3">
 
@@ -841,21 +990,48 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span className="hidden sm:inline">Back</span>
           </button>
 
-          {/* Author avatar */}
-          <button
-            onClick={() => onSelectAuthor(post.author)}
-            className="focus:outline-none flex-shrink-0 group cursor-pointer"
-            title={`View @${post.author} profile`}
-          >
-            <img
-              src={avatarUrl}
-              alt={post.author}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs bg-gray-100 dark:bg-slate-800"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
-              }}
-            />
-          </button>
+          {/* Author avatar with mobile quick follow/following badge */}
+          <div className="relative inline-block flex-shrink-0">
+            <button
+              onClick={() => onSelectAuthor(post.author)}
+              className="focus:outline-none flex-shrink-0 group cursor-pointer block"
+              title={`View @${post.author} profile`}
+            >
+              <img
+                src={avatarUrl}
+                alt={post.author}
+                className="w-10 h-10 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs bg-gray-100 dark:bg-slate-800"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
+                }}
+              />
+            </button>
+
+            {/* Mobile quick follow/following badge inside author photo */}
+            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleFollowAuthor(post.author);
+                }}
+                disabled={followLoading === post.author.toLowerCase()}
+                className={`sm:hidden absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center text-white ring-2 ring-white dark:ring-slate-900 shadow-xs transition-transform active:scale-90 cursor-pointer ${
+                  isFollowing(post.author)
+                    ? 'bg-blue-600 dark:bg-blue-500'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                title={isFollowing(post.author) ? 'Following author (click to unfollow)' : 'Follow author'}
+                aria-label={isFollowing(post.author) ? 'Following author' : 'Follow author'}
+              >
+                {isFollowing(post.author) ? (
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                ) : (
+                  <Plus className="w-2.5 h-2.5 stroke-[3]" />
+                )}
+              </button>
+            )}
+          </div>
 
           {/* Author info & metadata */}
           <div className="min-w-0 flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
@@ -869,14 +1045,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
               {rep}
             </span>
 
-            {/* Author Quick Follow & Mute Options */}
+            {/* Author Quick Follow (Desktop) & Mute (Desktop + Mobile) */}
             {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
               <div className="flex items-center gap-1 ml-0.5">
+                {/* Desktop pill follow button */}
                 <button
                   type="button"
                   onClick={() => handleToggleFollowAuthor(post.author)}
                   disabled={followLoading === post.author.toLowerCase()}
-                  className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
+                  className={`hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
                     isFollowing(post.author)
                       ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600'
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
@@ -896,6 +1073,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   )}
                 </button>
 
+                {/* Mute button directly next to author info */}
                 <button
                   type="button"
                   onClick={() => handleToggleMuteAuthor(post.author)}
@@ -915,17 +1093,19 @@ export const PostReader: React.FC<PostReaderProps> = ({
               </div>
             )}
 
+            {/* Date / relative time when comment/post was made (shown on mobile & desktop) */}
+            <span className="text-gray-400 dark:text-slate-500 text-[11px] sm:text-xs flex items-center gap-1" title={postDate.full}>
+              <span className="text-gray-300 dark:text-slate-600">•</span>
+              <Clock className="w-3 h-3 text-gray-400 dark:text-slate-500 hidden sm:inline" />
+              <span>{postDate.relative}</span>
+            </span>
+
+            {/* Desktop only: Comment badge; hidden on mobile to save space */}
             {isComment && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+              <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
                 Comment
               </span>
             )}
-
-            <span className="text-gray-300 dark:text-slate-600 hidden xs:inline">•</span>
-            <span className="text-gray-500 dark:text-slate-400 hidden sm:flex items-center gap-1" title={postDate.full}>
-              <Clock className="w-3 h-3 text-gray-400 dark:text-slate-500" />
-              <span>{postDate.relative}</span>
-            </span>
 
             {(post.community_title || post.community) && (
               <>
@@ -948,10 +1128,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         {/* Right Actions: Shortcut to Comments, Share, Ecency, Close */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Header Shortcut to Comments */}
+          {/* Header Shortcut to Comments (hidden on mobile comments as requested) */}
           <button
             onClick={scrollToComments}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer flex-shrink-0"
+            className={`${
+              isComment ? 'hidden sm:flex' : 'flex'
+            } items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer flex-shrink-0`}
             title={`Jump directly to ${totalCommentsCount} comments`}
           >
             <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -990,9 +1172,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
       {/* ================= POST CONTENT AREA ================= */}
       <div className="py-4 sm:py-6 space-y-5 w-full max-w-full px-2 sm:px-10">
 
-        {/* ================= COMMENT PARENT CONTEXT BANNER ================= */}
+        {/* ================= COMMENT PARENT CONTEXT BANNER (DESKTOP ONLY) ================= */}
         {isComment && (
-          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 dark:from-blue-950/40 via-indigo-50/70 dark:via-indigo-950/30 to-blue-50/40 dark:to-slate-900 border border-blue-100/90 dark:border-blue-900/40 shadow-2xs space-y-3">
+          <div className="hidden sm:block p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 dark:from-blue-950/40 via-indigo-50/70 dark:via-indigo-950/30 to-blue-50/40 dark:to-slate-900 border border-blue-100/90 dark:border-blue-900/40 shadow-2xs space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
@@ -1061,14 +1243,25 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* ================= HERO TITLE BANNER ================= */}
+        {/* Mobile Microblog Header (PeakD Snap / Ecency Wave) */}
+        {isComment && isMicroblog && (
+          <div className="sm:hidden flex items-center gap-2 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-200 border border-cyan-200 dark:border-cyan-800">
+              {isPeakSnap ? 'PeakD Snap • Microblog' : 'Ecency Wave • Microblog'}
+            </span>
+          </div>
+        )}
+
+        {/* ================= HERO TITLE BANNER (HIDDEN ON MOBILE FOR COMMENTS) ================= */}
         {(() => {
           const primaryTagOrCommunity =
             post.community_title || (post.community ? post.community : post.category) || 'blog';
 
           return (
             <div
-              className="relative rounded-xl sm:rounded-[22px] overflow-hidden flex flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 p-4 sm:p-6 min-h-[140px]"
+              className={`relative rounded-xl sm:rounded-[22px] overflow-hidden ${
+                isComment ? 'hidden sm:flex' : 'flex'
+              } flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 p-4 sm:p-6 min-h-[140px]`}
             >
               {/* Skeleton placeholder while cover image or data is loading to prevent layout shift */}
               {loadingCover && (
@@ -1192,8 +1385,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* Full Tags Section at bottom of post */}
-        {postTags.length > 0 && (
+
+        {/* Full Tags Section at bottom of post (HIDDEN ON COMMENTS) */}
+        {!isComment && postTags.length > 0 && (
           <div className="pt-4 pb-2 border-t border-gray-100 dark:border-slate-800 space-y-2">
             <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
               Topics & Tags
@@ -1307,6 +1501,28 @@ export const PostReader: React.FC<PostReaderProps> = ({
               )}
             </div>
 
+            {/* Reblog Button */}
+            <button
+              id="keychain-reblog-btn"
+              type="button"
+              onClick={handleReblog}
+              disabled={isReblogging || hasReblogged}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${
+                hasReblogged
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+              } disabled:cursor-not-allowed`}
+              style={{ borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' }}
+              title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
+            >
+              {isReblogging ? (
+                <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
+              ) : (
+                <Repeat className={`w-4 h-4 ${hasReblogged ? 'text-white' : ''}`} />
+              )}
+              <span>{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
+            </button>
+
             {/* Comments Counter Shortcut */}
             <button
               onClick={scrollToComments}
@@ -1322,8 +1538,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         </div>
 
-        {/* ================= RELATED STORIES / MORE FROM AUTHOR ================= */}
-        {relatedStories.length > 0 && (
+        {/* ================= RELATED STORIES / MORE FROM AUTHOR (HIDDEN ON COMMENTS) ================= */}
+        {!isComment && relatedStories.length > 0 && (
           <div className="pt-6 border-t border-gray-100 dark:border-slate-800 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

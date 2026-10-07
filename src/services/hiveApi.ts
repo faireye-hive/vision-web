@@ -1376,9 +1376,12 @@ async function fetchFollowedCommentsFeedInternal(
  * Checks if a post is a reblog (resteem)
  */
 export function isReblogPost(post: HivePost): boolean {
-  if (post.reblogged_by && post.reblogged_by.length > 0) return true;
+  if (Array.isArray(post.reblogged_by) && post.reblogged_by.length > 0) return true;
   if (post.first_reblogged_by && post.first_reblogged_by.trim().length > 0) return true;
-  if (post.reblog_entries && post.reblog_entries.length > 0) return true;
+  if (Array.isArray(post.reblog_entries) && post.reblog_entries.length > 0) return true;
+  const anyPost = post as any;
+  if (typeof anyPost.reblogged_by === 'string' && anyPost.reblogged_by.trim().length > 0) return true;
+  if (anyPost.reblogged_by_account && String(anyPost.reblogged_by_account).trim().length > 0) return true;
   return false;
 }
 
@@ -1386,14 +1389,27 @@ export function isReblogPost(post: HivePost): boolean {
  * Extracts the username who reblogged the post
  */
 export function getRebloggedBy(post: HivePost): string | null {
-  if (post.reblogged_by && post.reblogged_by.length > 0) {
-    return post.reblogged_by[0];
+  if (Array.isArray(post.reblogged_by) && post.reblogged_by.length > 0) {
+    const val = post.reblogged_by[0];
+    if (typeof val === 'string' && val.trim().length > 0) return val.trim();
   }
   if (post.first_reblogged_by && post.first_reblogged_by.trim().length > 0) {
     return post.first_reblogged_by.trim();
   }
-  if (post.reblog_entries && post.reblog_entries.length > 0) {
-    return post.reblog_entries[0].account;
+  if (Array.isArray(post.reblog_entries) && post.reblog_entries.length > 0) {
+    const entry: any = post.reblog_entries[0];
+    if (typeof entry === 'string' && entry.trim().length > 0) return entry.trim();
+    if (entry && typeof entry === 'object') {
+      const acc = entry.account || entry.author || entry.name;
+      if (typeof acc === 'string' && acc.trim().length > 0) return acc.trim();
+    }
+  }
+  const anyPost = post as any;
+  if (typeof anyPost.reblogged_by === 'string' && anyPost.reblogged_by.trim().length > 0) {
+    return anyPost.reblogged_by.trim();
+  }
+  if (anyPost.reblogged_by_account && String(anyPost.reblogged_by_account).trim().length > 0) {
+    return String(anyPost.reblogged_by_account).trim();
   }
   return null;
 }
@@ -1467,7 +1483,11 @@ async function fetchFollowedRootFeedInternal(
       const normalized: HivePost[] = rawFeed.map((p) => {
         const rebloggedBy: string[] = Array.isArray(p.reblogged_by) && p.reblogged_by.length > 0
           ? p.reblogged_by
-          : (p.first_reblogged_by ? [p.first_reblogged_by] : []);
+          : (p.first_reblogged_by
+              ? [p.first_reblogged_by]
+              : (Array.isArray(p.reblog_entries) && p.reblog_entries.length > 0
+                  ? p.reblog_entries.map((r: any) => typeof r === 'string' ? r : r.account).filter(Boolean)
+                  : []));
 
         const pendingPayout = parseFloat(p.pending_payout_value || '0');
         const totalPayout = parseFloat(p.total_payout_value || '0');
@@ -1527,16 +1547,32 @@ async function fetchFollowedRootFeedInternal(
 
     const targetUsers = activeUsers.slice(0, 10);
     const postArrays = await Promise.all(
-      targetUsers.map(user =>
-        getAccountPosts('posts', user, 4, forceRefresh).catch(() => [] as HivePost[])
-      )
+      targetUsers.map(async (user) => {
+        try {
+          const list = await getAccountPosts('blog', user, 4, forceRefresh);
+          return list.map((p) => {
+            if (p.author && p.author.toLowerCase() !== user.toLowerCase()) {
+              const existingReblog = Array.isArray(p.reblogged_by) ? p.reblogged_by : [];
+              return {
+                ...p,
+                reblogged_by: existingReblog.includes(user) ? existingReblog : [user, ...existingReblog],
+                first_reblogged_by: p.first_reblogged_by || user
+              };
+            }
+            return p;
+          });
+        } catch {
+          return [] as HivePost[];
+        }
+      })
     );
 
     const merged = postArrays.flat();
     const seen = new Set<string>();
     const uniquePosts: HivePost[] = [];
     for (const p of merged) {
-      const key = `${p.author}/${p.permlink}`;
+      const reblogUser = getRebloggedBy(p);
+      const key = `${reblogUser ? reblogUser + ':' : ''}${p.author}/${p.permlink}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniquePosts.push(p);
@@ -1610,12 +1646,43 @@ async function fetchFollowedMixedFeedInternal(
       getFollowedCommentsFeed(cleanObserver, forceRefresh, limit, maxAgeDays).catch(() => [] as HivePost[])
     ]);
 
-    // Merge, dedupe, and enforce the real age cutoff on BOTH sources
-    // (comments already respect maxAgeDays internally, but root posts — especially
-    // from getFollowedRootFeed's fallback path — are not date-limited, so we filter here too)
+    // Merge, dedupe, and enforce age cutoff
+    // Root posts (including reblogs) coming from getFollowedRootFeed are already actively in the user's feed.
+    // For reblogs, the reblog event happened recently on the feed even if the original post was written earlier.
     const seen = new Set<string>();
     const merged: HivePost[] = [];
-    for (const item of [...rootPosts, ...comments]) {
+    const nowMs = Date.now();
+
+    for (let i = 0; i < rootPosts.length; i++) {
+      const item = rootPosts[i];
+      const reblogUser = getRebloggedBy(item);
+      const isReblog = isReblogPost(item);
+      const key = `${reblogUser ? reblogUser + ':' : ''}${item.author}/${item.permlink}`;
+      if (seen.has(key)) continue;
+
+      let effectiveTime = new Date(item.created.endsWith('Z') ? item.created : item.created + 'Z').getTime();
+      if (isReblog) {
+        if (item.reblog_entries && item.reblog_entries[0]?.timestamp) {
+          const rt = new Date(
+            item.reblog_entries[0].timestamp.endsWith('Z')
+              ? item.reblog_entries[0].timestamp
+              : item.reblog_entries[0].timestamp + 'Z'
+          ).getTime();
+          if (!isNaN(rt)) effectiveTime = rt;
+        } else {
+          // If no explicit reblog timestamp, since it appeared high in the user's feed, keep it fresh
+          effectiveTime = Math.max(effectiveTime, nowMs - (i + 1) * 3600000);
+        }
+      } else {
+        if (isNaN(effectiveTime) || effectiveTime < cutoffMs) continue;
+      }
+
+      seen.add(key);
+      (item as any)._effectiveFeedTime = effectiveTime;
+      merged.push(item);
+    }
+
+    for (const item of comments) {
       const key = `${item.author}/${item.permlink}`;
       if (seen.has(key)) continue;
 
@@ -1623,13 +1690,14 @@ async function fetchFollowedMixedFeedInternal(
       if (isNaN(t) || t < cutoffMs) continue;
 
       seen.add(key);
+      (item as any)._effectiveFeedTime = t;
       merged.push(item);
     }
 
-    // Sort chronologically descending
+    // Sort chronologically descending by effective activity time
     merged.sort((a, b) => {
-      const timeA = new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
-      const timeB = new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
+      const timeA = (a as any)._effectiveFeedTime || new Date(a.created.endsWith('Z') ? a.created : a.created + 'Z').getTime();
+      const timeB = (b as any)._effectiveFeedTime || new Date(b.created.endsWith('Z') ? b.created : b.created + 'Z').getTime();
       return timeB - timeA;
     });
 

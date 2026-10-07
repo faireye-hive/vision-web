@@ -21,6 +21,7 @@ import {
   getFollowedMixedFeed,
   getFollowedRootFeed,
   isReblogPost,
+  getRebloggedBy,
   getHiveAvatarUrl
 } from '../services/hiveApi';
 import { useAuth } from '../context/AuthContext';
@@ -229,7 +230,8 @@ export const FeedPage: React.FC = () => {
     const seen = new Set<string>();
     const uniquePosts: HivePost[] = [];
     for (const post of filterRes.visiblePosts) {
-      const key = `${post.first_reblogged_by ? post.first_reblogged_by + ':' : ''}${post.author}/${post.permlink}`;
+      const reblogUser = getRebloggedBy(post);
+      const key = `${reblogUser ? reblogUser + ':' : ''}${post.author}/${post.permlink}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniquePosts.push(post);
@@ -341,18 +343,21 @@ export const FeedPage: React.FC = () => {
 
             {/* Feed Mode Selector Dropdown: compact icon-only on mobile, full on desktop */}
             <div className="relative inline-flex items-center">
-              {/* Mobile compact select (icon only + chevron) */}
-              <div className="sm:hidden relative inline-flex items-center gap-1 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold px-2 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 shadow-2xs">
+              {/* Mobile compact select (icon + label + chevron) */}
+              <div className="sm:hidden relative inline-flex items-center gap-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-sm font-semibold px-3 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 shadow-2xs">
                 <span className="text-blue-600 dark:text-blue-400">
                   {followingMode === 'root' ? (
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="w-4 h-4" />
                   ) : followingMode === 'comments' ? (
-                    <MessageSquare className="w-3.5 h-3.5" />
+                    <MessageSquare className="w-4 h-4" />
                   ) : (
-                    <Shuffle className="w-3.5 h-3.5" />
+                    <Shuffle className="w-4 h-4" />
                   )}
                 </span>
-                <ChevronDown className="w-3 h-3 text-gray-500 dark:text-slate-400" />
+                <span className="capitalize text-sm font-semibold">
+                  {followingMode === 'root' ? 'Root' : followingMode === 'comments' ? 'Comments' : 'Mixed'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
                 <select
                   id="following-feed-mode-select-mobile"
                   value={followingMode}
@@ -407,7 +412,7 @@ export const FeedPage: React.FC = () => {
             {/* Reblogs Checkmark Toggle: icon-only on mobile, full text on desktop */}
             {followingMode !== 'comments' && (
               <label
-                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer select-none ${
+                className={`inline-flex items-center gap-1.5 sm:gap-1.5 px-2.5 sm:px-2.5 py-1.5 sm:py-1.5 rounded-xl text-sm sm:text-xs font-semibold border transition cursor-pointer select-none ${
                   !hideReblogs
                     ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100/70'
                     : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -418,9 +423,9 @@ export const FeedPage: React.FC = () => {
                   type="checkbox"
                   checked={!hideReblogs}
                   onChange={handleToggleHideReblogs}
-                  className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
+                  className="w-4 h-4 sm:w-3.5 sm:h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
                 />
-                <Repeat className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <Repeat className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-purple-600 dark:text-purple-400" />
                 <span className="hidden sm:inline">Reblogs</span>
               </label>
             )}
@@ -555,7 +560,7 @@ export const FeedPage: React.FC = () => {
                 ? 'No recent activity found'
                 : "You aren't following anyone yet or they haven't posted recently"}
             </h3>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+            <p className="text-sm sm:text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
               {followingMode === 'comments'
                 ? 'None of the accounts you follow commented in the last 7 days, or your following list is empty.'
                 : followingMode === 'mixed'
@@ -575,20 +580,26 @@ export const FeedPage: React.FC = () => {
           {displayedPosts.map((post, index) => {
             const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
             const useGallery = isMobile && !isComment;
+            const reblogUser = getRebloggedBy(post);
+            const postKey = `${reblogUser ? reblogUser + ':' : ''}${post.author}/${post.permlink}`;
             return useGallery ? (
               <GalleryPostCard
-                key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                key={postKey}
                 post={post}
+                postIndex={index}
                 onSelectPost={openPost}
                 onSelectAuthor={handleSelectAuthor}
                 onSelectTag={openTag}
                 currentUser={currentUser}
                 onRequireLogin={requestLogin}
+                onMuteAuthor={addFilterAuthor}
+                onBlockWord={addFilterWord}
               />
             ) : (
               <PostCard
-                key={`${post.first_reblogged_by || ''}:${post.author}/${post.permlink}`}
+                key={postKey}
                 post={post}
+                postIndex={index}
                 inFeed={true}
                 onSelectPost={openPost}
                 onSelectAuthor={handleSelectAuthor}
