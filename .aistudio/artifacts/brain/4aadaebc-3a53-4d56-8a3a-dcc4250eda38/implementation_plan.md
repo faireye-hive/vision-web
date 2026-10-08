@@ -1,126 +1,142 @@
-# Implementation Plan: Profile Page Modular Style & Layout Customization
+# Recommend Algorithm & Personalized Feed for Discover
 
-## Overview
-This feature introduces an in-place visual layout and styling customization system exclusively for the **Profile Page** (`/profile/@username`). Each user can customize their own profile's layout structure, section ordering, visibility of individual components, background imagery, color themes, glassmorphism transparency, and typography. The configuration is broadcast to the Hive blockchain via Hive Keychain (`custom_json`) so that any visitor viewing that profile sees the owner's custom design, with local cache fallback for instant rendering.
+A personalized content recommendation engine in the Discover feed that analyzes the user's recent upvoted posts via Hive account history, fetches similar high-quality posts using the HiveSense API with a rate-limited background queue, and delivers a fast, cached, daily-refreshed stream of 200+ curated stories.
+
+## User Review & Critical Decisions
+
+> [!IMPORTANT]
+> The following decisions were confirmed through Phase 1 requirements clarification:
+> - **Authentication Requirement**: Logged-out visitors selecting the "Recommend" tab will see a focused login prompt explaining that recommendations are tailored to their personal on-chain voting history.
+> - **Client-Side Queue & IndexedDB Storage**: The recommendation engine runs entirely client-side using a polite, rate-limited queue (1 request every 1.5 seconds) to query the HiveSense API without backend dependencies or risk of IP rate-limits, storing up to 200+ recommended posts in IndexedDB.
+> - **Refresh Frequency**: Recommendations cache persists locally and automatically refreshes once every 24 hours, with an optional manual "Refresh Recommendations" button for on-demand sync.
+> - **Scope Focus**: Scope is strictly dedicated to the Recommend algorithm and Discover feed integration.
 
 ---
 
-## 1. Architecture & Component Organization
+## 1. Overview & Core Concept
 
-To follow the project constitution regarding clean separation of concerns and modularity, all profile customization logic will reside in a dedicated directory: `src/features/profile/`.
+- **What It Does**: Adds a new `"Recommend"` sorting option in the Discover page alongside *Hot*, *Trending*, *New*, *Payout*, and *Muted*. When selected by a logged-in user, the app analyzes their last 1,000 on-chain account history operations, extracts the 30 most recent root posts they upvoted (filtering out comments and downvotes), and queries the HiveSense similarity API (`https://api.hive.blog/hivesense-api/posts/{author}/{permlink}/similar`) to build an on-device collection of 200+ personalized recommendations.
+- **Target Audience / Persona**: Active Hive readers who want content tailored to the specific topics, authors, and writing styles they genuinely enjoy and support with their upvotes, rather than just global financial payouts or viral memes.
+- **Key Value**: Delivers zero-latency, private, client-side personalized discovery without tracking servers, third-party analytics, or heavy backend infrastructure.
+
+---
+
+## 2. User Experience & Visual Design
+
+### Key User Flows
+
+1. **Selecting Recommend Sort**:
+   - The user opens Discover and selects **"Recommend"** (styled with a distinct compass/sparkle icon) from the sort dropdown or sort bar.
+2. **Logged-Out Experience**:
+   - If no Hive account is active, the feed displays a clean, inviting card explaining that personalized recommendations require analyzing their voting history, featuring a direct **"Log in with Keychain"** button.
+3. **First-Time Generation / Sync Progress**:
+   - If no recommendations are cached or the 24-hour window has expired, a subtle, non-intrusive banner appears above the feed showing polite background sync progress:
+     `"Analyzing your upvoted posts and discovering similar stories... (12/30 checked)"`.
+   - As batches of similar posts arrive from HiveSense, they immediately populate the feed so the user never waits for all 30 calls to finish before reading.
+4. **Infinite Feed & Pagination**:
+   - Posts are presented in pages of 20 using standard feed cards (`PostCard` / `GalleryPostCard`). As the user reaches the bottom, the next 20 posts from the 200+ local pool load instantly.
+5. **Freshness & Manual Sync**:
+   - A subtle header displays `"Last updated 3 hours ago"` with a circular refresh icon to trigger an on-demand re-sync if the user has upvoted new content.
+
+### Visual Identity & Theme
+
+- **Sort Option Styling**:
+  - Icon: `Sparkles` or `Compass` with a luminous indigo-blue accent (`text-indigo-600 dark:text-indigo-400`).
+  - Label: `"Recommend"` with a quiet descriptive subtitle in the dropdown: `"Personalized stories based on your upvoted posts"`.
+- **Feed Header & Status**:
+  - Clean, unboxed metadata (`Updated today · 142 stories cached`) with zero pill clutter.
+  - Progress bar during background synchronization: thin 2px gradient line (`from-blue-500 to-indigo-600`) without blocking the UI.
+- **Empty & Fallback States**:
+  - If a user has a new account with zero upvoted root posts in the last 1,000 operations, the view offers an empty state:
+    `"No recent upvoted posts found. Upvote a few articles in Hot or Trending to train your recommendations!"`
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+### Decision 1: Client-Side Rate-Limited Queue vs. Backend Proxy
+- **Chosen Approach**: Client-side worker queue executing 1 HiveSense similarity request every 1.5 seconds, saving results incrementally into IndexedDB.
+- **Why**: Pure client-side architecture preserves user privacy, requires zero external server hosting or API keys, and guarantees polite traffic to `api.hive.blog` without triggering HTTP 429 rate limits.
+- **Alternatives Considered**: Server-side cron job was discarded because it requires storing user credentials or tracking accounts on a server, contradicting Nebulosa's decentralized, client-first philosophy.
+
+### Decision 2: IndexedDB Persistent Storage vs. LocalStorage
+- **Chosen Approach**: Native browser `IndexedDB` database (`nebulosa_recommendations`) with an object store for posts and a metadata store for timestamps and seed posts.
+- **Why**: 200+ full Hive post objects with metadata exceed `localStorage`'s 5MB quota and can cause main-thread JSON serialization hiccups. IndexedDB handles megabytes of structured data asynchronously with zero UI jank.
+- **Alternatives Considered**: In-memory cache was discarded because users would have to re-fetch 30 API calls on every page refresh.
+
+### Decision 3: Progressive Display vs. Complete-Wait Loading
+- **Chosen Approach**: Posts are deduplicated and appended to the visible feed as each seed post's similar stories are returned, with the feed immediately usable after the first 2-3 calls.
+- **Why**: Users should not have to wait 45 seconds (30 calls × 1.5s delay) before seeing any content. Immediate progressive loading provides instantaneous perceived performance.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+### System Architecture Diagram
 
 ```
-src/
-├── features/
-│   └── profile/
-│       ├── types.ts                      # ProfileStyleConfig, SectionId, Preset, LayoutType
-│       ├── defaultStyle.ts               # Default configurations & pre-built style presets
-│       ├── profileStyleService.ts        # Hive custom_json broadcast, account history reader, & cache
-│       ├── ProfileCustomizerDrawer.tsx   # Live in-place editor with tabs, sliders, toggles & reordering
-│       └── sections/                     # Modular sections that can be dynamically ordered/hidden
-│           ├── ProfileHeaderSection.tsx  # Banner, avatar (rounded/circle/square), name, follow/edit buttons
-│           ├── ProfileBioSection.tsx     # About text, location, website, created date
-│           ├── ProfileStatsSection.tsx   # Follower counts, reputation, balances, post counter
-│           ├── ProfileBadgesSection.tsx  # Subscribed communities, tags & badge pills
-│           └── ProfileFeedSection.tsx    # Tabs (Posts, Comments, Replies, Mentions, History) & feed list
-├── services/
-│   └── keychain.ts                       # Add broadcastCustomJson helper if missing
-└── pages/
-    └── ProfilePage.tsx                   # Refactored to render sections based on ProfileStyleConfig
+┌────────────────────────────────────────────────────────────────────────┐
+│                              DISCOVER PAGE                             │
+│       ┌────────────────────────────────────────────────────────┐       │
+│       │ Sort Dropdown: [ Hot | Trending | New | Recommend* ]   │       │
+│       └────────────────────────────────────────────────────────┘       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ activeSort === 'recommend'
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     RECOMMENDATION SERVICE ENGINE                      │
+│                                                                        │
+│  1. Check IndexedDB Cache: Valid (<24h) & Count >= 20?                │
+│     ├── YES ──► Return cached items immediately (Paginate by 20)       │
+│     └── NO  ──► Start Background Ingestion Pipeline                    │
+│                                                                        │
+│  2. Ingestion Pipeline:                                                │
+│     ┌────────────────────────────────────────────────────────────┐     │
+│     │ Hive JSON-RPC: account_history_api.get_account_history     │     │
+│     │ Filter: op === 'vote', weight > 0, !permlink.startsWith('re-')│   │
+│     │ Result: Up to 30 unique root posts [author, permlink]      │     │
+│     └─────────────────────────────┬──────────────────────────────┘     │
+│                                   │                                    │
+│  3. Rate-Limited Queue:           ▼ (1 request every 1500ms)           │
+│     ┌────────────────────────────────────────────────────────────┐     │
+│     │ HiveSense API: /hivesense-api/posts/{author}/{permlink}/   │     │
+│     │                similar?result_limit=20&full_posts=20       │     │
+│     └─────────────────────────────┬──────────────────────────────┘     │
+│                                   │                                    │
+│  4. Deduplication & Ranking:      ▼                                    │
+│     • Exclude already-voted posts                                      │
+│     • Deduplicate by author/permlink                                   │
+│     • Interleave diverse sources (max 2 per author in top 20)          │
+│                                   │                                    │
+│  5. Storage & Delivery:           ▼                                    │
+│     ┌────────────────────────────────────────────────────────────┐     │
+│     │ IndexedDB: 'nebulosa_recommendations'                      │     │
+│     │ Store: posts[] + last_updated + seed_count                 │     │
+│     └────────────────────────────────────────────────────────────┘     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Data Model & State Strategy
 
-## 2. Key Capabilities & Customization Options
+- **IndexedDB Schema (`nebulosa_recommendations_db`, version 1)**:
+  - `store_posts`: Array of normalized `HivePost` objects with a composite key `author/permlink`.
+  - `store_metadata`:
+    - `username`: Current user's account name.
+    - `last_sync_timestamp`: Epoch timestamp (ms) of the last successful synchronization.
+    - `seed_posts`: Array of `{ author, permlink, weight, timestamp }` extracted from account history.
+    - `sync_status`: `'idle' | 'syncing' | 'completed' | 'error'`.
+    - `sync_progress`: `{ current: number, total: number }`.
 
-### A. Layout Structure (`layoutType`)
-- **Full-Width Hero (Default)**: Classic expansive cover banner with bottom avatar and centered/left-aligned content.
-- **Bento Grid**: Modern modular card grid where stats, bio, and badges form complementary dashboard cards beside/above the feed.
-- **Split 2-Column**: Sticky left sidebar with avatar, bio, and stats; right column dedicated to feed and tabs.
-- **Centered Compact**: Minimalist card with centered avatar, compact metrics, and focused content feed.
+- **Filtering Invariants**:
+  - `operation_filter_low: 1` targets `vote_operation` specifically.
+  - Votes where `op[1].voter !== username` are ignored.
+  - Votes where `op[1].author === username` (self-votes) are excluded to ensure topic diversity.
+  - Permlinks starting with `re-` (Hive comment standard) or parent author set are discarded.
+  - Downvotes (`weight <= 0` or negative rshares) are discarded.
+  - Already voted posts are excluded from recommendations to maintain fresh content discovery.
 
-### B. Section Reordering & Visibility (`sections`)
-- Configurable modular sections:
-  1. `header` (Banner & Identity)
-  2. `stats` (Followers, Reputation, Balances)
-  3. `bio` (About text, links, metadata)
-  4. `badges` (Subscribed communities & frequent tags)
-  5. `feed` (Posts, Comments, Replies, Mentions, Activity)
-- Each section can be toggled **Visible / Hidden** (header & feed required, others optional).
-- Each section can be reordered up/down to create personalized content flows.
-
-### C. Visual Styling & Ambience (Scoped strictly to Profile)
-- **Background**:
-  - Solid color, gradient, or Custom Background Image URL.
-  - Background overlay tint (opacity control) & optional background blur.
-- **Card Aesthetics**:
-  - Surface opacity (solid, semi-transparent frosted glass, or borderless outline).
-  - Border radius (sharp `rounded-lg`, standard `rounded-2xl`, ultra-curved `rounded-3xl`).
-  - Card shadow & border intensity.
-- **Accent & Typography**:
-  - Primary accent color (Blue, Purple, Emerald, Rose, Amber, Cyan, or custom hex).
-  - Font family override for profile text (System, Serif, Mono, Rounded).
-  - Avatar shape: Circle, Rounded Square, or Hexagon/Squircle.
-- **Curated Presets**:
-  - One-click presets: *Default Clean*, *Cyberpunk Neon*, *Frosted Glass*, *Warm Editorial*, *Minimalist Mono*, *Midnight Velvet*.
-
----
-
-## 3. Blockchain Storage & Persistence (`custom_json`)
-
-### Hive Keychain Broadcast
-- Operation: `custom_json`
-- Authority: `Posting` (no Active key or token fees required)
-- ID: `nebulosa_profile_style`
-- Payload:
-  ```json
-  {
-    "app": "nebulosa/1.0",
-    "version": 1,
-    "style": {
-      "layoutType": "bento",
-      "sections": [
-        { "id": "header", "visible": true },
-        { "id": "bio", "visible": true },
-        { "id": "stats", "visible": true },
-        { "id": "badges", "visible": true },
-        { "id": "feed", "visible": true }
-      ],
-      "theme": {
-        "accentColor": "#6366f1",
-        "bgType": "image",
-        "bgImageUrl": "https://...",
-        "bgOverlayOpacity": 0.4,
-        "cardStyle": "glass",
-        "borderRadius": "2xl",
-        "fontFamily": "system"
-      }
-    }
-  }
-  ```
-
-### Retrieval & Hydration Flow
-1. **Immediate Cache**: Read `localStorage.getItem(`nebulosa_profile_style:${username}`)` for instant zero-flicker loading.
-2. **Blockchain Fetch**: If viewing another user's profile or refreshing, fetch the account's recent `custom_json` operations matching `id === 'nebulosa_profile_style'` via Hive RPC (`condenser_api.get_account_history`), parse the JSON, and update the view and cache.
-3. **Safety Fallback**: If no custom style is published or parsing fails, seamlessly fall back to `DEFAULT_PROFILE_STYLE`.
-
----
-
-## 4. User Experience & In-Place Edit Flow
-
-1. When `currentUser.username === profileUser` (viewing your own profile), a floating or top-bar button appears: **"Customize Profile"** / **"Personalizar Perfil"** with a magic wand icon.
-2. Clicking opens an in-place editing drawer/bar that lets the user change presets, tweak colors, reorder sections, and adjust cards in **real-time** on the actual profile page without leaving.
-3. Controls include:
-   - **Live Preview toggle**: Test changes instantly before saving.
-   - **Revert / Reset**: Revert back to default or discard draft changes.
-   - **Save to Hive (Keychain)**: Triggers Hive Keychain `requestCustomJson` to publish to the blockchain, saving locally immediately.
-   - **Save Local**: Option to save locally in browser if Keychain is not installed or user wants a private draft.
-
----
-
-## 5. Verification & Testing
-
-- Compile and lint check with `compile_applet` and `lint_applet`.
-- Verify that custom profile styles apply **strictly to the Profile page** container (`#profile-custom-container`) and do not bleed into global styles, Feed, Discover, Shorts, or Reader.
-- Verify section reordering and visibility toggles accurately position elements.
-- Verify graceful fallback when an account has no custom style or is viewed by guests.
+- **Component & Integration Points**:
+  - `src/services/recommendationService.ts`: Core service managing IndexedDB, account history parsing, the rate-limited HiveSense caller, and cache invalidation.
+  - `src/components/SortDropdown.tsx`: Add `'recommend'` sort type with localized English text, compass icon, and badge indicator.
+  - `src/pages/DiscoverPage.tsx`: Hook recommendation service into the `sort` handler, rendering pagination from IndexedDB and displaying sync progress and login prompt banners.
+  - `src/components/Navbar.tsx` & `src/components/LeftSidebar.tsx` & `src/components/MobileBottomNav.tsx`: Ensure full TypeScript type compliance across all navigation sort references.

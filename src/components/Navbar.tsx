@@ -41,8 +41,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { LanguageDropdown } from './LanguageDropdown';
 
 interface NavbarProps {
-  currentSort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange: (sort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+  onSortChange: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
   currentTag: string;
   onTagChange: (tag: string) => void;
   onOpenAccount: (username: string) => void;
@@ -291,14 +291,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 if (onNavChange) onNavChange('discover');
               }}
               className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
-              title="Nebulosa Home - Hive Blockchain Client"
+              title="Home Page"
             >
               <img
                 src="/assets/logo-circle.svg"
                 alt="Nebulosa Logo"
                 className="w-9 h-9 rounded-full shadow-sm group-hover:opacity-90 transition-opacity"
               />
-              <span className="font-extrabold text-base tracking-tight text-gray-900 dark:text-white hidden sm:inline">
+              <span className="font-extrabold text-base tracking-tight text-gray-900 dark:text-white">
                 Nebulosa
               </span>
             </button>

@@ -20,6 +20,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileSideDrawer } from './components/MobileSideDrawer';
 
 import { HivePost } from './services/hiveApi';
+import { syncRecommendationsInBackground } from './services/recommendationService';
 import { requestLogin } from './utils/authEvents';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
@@ -130,6 +131,18 @@ function NebulosaApp() {
       return () => clearTimeout(timer);
     }
   }, [selectedPost, standalonePage, restoreScrollPosition, activeNav]);
+
+  // Personalized Recommendation background sync:
+  // Starts silently in background the first time the user opens the app each day.
+  // Cached in IndexedDB with 24h TTL, zero API spam or overload.
+  useEffect(() => {
+    if (currentUser?.username) {
+      // Fire-and-forget in background; service internally guards against TTL and concurrent runs
+      syncRecommendationsInBackground(currentUser.username, false).catch((err) => {
+        console.warn('[App] Background recommendation sync check failed:', err);
+      });
+    }
+  }, [currentUser?.username]);
 
 
 

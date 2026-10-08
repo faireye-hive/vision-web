@@ -486,30 +486,31 @@ export const PostReader: React.FC<PostReaderProps> = ({
   useEffect(() => {
     setLoadBodyError(false);
 
-    // If post already has a full, non-truncated body, use it directly without re-fetching
-    const hasCompleteBody = Boolean(
-      post.body &&
-      post.body.trim().length > 0 &&
-      !post.is_truncated &&
-      !(post.body.length === 200 && post.body.endsWith('...'))
+    // Check if the post requires fetching the complete authoritative version directly from Hive blockchain
+    const needsBlockchainFetch = Boolean(
+      post.is_truncated ||
+      post.from_recommendation ||
+      !post.body ||
+      post.body.trim().length <= 300 ||
+      (post.body.length <= 250 && (post.body.endsWith('...') || post.body.endsWith('…')))
     );
 
-    if (hasCompleteBody) {
+    if (!needsBlockchainFetch) {
       setFullPost(post);
       setLoadingFullBody(false);
       return;
     }
 
-    // Otherwise (empty body, explicit is_truncated, or missing body), fetch the full post from Hive RPC
+    // Otherwise (truncated snippet, recommendation feed, or missing body), fetch full post from Hive RPC
     let active = true;
     setLoadingFullBody(true);
-    getPost(post.author, post.permlink, currentUser?.username || '')
+    getPost(post.author, post.permlink, currentUser?.username || '', true)
       .then((data) => {
         if (!active) return;
-        if (data && typeof data.body === 'string') {
-          setFullPost({ ...data, is_truncated: false });
+        if (data && typeof data.body === 'string' && data.body.trim().length > 0) {
+          setFullPost({ ...data, is_truncated: false, from_recommendation: false });
         } else if (post.body) {
-          setFullPost({ ...post, is_truncated: false });
+          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
         } else {
           setLoadBodyError(true);
         }
@@ -518,7 +519,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         if (!active) return;
         console.error('Failed to load full post in reader:', err);
         if (post.body) {
-          setFullPost({ ...post, is_truncated: false });
+          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
         } else {
           setLoadBodyError(true);
         }
@@ -530,7 +531,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => {
       active = false;
     };
-  }, [post.author, post.permlink, post.body, post.is_truncated, currentUser?.username]);
+  }, [post.author, post.permlink, post.body, post.is_truncated, post.from_recommendation, currentUser?.username]);
 
   const currentPost =
     fullPost &&
@@ -542,7 +543,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Only show skeleton loader if fetch is actively loading AND we don't have a full body yet
   const isBodyLoading =
     loadingFullBody &&
-    (!currentPost.body || currentPost.body.trim().length === 0 || Boolean(currentPost.is_truncated));
+    (!currentPost.body || currentPost.body.trim().length <= 300 || Boolean(currentPost.is_truncated));
 
   // Parse HTML and headings safely with DOMPurify
   const { html: safeHtmlContent, headings } = useMemo(() => {
@@ -1641,7 +1642,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
 
           {/* New Comment Box */}
-          <form onSubmit={handleAddComment} className="bg-gray-50/80 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl space-y-3 border border-gray-100 dark:border-slate-800">
+          <form onSubmit={handleAddComment} className="bg-gray-50/80 dark:bg-slate-800/50 p-3 sm:p-5 rounded-xl sm:rounded-2xl space-y-3 border border-gray-100 dark:border-slate-800 -mx-1 sm:mx-0">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-gray-700 dark:text-slate-300">Leave a reply</span>
               {currentUser ? (
@@ -1656,7 +1657,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
               value={newCommentBody}
               onChange={(e) => setNewCommentBody(e.target.value)}
               placeholder={currentUser ? 'Write your response in Markdown...' : 'Connect Hive Keychain in the top menu to comment...'}
-              className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl text-xs sm:text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-xs"
+              className="w-full p-2.5 sm:p-3 bg-white dark:bg-slate-900 rounded-xl text-xs sm:text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-xs"
             />
 
             {commentSuccess && (
@@ -1681,7 +1682,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
           {/* Comment List */}
           {comments.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4 -mx-1 sm:mx-0">
               {comments.map((comment) => (
                 <CommentThreadItem
                   key={comment.post_id || `${comment.author}/${comment.permlink}`}
@@ -1689,6 +1690,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   discussion={discussion}
                   depth={0}
                   onSelectAuthor={onSelectAuthor}
+                  onSelectPost={onSelectPost}
                   currentUser={currentUser}
                   onRequireLogin={onRequireLogin}
                   onRefreshDiscussion={() => fetchDiscussion(true)}
@@ -2010,6 +2012,7 @@ interface CommentThreadItemProps {
   discussion: Record<string, HivePost>;
   depth: number;
   onSelectAuthor: (author: string) => void;
+  onSelectPost?: (post: HivePost) => void;
   currentUser: CurrentUser | null;
   onRequireLogin?: () => void;
   onRefreshDiscussion: () => void;
@@ -2024,6 +2027,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   discussion,
   depth,
   onSelectAuthor,
+  onSelectPost,
   currentUser,
   onRequireLogin,
   onRefreshDiscussion,
@@ -2140,10 +2144,26 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
     }
   };
 
+  // On mobile for subcomments with replies, tapping the comment body/card (outside buttons) opens the comment discussion
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (window.innerWidth < 640 && depth >= 1 && childReplies.length > 0 && onSelectPost) {
+      const target = e.target as HTMLElement;
+      if (target.closest('button') || target.closest('a') || target.closest('textarea') || target.closest('input')) {
+        return;
+      }
+      onSelectPost(comment);
+    }
+  };
+
   return (
-    <div className={`p-3.5 sm:p-4 rounded-2xl transition-all ${
-      depth === 0 ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-100/70 dark:border-slate-700/60 shadow-2xs' : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
-    }`}>
+    <div
+      onClick={handleCardClick}
+      className={`px-2.5 py-3 sm:p-4 rounded-xl sm:rounded-2xl transition-all ${
+        depth === 0
+          ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-100/70 dark:border-slate-700/60 shadow-2xs'
+          : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
+      } ${depth >= 1 && childReplies.length > 0 ? 'sm:cursor-default cursor-pointer' : ''}`}
+    >
       {/* Author Header */}
       <div className="flex items-center justify-between text-xs mb-2">
         <div className="flex items-center gap-2 flex-wrap">
@@ -2206,14 +2226,14 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         </span>
       </div>
 
-      {/* Comment Body */}
+      {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
       <div
-        className="article-body text-xs sm:text-sm text-gray-800 dark:text-slate-100 leading-relaxed pl-8 break-words max-w-none mb-2"
+        className="article-body text-xs sm:text-sm text-gray-800 dark:text-slate-100 leading-relaxed pl-1 sm:pl-8 break-words max-w-none mb-2"
         dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
       />
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
-      <div className="flex items-center gap-3 sm:gap-4 text-[11px] text-gray-500 dark:text-slate-400 pl-8 pt-1 flex-wrap">
+      <div className="flex items-center gap-2.5 sm:gap-4 text-[11px] text-gray-500 dark:text-slate-400 pl-1 sm:pl-8 pt-1 flex-wrap">
         {/* Upvote */}
         <button
           type="button"
@@ -2243,24 +2263,63 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           <span>Reply</span>
         </button>
 
-        {/* Toggle child replies */}
+        {/* Child replies action */}
         {childReplies.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 px-2 py-0.5 rounded-full transition cursor-pointer"
-            title={isExpanded ? 'Hide replies' : 'Show replies'}
-          >
-            <MessageSquare className="w-3 h-3 text-blue-500" />
-            <span>{childReplies.length} {childReplies.length === 1 ? 'reply' : 'replies'}</span>
-            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
+          <>
+            {/* On mobile for depth >= 1, button navigates to comment page to avoid squished nesting */}
+            {depth >= 1 && (
+              <button
+                type="button"
+                onClick={() => onSelectPost && onSelectPost(comment)}
+                className="sm:hidden flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/80 px-2 py-0.5 rounded-full transition cursor-pointer"
+                title="Open comment thread page"
+              >
+                <MessageSquare className="w-3 h-3 text-blue-500" />
+                <span>{childReplies.length} {childReplies.length === 1 ? 'reply' : 'replies'}</span>
+                <ArrowLeft className="w-3 h-3 rotate-180" />
+              </button>
+            )}
+
+            {/* Depth 0 on mobile + All depths on desktop keep the accordion toggle */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={`${depth >= 1 ? 'hidden sm:flex' : 'flex'} items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 px-2 py-0.5 rounded-full transition cursor-pointer`}
+              title={isExpanded ? 'Hide replies' : 'Show replies'}
+            >
+              <MessageSquare className="w-3 h-3 text-blue-500" />
+              <span>{childReplies.length} {childReplies.length === 1 ? 'reply' : 'replies'}</span>
+              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          </>
         )}
       </div>
 
+      {/* Mobile only: for subcomments (depth >= 1) with replies, full-width banner to open comment page */}
+      {depth >= 1 && childReplies.length > 0 && (
+        <div className="sm:hidden mt-2.5 pt-2 border-t border-blue-100/70 dark:border-blue-950/70">
+          <button
+            type="button"
+            onClick={() => onSelectPost && onSelectPost(comment)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-blue-50/90 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/80 active:bg-blue-200/80 text-blue-700 dark:text-blue-300 font-bold text-xs transition cursor-pointer border border-blue-200/80 dark:border-blue-900/60 shadow-2xs group"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <span className="truncate">
+                {childReplies.length} {childReplies.length === 1 ? 'reply' : 'replies'} • Open thread
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 flex-shrink-0">
+              <span>View</span>
+              <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* In-line Reply Box */}
       {showReplyBox && (
-        <form onSubmit={handleSendReply} className="mt-3 pl-8 space-y-2 animate-in fade-in">
+        <form onSubmit={handleSendReply} className="mt-3 pl-1 sm:pl-8 space-y-2 animate-in fade-in">
           <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
             <span>Replying to @{comment.author}</span>
             <button
@@ -2300,25 +2359,54 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       )}
 
       {/* Recursive Child Replies Tree */}
-      {childReplies.length > 0 && isExpanded && (
-        <div className="mt-3 pl-3 sm:pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-3 transition-colors">
-          {childReplies.map((child) => (
-            <CommentThreadItem
-              key={child.post_id || `${child.author}/${child.permlink}`}
-              comment={child}
-              discussion={discussion}
-              depth={depth + 1}
-              onSelectAuthor={onSelectAuthor}
-              currentUser={currentUser}
-              onRequireLogin={onRequireLogin}
-              onRefreshDiscussion={onRefreshDiscussion}
-              onToggleFollowAuthor={onToggleFollowAuthor}
-              onToggleMuteAuthor={onToggleMuteAuthor}
-              isUserFollowing={isUserFollowing}
-              isAuthorMuted={isAuthorMuted}
-            />
-          ))}
-        </div>
+      {childReplies.length > 0 && (
+        <>
+          {/* Depth === 0: Render direct subcomments on both mobile and desktop when expanded */}
+          {depth === 0 && isExpanded && (
+            <div className="mt-2.5 sm:mt-3 pl-1.5 sm:pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-2.5 sm:space-y-3 transition-colors">
+              {childReplies.map((child) => (
+                <CommentThreadItem
+                  key={child.post_id || `${child.author}/${child.permlink}`}
+                  comment={child}
+                  discussion={discussion}
+                  depth={depth + 1}
+                  onSelectAuthor={onSelectAuthor}
+                  onSelectPost={onSelectPost}
+                  currentUser={currentUser}
+                  onRequireLogin={onRequireLogin}
+                  onRefreshDiscussion={onRefreshDiscussion}
+                  onToggleFollowAuthor={onToggleFollowAuthor}
+                  onToggleMuteAuthor={onToggleMuteAuthor}
+                  isUserFollowing={isUserFollowing}
+                  isAuthorMuted={isAuthorMuted}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Depth >= 1: Render deeper nested sub-subcomments ONLY on desktop when expanded */}
+          {depth >= 1 && isExpanded && (
+            <div className="hidden sm:block mt-3 pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-3 transition-colors">
+              {childReplies.map((child) => (
+                <CommentThreadItem
+                  key={child.post_id || `${child.author}/${child.permlink}`}
+                  comment={child}
+                  discussion={discussion}
+                  depth={depth + 1}
+                  onSelectAuthor={onSelectAuthor}
+                  onSelectPost={onSelectPost}
+                  currentUser={currentUser}
+                  onRequireLogin={onRequireLogin}
+                  onRefreshDiscussion={onRefreshDiscussion}
+                  onToggleFollowAuthor={onToggleFollowAuthor}
+                  onToggleMuteAuthor={onToggleMuteAuthor}
+                  isUserFollowing={isUserFollowing}
+                  isAuthorMuted={isAuthorMuted}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
       <VoteWeightDialog
         open={voteOpen}

@@ -5,7 +5,7 @@ import { PostHeading } from '../utils/sanitize';
 import { useAuth } from './AuthContext';
 
 export type NavTab = 'feed' | 'discover' | 'shorts' | 'communities';
-export type SortOption = 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+export type SortOption = 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
 export type StandalonePage = 'write' | 'profile' | 'explore' | 'manage' | 'following' | 'notifications';
 
 export interface NavigationContextType {
@@ -113,7 +113,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Parse sort. Absent sort keeps the in-memory choice from the navbar.
     const querySort = searchParams.get('sort') as SortOption | null;
-    if (querySort && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
+    if (querySort && ['recommend', 'trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
       setSort(querySort);
     }
 
@@ -130,8 +130,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       const isCompletePost = Boolean(
         current &&
         typeof current.body === 'string' &&
-        current.body.trim().length > 0 &&
-        !current.is_truncated
+        current.body.trim().length > 300 &&
+        !current.is_truncated &&
+        !current.from_recommendation &&
+        !(current.body.length <= 250 && (current.body.endsWith('...') || current.body.endsWith('…')))
       );
       const alreadyOpen = Boolean(
         current &&
@@ -400,13 +402,19 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setStandalonePage(null);
     navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
 
-    // If the post was passed with an incomplete or truncated body (e.g. from Similar Stories HiveSense 200-char snippet),
-    // fetch the complete full post from Hive RPC so the reader renders the entire article:
-    if (!post.body || post.is_truncated) {
-      getPost(post.author, post.permlink, currentUser?.username || '')
+    // If the post was passed with an incomplete or truncated body (e.g. HiveSense snippet or from recommendation),
+    // fetch the complete authoritative full post from Hive RPC blockchain so the reader renders the entire article:
+    if (
+      !post.body ||
+      post.is_truncated ||
+      post.from_recommendation ||
+      post.body.trim().length <= 300 ||
+      (post.body.length <= 250 && (post.body.endsWith('...') || post.body.endsWith('…')))
+    ) {
+      getPost(post.author, post.permlink, currentUser?.username || '', true)
         .then((fullPost) => {
-          if (fullPost && fullPost.body) {
-            setSelectedPost({ ...fullPost, is_truncated: false });
+          if (fullPost && fullPost.body && fullPost.body.trim().length > 0) {
+            setSelectedPost({ ...fullPost, is_truncated: false, from_recommendation: false });
           }
         })
         .catch((err) => console.error('Failed to fetch full post for selected post:', err));

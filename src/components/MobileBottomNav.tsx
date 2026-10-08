@@ -45,8 +45,8 @@ export interface MobileBottomNavProps {
   onClosePost?: () => void;
   onOpenLogin?: () => void;
   onLogout?: () => void;
-  currentSort?: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange?: (sort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  currentSort?: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+  onSortChange?: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
   currentTag?: string;
   onSelectTag?: (tag: string) => void;
   onOpenFilters?: () => void;

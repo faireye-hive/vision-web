@@ -6,10 +6,11 @@ import {
   DollarSign,
   VolumeX,
   ChevronDown,
-  Check
+  Check,
+  Compass
 } from 'lucide-react';
 
-export type SortType = 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+export type SortType = 'recommend' | 'hot' | 'trending' | 'created' | 'payout' | 'muted' | 'promoted';
 
 interface SortDropdownProps {
   currentSort: SortType;
@@ -18,6 +19,14 @@ interface SortDropdownProps {
 }
 
 const SORT_OPTIONS = [
+  {
+    id: 'recommend' as const,
+    label: 'Recommend',
+    icon: Compass,
+    iconColor: 'text-violet-600 dark:text-violet-400',
+    description: 'Personalized feed based on your upvoted posts & HiveSense',
+    badge: 'Smart',
+  },
   {
     id: 'hot' as const,
     label: 'Hot',

@@ -54,6 +54,8 @@ export interface HivePost {
   first_reblogged_by?: string;
   reblog_entries?: Array<{ account: string; timestamp?: string }>;
   is_truncated?: boolean;
+  from_recommendation?: boolean;
+  recommendation_score?: number;
 }
 
 export interface HiveAccountProfile {

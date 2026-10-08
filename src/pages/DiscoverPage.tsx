@@ -13,6 +13,11 @@ import {
   getRankedPosts,
   getCachedRankedPosts
 } from '../services/hiveApi';
+import {
+  getRecommendationsForUser,
+  subscribeRecommendationStatus,
+  RecommendationSyncStatus
+} from '../services/recommendationService';
 import { getLanguageDiscoveryFeed } from '../services/combflowApi';
 import { findCategoryByTag } from '../data/categorySubtopics';
 import { useAuth } from '../context/AuthContext';
@@ -97,6 +102,35 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     return typeof window !== 'undefined' ? window.innerWidth < 640 : false;
   });
 
+  // Recommendation engine state & refs
+  const recPageRef = useRef(1);
+  const hasMoreRecsRef = useRef(true);
+  const [recStatus, setRecStatus] = useState<RecommendationSyncStatus | null>(null);
+
+  useEffect(() => {
+    if (!username) return;
+    const unsub = subscribeRecommendationStatus((status) => {
+      if (status.account === username) {
+        setRecStatus(status);
+        if (sort === 'recommend') {
+          setPosts((currentPosts) => {
+            if (currentPosts.length === 0 && status.totalPostsFound > 0) {
+              getRecommendationsForUser(username, 1, 20).then((res) => {
+                if (res.posts.length > 0) {
+                  setPosts(res.posts);
+                  hasMoreRecsRef.current = res.hasMore;
+                  setLoading(false);
+                }
+              });
+            }
+            return currentPosts;
+          });
+        }
+      }
+    });
+    return unsub;
+  }, [username, sort]);
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 640);
@@ -167,7 +201,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
   const handleTouchEnd = () => {
     if (pullDistance >= 45) {
-      fetchPosts(true);
+      if (sort === 'recommend') {
+        fetchPosts(false);
+      } else {
+        fetchPosts(true);
+      }
     }
     setPullDistance(0);
     touchStartYRef.current = null;
@@ -192,6 +230,34 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       const gen = ++queryGen.current;
       loadedPages.current = 1;
       apiCursorRef.current = null;
+
+      // Personalized Recommendation Feed branch
+      if (sort === 'recommend') {
+        if (!username) {
+          setPosts([]);
+          setLoading(false);
+          setError(null);
+          return;
+        }
+
+        setLoading(true);
+        setError(null);
+        recPageRef.current = 1;
+        try {
+          const recs = await getRecommendationsForUser(username, 1, 20);
+          if (gen !== queryGen.current) return;
+          setPosts(recs.posts);
+          hasMoreRecsRef.current = recs.hasMore;
+        } catch (err: any) {
+          if (gen !== queryGen.current) return;
+          console.error('Error fetching recommendations:', err);
+          setError(err.message || 'Failed to load recommendations.');
+        } finally {
+          if (gen === queryGen.current) setLoading(false);
+        }
+        return;
+      }
+
       const observer = isCommunitiesFeed ? username : '';
       let queryTag = tag;
       if (isCommunitiesFeed && !queryTag) {
@@ -292,6 +358,31 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
   const handleLoadMore = async () => {
     if (loadingMore || posts.length === 0) return;
+
+    // Recommendation pagination (20 by 20 from IndexedDB pool)
+    if (sort === 'recommend') {
+      if (!username || !hasMoreRecsRef.current) return;
+      const gen = queryGen.current;
+      setLoadingMore(true);
+      const nextPage = recPageRef.current + 1;
+      try {
+        const moreRecs = await getRecommendationsForUser(username, nextPage, 20);
+        if (gen !== queryGen.current) return;
+        if (moreRecs.posts.length > 0) {
+          recPageRef.current = nextPage;
+          setPosts((prev) => appendUniquePosts(prev, moreRecs.posts));
+          hasMoreRecsRef.current = moreRecs.hasMore;
+        } else {
+          hasMoreRecsRef.current = false;
+        }
+      } catch (err: any) {
+        console.error('Failed to load more recommendations:', err);
+      } finally {
+        if (gen === queryGen.current) setLoadingMore(false);
+      }
+      return;
+    }
+
     const rankedFeed = isCommunitiesFeed || selectedLanguage === 'global';
     if (rankedFeed && !apiCursorRef.current) return;
     const gen = queryGen.current;
@@ -609,18 +700,20 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             </span>
           )*/}
 
-          {/* Desktop-only manual refresh button; on mobile we use pull-to-refresh */}
-          <button
-            id="discover-refresh-btn"
-            onClick={() => fetchPosts(true)}
-            className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex items-center justify-center"
-            title="Force refresh"
-          >
-            <RefreshCw
-              id="discover-refresh-icon"
-              className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`}
-            />
-          </button>
+          {/* Desktop-only manual refresh button; hidden on Recommend tab to protect API limits */}
+          {sort !== 'recommend' && (
+            <button
+              id="discover-refresh-btn"
+              onClick={() => fetchPosts(true)}
+              className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex items-center justify-center"
+              title="Force refresh"
+            >
+              <RefreshCw
+                id="discover-refresh-icon"
+                className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`}
+              />
+            </button>
+          )}
         </div>
       </div>
 
@@ -647,7 +740,28 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
 
       {/* Posts stream */}
-      {loading ? (
+      {sort === 'recommend' && !username ? (
+        <div
+          id="discover-recommend-login-prompt"
+          className="p-8 sm:p-12 text-center max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-[0_1px_6px_rgba(0,0,0,0.03)] my-6 animate-in fade-in"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-violet-500/20">
+            <Compass className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            Personalized Recommendations
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 leading-relaxed">
+            Sign in with your Hive account to unlock a feed curated specifically for you, powered by your recent upvoted posts and HiveSense AI.
+          </p>
+          <button
+            onClick={requestLogin}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-semibold text-sm shadow-md shadow-violet-600/30 transition-all cursor-pointer"
+          >
+            Sign In with Hive
+          </button>
+        </div>
+      ) : loading ? (
         <div id="discover-skeleton-list" className="space-y-4">
           {[...Array(5)].map((_, i) => (
             <div
@@ -678,6 +792,38 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           id="discover-posts-list"
           className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}
         >
+          {sort === 'recommend' && (
+            <div
+              id="discover-recommend-header-banner"
+              className="px-4 py-3 rounded-2xl bg-violet-50/80 dark:bg-violet-950/40 border border-violet-100 dark:border-violet-900/40 flex items-center justify-between text-xs text-violet-900 dark:text-violet-200 shadow-2xs mb-2 animate-in fade-in"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-xl bg-violet-100 dark:bg-violet-900/60 text-violet-600 dark:text-violet-300">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold flex items-center gap-1.5">
+                    Curated for @{username}
+                    {recStatus?.isSyncing && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-violet-200/80 dark:bg-violet-800/80 text-violet-800 dark:text-violet-200 animate-pulse">
+                        Syncing
+                      </span>
+                    )}
+                  </div>
+                  {recStatus?.isSyncing && (
+                    <div className="text-[11px] text-violet-700/80 dark:text-violet-300/80">
+                      Analyzing seed upvotes in background ({recStatus.currentSeedIndex}/{recStatus.totalSeeds || 30} seeds, {recStatus.totalPostsFound} stories found)...
+                    </div>
+                  )}
+                </div>
+              </div>
+              {recStatus?.isSyncing && (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                </div>
+              )}
+            </div>
+          )}
           {useGalleryLayout
             ? displayedPosts.map((post, postIndex) => {
                 const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
@@ -740,27 +886,29 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               ))}
 
           {/* Load More Button */}
-          <div id="discover-load-more-wrapper" className="text-center pt-2 pb-8">
-            <button
-              id="load-more-posts-btn"
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              title="Fetch older posts from the blockchain"
-              className="px-6 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
-            >
-              {loadingMore ? (
-                <span id="discover-load-more-loading" className="flex items-center gap-2">
-                  <RefreshCw
-                    id="discover-load-more-spinner"
-                    className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400"
-                  />
-                  Loading more stories...
-                </span>
-              ) : (
-                'Load More'
-              )}
-            </button>
-          </div>
+          {sort === 'recommend' && !hasMoreRecsRef.current ? null : (
+            <div id="discover-load-more-wrapper" className="text-center pt-2 pb-8">
+              <button
+                id="load-more-posts-btn"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                title="Fetch older posts from the blockchain"
+                className="px-6 py-2.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 text-xs font-bold shadow-xs hover:shadow-sm disabled:opacity-50 transition cursor-pointer"
+              >
+                {loadingMore ? (
+                  <span id="discover-load-more-loading" className="flex items-center gap-2">
+                    <RefreshCw
+                      id="discover-load-more-spinner"
+                      className="w-3.5 h-3.5 animate-spin text-blue-600 dark:text-blue-400"
+                    />
+                    Loading more stories...
+                  </span>
+                ) : (
+                  'Load More'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       ) : filteredOutStats.total > 0 ? (
         <div
@@ -805,23 +953,36 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           className="p-16 text-center space-y-3 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100"
         >
           <Compass id="discover-empty-icon" className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto" />
-          <p id="discover-empty-text" className="text-sm text-gray-500 dark:text-slate-400 font-medium">
-            {selectedLanguage !== 'global'
+          <p id="discover-empty-text" className="text-sm text-gray-500 dark:text-slate-400 font-medium max-w-md mx-auto">
+            {sort === 'recommend'
+              ? recStatus?.isSyncing
+                ? `Analyzing your recent upvotes in the background to curate stories (${recStatus.currentSeedIndex}/${recStatus.totalSeeds || 30})...`
+                : 'No recommendations found yet. Upvote positive root posts on Hive to receive personalized recommendations.'
+              : selectedLanguage !== 'global'
               ? 'No recent posts found for this language filter.'
               : 'No posts found in this feed.'}
           </p>
-          <button
-            id="discover-empty-reset-btn"
-            onClick={() => {
-              setTag('');
-              setSelectedLanguage('global');
-              setFeedAuthor(null);
-              setActiveNav('discover');
-            }}
-            className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
-          >
-            {selectedLanguage !== 'global' ? 'Reset to Global Feed' : 'Refresh Feed'}
-          </button>
+          {sort === 'recommend' ? (
+            recStatus?.isSyncing && (
+              <div className="flex items-center justify-center gap-2 text-xs text-violet-600 dark:text-violet-400 font-medium pt-1">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Syncing recommendation queue quietly...</span>
+              </div>
+            )
+          ) : (
+            <button
+              id="discover-empty-reset-btn"
+              onClick={() => {
+                setTag('');
+                setSelectedLanguage('global');
+                setFeedAuthor(null);
+                setActiveNav('discover');
+              }}
+              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+            >
+              {selectedLanguage !== 'global' ? 'Reset to Global Feed' : 'Refresh Feed'}
+            </button>
+          )}
         </div>
       )}
     </div>

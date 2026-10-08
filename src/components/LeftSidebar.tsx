@@ -30,8 +30,8 @@ import { ShortsSource } from '../hooks/useShortsWordFilter';
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
   onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
-  currentSort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange: (sort: 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+  onSortChange: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
   currentTag: string;
   onSelectTag: (tag: string) => void;
   onSelectAuthor: (author: string) => void;
