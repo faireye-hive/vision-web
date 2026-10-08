@@ -1426,44 +1426,34 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
         {/* ================= BOTTOM ENGAGEMENT & VOTING BAR ================= */}
-        <div className="pt-6 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div className="pt-4 sm:pt-6 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap sm:flex-wrap">
 
-          {/* Tip Button */}
-          <div className="flex items-center gap-3">
+          {/* 1. Upvote Button with Keychain Slider Popover (Mobile 1st, Desktop grouped right) */}
+          <div className="relative flex-1 sm:flex-initial order-1 sm:order-2 sm:ml-auto">
             <button
-              onClick={() => setShowTipModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold text-xs transition cursor-pointer"
-              style={{ borderRadius: '5px', fontSize: '20px' }}
-              title="Send tip to author"
+              id="keychain-vote-btn"
+              onClick={() => setShowVoteSlider(!showVoteSlider)}
+              disabled={voteLoading}
+              className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-full text-xs font-semibold sm:font-bold transition shadow-xs cursor-pointer ${
+                hasVoted
+                  ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/60 sm:bg-rose-500 sm:text-white sm:border-transparent'
+                  : 'bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-rose-50 sm:dark:bg-rose-950/40 sm:hover:bg-rose-100 sm:text-rose-600 sm:dark:text-rose-400'
+              }`}
+              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' } : undefined}
+              title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
             >
-              <Coins className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Send Tip</span>
+              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasVoted ? 'fill-rose-600 dark:fill-rose-400 sm:fill-white' : 'text-rose-500 sm:text-inherit'}`} />
+              <span className="truncate">{hasVoted ? 'Upvoted' : 'Upvote'}</span>
             </button>
-          </div>
 
-          {/* Voting & Comments Controls */}
-          <div className="flex items-center gap-3">
-
-            {/* Upvote Button with Keychain Slider Popover */}
-            <div className="relative">
-              <button
-                id="keychain-vote-btn"
-                onClick={() => setShowVoteSlider(!showVoteSlider)}
-                disabled={voteLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${hasVoted
-                    ? 'bg-rose-500 text-white'
-                    : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400'
-                  }`}
-                style={{ borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' }}
-                title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
-              >
-                <Heart className={`w-4 h-4 ${hasVoted ? 'fill-white' : ''}`} />
-                <span>{hasVoted ? 'Upvoted' : 'Upvote'}</span>
-              </button>
-
-              {/* Vote weight selector */}
-              {showVoteSlider && (
-                <div className="absolute right-0 bottom-full mb-2 w-72 bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-4 z-30 animate-in fade-in zoom-in-95 border border-gray-100 dark:border-slate-800">
+            {/* Vote weight selector: mobile centered fixed inside screen, desktop anchored dropdown */}
+            {showVoteSlider && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 sm:hidden bg-black/40 backdrop-blur-2xs animate-in fade-in"
+                  onClick={() => setShowVoteSlider(false)}
+                />
+                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 bottom-24 sm:bottom-full sm:mb-2 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl sm:shadow-xl p-4 z-50 sm:z-30 animate-in fade-in zoom-in-95 border border-gray-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Vote Weight</span>
                     <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{voteWeight}%</span>
@@ -1482,6 +1472,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     {[25, 50, 75, 100].map(pct => (
                       <button
                         key={pct}
+                        type="button"
                         onClick={() => setVoteWeight(pct)}
                         className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 cursor-pointer"
                       >
@@ -1491,6 +1482,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleVoteSubmit}
                     disabled={voteLoading}
                     className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
@@ -1499,43 +1491,57 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     <span>{voteLoading ? 'Signing with Keychain...' : 'Confirm Vote'}</span>
                   </button>
                 </div>
-              )}
-            </div>
+              </>
+            )}
+          </div>
 
-            {/* Reblog Button */}
+          {/* 2. Tip Button (Mobile 2nd, Desktop left side) */}
+          <div className="flex-1 sm:flex-initial order-2 sm:order-1 sm:ml-0">
+            <button
+              onClick={() => setShowTipModal(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-amber-50 sm:dark:bg-amber-950/40 sm:hover:bg-amber-100 sm:dark:hover:bg-amber-900/50 sm:text-amber-700 sm:dark:text-amber-300 font-semibold sm:font-bold text-xs transition cursor-pointer"
+              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px' } : undefined}
+              title="Send tip to author"
+            >
+              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 sm:text-amber-600 sm:dark:text-amber-400" />
+              <span className="truncate"><span className="hidden sm:inline">Send </span>Tip</span>
+            </button>
+          </div>
+
+          {/* 3. Reblog Button (Mobile 3rd, Desktop right side) */}
+          <div className="flex-1 sm:flex-initial order-3 sm:order-3">
             <button
               id="keychain-reblog-btn"
               type="button"
               onClick={handleReblog}
               disabled={isReblogging || hasReblogged}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition shadow-xs cursor-pointer ${
+              className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-full text-xs font-semibold sm:font-bold transition shadow-xs cursor-pointer ${
                 hasReblogged
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                  ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200/60 dark:border-purple-900/60 sm:bg-purple-600 sm:text-white sm:border-transparent'
+                  : 'bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-purple-50 sm:dark:bg-purple-950/40 sm:hover:bg-purple-100 sm:dark:hover:bg-purple-900/50 sm:text-purple-600 sm:dark:text-purple-400'
               } disabled:cursor-not-allowed`}
-              style={{ borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' }}
+              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' } : undefined}
               title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
             >
               {isReblogging ? (
-                <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 animate-spin" />
               ) : (
-                <Repeat className={`w-4 h-4 ${hasReblogged ? 'text-white' : ''}`} />
+                <Repeat className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasReblogged ? 'text-purple-600 dark:text-purple-400 sm:text-white' : 'text-purple-500 sm:text-inherit'}`} />
               )}
-              <span>{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
+              <span className="truncate">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
             </button>
-
-            {/* Comments Counter Shortcut */}
-            <button
-              onClick={scrollToComments}
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 px-3 py-2 rounded-full transition cursor-pointer"
-              style={{ fontSize: '20px', borderRadius: '5px', borderWidth: '0.1px' }}
-              title="Jump to Comments"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-              <span>{totalCommentsCount}</span>
-            </button>
-
           </div>
+
+          {/* 4. Comments Counter Shortcut (Hidden on mobile per request, preserved on desktop) */}
+          <button
+            onClick={scrollToComments}
+            className="hidden sm:flex order-4 items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 px-3 py-2 rounded-full transition cursor-pointer"
+            style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { fontSize: '20px', borderRadius: '5px', borderWidth: '0.1px' } : undefined}
+            title="Jump to Comments"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
+            <span>{totalCommentsCount}</span>
+          </button>
 
         </div>
 
