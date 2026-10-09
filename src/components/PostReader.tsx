@@ -984,7 +984,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <button
             id="back-to-feed-btn"
             onClick={onClose}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
+            className="hidden sm:flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
             title="Back to Feed (Esc)"
           >
             <ArrowLeft className="w-4 h-4" />

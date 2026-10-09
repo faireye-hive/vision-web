@@ -97,15 +97,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const [showDiscoverSortPopover, setShowDiscoverSortPopover] = useState(false);
 
   const handleTabClick = (tab: 'feed' | 'discover' | 'shorts' | 'communities') => {
-    if (selectedPost && onClosePost) {
-      onClosePost();
+    if (selectedPost) {
+      if (onClosePost) {
+        onClosePost();
+      }
+      // If tapping the already active tab while post is open, just close the post
+      // and keep the current category/filter intact:
+      if (tab === activeNav) {
+        setShowDiscoverSortPopover(false);
+        return;
+      }
     }
 
     // When tapping Discover while ALREADY on Discover: toggle Sort / Tags popover!
-  if (tab === 'discover' && activeNav === 'discover' && !selectedPost && !hasStandalonePage) {
-    setShowDiscoverSortPopover((prev) => !prev);
-    return;
-  }
+    if (tab === 'discover' && activeNav === 'discover' && !selectedPost && !hasStandalonePage) {
+      setShowDiscoverSortPopover((prev) => !prev);
+      return;
+    }
 
     setShowDiscoverSortPopover(false);
     onNavChange(tab);

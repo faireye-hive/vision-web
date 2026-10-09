@@ -69,7 +69,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   const [activeNav, setActiveNav] = useState<NavTab>('discover');
   const [sort, setSort] = useState<SortOption>('hot');
-  const [tag, setTag] = useState<string>('');
+  const [tag, setTagState] = useState<string>('');
   const [feedAuthor, setFeedAuthor] = useState<string | null>(null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('global');
@@ -102,7 +102,50 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const feedScrollPositionRef = useRef<number>(0);
   const selectedPostRef = useRef<HivePost | null>(null);
   const routeRequestRef = useRef(0);
+  const activeNavRef = useRef<NavTab>(activeNav);
+  activeNavRef.current = activeNav;
+  const openedPostInAppRef = useRef<boolean>(false);
   selectedPostRef.current = selectedPost;
+  const tagRef = useRef<string>(tag);
+  tagRef.current = tag;
+
+  // Custom setTag handler: updates tag state and reflects topic tags in the URL so browser back/forward and refresh maintain the selected category
+  const setTag = useCallback(
+    (newTag: string | ((prev: string) => string)) => {
+      const resolved = typeof newTag === 'function' ? newTag(tagRef.current) : newTag;
+      const clean = (resolved || '').trim().toLowerCase();
+
+      tagRef.current = clean;
+      setTagState(clean);
+
+      // If a post is currently open and a tag is clicked, mark that we shouldn't simply go back in history
+      if (selectedPostRef.current) {
+        openedPostInAppRef.current = false;
+        return;
+      }
+
+      const currentPath = location.pathname;
+      const isDiscoverContext =
+        activeNavRef.current === 'discover' ||
+        (activeNavRef.current !== 'communities' &&
+          activeNavRef.current !== 'feed' &&
+          activeNavRef.current !== 'shorts' &&
+          (currentPath === '/' || currentPath === '/discover' || currentPath.startsWith('/tag/')));
+
+      if (isDiscoverContext) {
+        const queryParams = new URLSearchParams(location.search);
+        queryParams.delete('tag');
+        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        const targetPath = clean ? `/tag/${clean}` : '/discover';
+        const targetUrl = `${targetPath}${queryString}`;
+
+        if (currentPath !== targetPath) {
+          navigate(targetUrl, { replace: false });
+        }
+      }
+    },
+    [location.pathname, location.search, navigate]
+  );
 
   // Sync state with React Router location.pathname & search
   useEffect(() => {
@@ -155,9 +198,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Community path: /c/:community
     if (pathname.startsWith('/c/')) {
-      const comm = pathname.replace('/c/', '').trim().toLowerCase();
+      const comm = decodeURIComponent(pathname.replace(/^\/c\//, '').replace(/\/+$/, '').trim().toLowerCase());
       setActiveNav('communities');
-      setTag(comm);
+      setTagState(comm);
+      tagRef.current = comm;
       syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
@@ -166,9 +210,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Topic tag path: /tag/:tag
     if (pathname.startsWith('/tag/')) {
-      const topicTag = pathname.replace('/tag/', '').trim().toLowerCase();
+      const topicTag = decodeURIComponent(pathname.replace(/^\/tag\//, '').replace(/\/+$/, '').trim().toLowerCase());
       setActiveNav('discover');
-      setTag(topicTag);
+      setTagState(topicTag);
+      tagRef.current = topicTag;
       syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
@@ -273,7 +318,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     if (pathname === '/feed') {
       setActiveNav('feed');
-      setTag('');
+      setTagState('');
+      tagRef.current = '';
       setCommunitySubTopic('');
       setStandalonePage(null);
       setSelectedPost(null);
@@ -283,7 +329,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (pathname === '/discover' || pathname === '/') {
       setActiveNav('discover');
       const qTag = searchParams.get('tag');
-      setTag(qTag ? qTag.trim().toLowerCase() : '');
+      const tagVal = qTag ? qTag.trim().toLowerCase() : '';
+      setTagState(tagVal);
+      tagRef.current = tagVal;
       syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
@@ -302,15 +350,18 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setCommunitySubTopic('');
 
     if (tab === 'feed') {
-      setTag('');
+      setTagState('');
+      tagRef.current = '';
       navigate('/feed');
     } else if (tab === 'discover') {
-      setTag('');
+      setTagState('');
+      tagRef.current = '';
       navigate('/discover');
     } else if (tab === 'shorts') {
       navigate('/shorts');
     } else if (tab === 'communities') {
-      setTag('');
+      setTagState('');
+      tagRef.current = '';
       setStandalonePage(null);
       navigate('/communities');
     }
@@ -400,6 +451,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     saveScrollPosition();
     setSelectedPost(post);
     setStandalonePage(null);
+    openedPostInAppRef.current = true;
     navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
 
     // If the post was passed with an incomplete or truncated body (e.g. HiveSense snippet or from recommendation),
@@ -424,6 +476,18 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const handleClosePost = useCallback(() => {
     setSelectedPost(null);
     setPostHeadings([]);
+
+    // If the post was opened from within this application session, popping history
+    // returns to the exact prior view (preserving active category tag, query params, and scroll position):
+    if (openedPostInAppRef.current && window.history.length > 1) {
+      openedPostInAppRef.current = false;
+      navigate(-1);
+      if (activeNav !== 'shorts') {
+        restoreScrollPosition();
+      }
+      return;
+    }
+    openedPostInAppRef.current = false;
 
     const queryParams = new URLSearchParams();
     if (sort !== 'hot') queryParams.set('sort', sort);
