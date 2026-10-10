@@ -305,3 +305,15 @@ html.dark #sanitized-post-body pre code {
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* ================= SHORTS BOTTOM COMPOSER DOCKING ================= */
+.shorts-bottom-composer {
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .shorts-bottom-composer {
+    bottom: 0 !important;
+    position: sticky !important;
+  }
+}
+

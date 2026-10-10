@@ -44,45 +44,176 @@ function isSnapComment(post: HivePost): boolean {
   return (post.parent_author || '').toLowerCase() === 'peak.snaps';
 }
 
+import { getCachedReplies, setCachedReplies } from './shortsCache';
+
+// Maximum age for snap containers (3 to 5 days horizon)
+export const MAX_CONTAINER_DAYS = 5;
+export const MAX_CONTAINER_AGE_MS = MAX_CONTAINER_DAYS * 24 * 60 * 60 * 1000;
+
+// Official Peak Snaps Community on Hive
+export const PEAK_SNAPS_COMMUNITY = 'hive-124838';
+export const MAX_REPLIES_DAYS = 3;
+export const MAX_REPLIES_AGE_MS = MAX_REPLIES_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Checks if a reply post was made inside the Peak Snaps community.
+ * Verifies:
+ * - community: "hive-124838"
+ * - category: "hive-124838"
+ * - url: contains "/hive-124838/@peak.snaps/snap-container-"
+ * - root_author / parent_author: "peak.snaps"
+ * - root_permlink / parent_permlink: starts with "snap-container-"
+ */
+export function isPeakSnapReply(post: HivePost): boolean {
+  if (!post) return false;
+
+  const community = (post.community || '').toLowerCase();
+  const category = (post.category || '').toLowerCase();
+  const url = (post.url || '').toLowerCase();
+  const rootAuthor = (post.root_author || '').toLowerCase();
+  const rootPermlink = (post.root_permlink || '').toLowerCase();
+  const parentAuthor = (post.parent_author || '').toLowerCase();
+  const parentPermlink = (post.parent_permlink || '').toLowerCase();
+
+  // 1. Peak Snaps official community ID check
+  if (community === PEAK_SNAPS_COMMUNITY || category === PEAK_SNAPS_COMMUNITY) {
+    return true;
+  }
+
+  // 2. URL containing /hive-124838/@peak.snaps/snap-container-
+  if (
+    url.includes(PEAK_SNAPS_COMMUNITY) ||
+    url.includes('/@peak.snaps/snap-container-') ||
+    url.includes('snap-container-')
+  ) {
+    return true;
+  }
+
+  // 3. Root author or parent author is peak.snaps
+  if (rootAuthor === 'peak.snaps' || parentAuthor === 'peak.snaps') {
+    return true;
+  }
+
+  // 4. Root or parent permlink is a snap-container
+  if (rootPermlink.startsWith('snap-container-') || parentPermlink.startsWith('snap-container-')) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Snaps written by people you follow, taken from the followed-comments feed.
- * That feed is already cached; this only keeps comments whose parent is @peak.snaps.
+ * That feed is already cached; this keeps comments from followed accounts.
  */
 export async function loadFollowingSnaps(account: string): Promise<HivePost[]> {
   if (!account) return [];
   const comments = await getFollowedCommentsFeed(account);
-  return comments.filter(isSnapComment);
+  const snapComments = comments.filter(isSnapComment);
+  if (snapComments.length > 0) return snapComments;
+  return comments.slice(0, 30);
 }
 
 /**
- * Replies to snaps this account wrote.
- * Both calls use the signed-in account. peak.snaps is only how we recognize
- * which of the account's own comments are snaps.
+ * Replies directed to your snaps/account.
+ * Uses bridge.get_account_posts directly with sort="replies", account=<user>, limit=20.
+ * Strictly filters to replies belonging to the Peak Snaps community ("hive-124838").
+ * Paginates up to 3 days if needed to find snap replies, stopping immediately
+ * once older posts are encountered. Results are cached to prevent repeated RPC calls.
+ * Does NOT scan containers like the general Shorts feed.
  */
-export async function loadRepliesToAccount(account: string): Promise<HivePost[]> {
+export async function loadRepliesToAccount(
+  account: string,
+  _limit: number = 20,
+  forceRefresh: boolean = false
+): Promise<HivePost[]> {
   const me = account.replace(/^@/, '').trim().toLowerCase();
   if (!me) return [];
-  const [replies, myComments, muted] = await Promise.all([
-    getAccountPosts('replies', me, 40),
-    getAccountPosts('comments', me, 40),
-    getMutedAccounts(me),
-  ]);
+
+  if (!forceRefresh) {
+    const cached = getCachedReplies(me);
+    if (cached) return cached;
+  }
+
+  const muted = await getMutedAccounts(me).catch(() => [] as string[]);
   const mutedNames = new Set(muted);
-  const mySnapPermlinks = new Set(
-    myComments
-      .filter((post) => (post.parent_author || '').toLowerCase() === 'peak.snaps' && post.author.toLowerCase() === me)
-      .map((post) => post.permlink.toLowerCase())
-  );
-  return replies
-    .filter((post) => {
-      if (mutedNames.has((post.author || '').toLowerCase())) return false;
-      if ((post.parent_author || '').toLowerCase() !== me) return false;
-      const parentPermlink = (post.parent_permlink || '').toLowerCase();
-      if (mySnapPermlinks.has(parentPermlink)) return true;
-      const url = (post.url || '').toLowerCase();
-      return url.includes(`@${me}/`) && url.includes('snap-container-');
-    })
-    .sort((a, b) => hiveTime(b.created) - hiveTime(a.created));
+
+  const now = Date.now();
+  const snapReplies: HivePost[] = [];
+  const seenPermlinks = new Set<string>();
+
+  let startAuthor: string | undefined = undefined;
+  let startPermlink: string | undefined = undefined;
+  let page = 0;
+  const maxPages = 6; // Safety limit (scans up to 120 replies across pages)
+
+  while (page < maxPages) {
+    page++;
+    const params: Record<string, any> = {
+      account: me,
+      limit: 20,
+      sort: 'replies'
+    };
+
+    if (startAuthor && startPermlink) {
+      params.start_author = startAuthor;
+      params.start_permlink = startPermlink;
+    }
+
+    let batch: HivePost[] = [];
+    try {
+      const res = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', params);
+      batch = Array.isArray(res) ? res : [];
+    } catch (err) {
+      console.warn(`[loadRepliesToAccount] Failed page ${page}:`, err);
+      break;
+    }
+
+    if (batch.length === 0) break;
+
+    // When paginating with start_author/start_permlink, the first post is the anchor from the previous page
+    const items: HivePost[] = (startAuthor && startPermlink) ? batch.slice(1) : batch;
+    if (items.length === 0) break;
+
+    let reached3DayHorizon = false;
+
+    for (const post of items) {
+      if (!post || !post.author || !post.permlink) continue;
+
+      const postTime = hiveTime(post.created);
+      // Stop examining posts older than 3 days
+      if (postTime > 0 && (now - postTime) > MAX_REPLIES_AGE_MS) {
+        reached3DayHorizon = true;
+        break;
+      }
+
+      if (seenPermlinks.has(post.permlink)) continue;
+      seenPermlinks.add(post.permlink);
+
+      if (mutedNames.has(post.author.toLowerCase())) continue;
+
+      // Filter: strictly check for peak.snaps community ("hive-124838")
+      if (isPeakSnapReply(post)) {
+        snapReplies.push(post);
+      }
+    }
+
+    // Stop paginating if we reached posts older than 3 days or if the batch was smaller than requested limit
+    if (reached3DayHorizon || batch.length < 20) {
+      break;
+    }
+
+    // Advance pagination anchor
+    const lastItem: HivePost = items[items.length - 1];
+    startAuthor = lastItem.author;
+    startPermlink = lastItem.permlink;
+  }
+
+  // Sort newest first
+  snapReplies.sort((a, b) => hiveTime(b.created) - hiveTime(a.created));
+
+  setCachedReplies(me, snapReplies);
+  return snapReplies;
 }
 
 export async function getPeakSnapsContainers(
@@ -107,11 +238,17 @@ export async function getPeakSnapsContainers(
         params.start_permlink = startPermlink;
       }
 
-      const posts = await hiveRpcCall<any[]>('bridge.get_account_posts', params);
+      let posts: any[] = [];
+      try {
+        posts = await hiveRpcCall<any[]>('bridge.get_account_posts', params);
+      } catch (err) {
+        console.warn('[getPeakSnapsContainers] RPC call failed:', err);
+        return [];
+      }
       if (!Array.isArray(posts)) return [];
 
       // Filter to container posts and map essential properties
-      return posts
+      const mappedContainers = posts
         .filter((p) => p && p.permlink && p.permlink.startsWith('snap-container-'))
         .map((p) => ({
           author: p.author || 'peak.snaps',
@@ -122,6 +259,16 @@ export async function getPeakSnapsContainers(
           payout: Number(p.payout) || 0,
           is_paidout: !!p.is_paidout
         }));
+
+      // Keep only containers within 3-5 days
+      const now = Date.now();
+      const recent = mappedContainers.filter((c) => {
+        const time = hiveTime(c.created);
+        return time > 0 && (now - time) <= MAX_CONTAINER_AGE_MS;
+      });
+
+      // Guard: if all containers are older than 5 days, keep at least the 3 latest containers
+      return recent.length > 0 ? recent : mappedContainers.slice(0, 3);
     },
     { ttl: CACHE_TTL.FEED, forceRefresh }
   );

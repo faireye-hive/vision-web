@@ -39,6 +39,13 @@ interface ShortsPageProps {
   selectedTag: string;
   onSelectTag: (tag: string) => void;
   blockedWords: string[];
+  blockedAuthors?: string[];
+  onAddWord?: (word: string) => void;
+  onRemoveWord?: (word: string) => void;
+  onClearWords?: () => void;
+  onAddAuthor?: (author: string) => void;
+  onRemoveAuthor?: (author: string) => void;
+  onClearAuthors?: () => void;
   filterEnabled: boolean;
   onHashtagsExtracted: (tags: { tag: string; count: number }[]) => void;
   onHiddenCountChange: (count: number) => void;
@@ -51,6 +58,13 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
   selectedTag,
   onSelectTag,
   blockedWords,
+  blockedAuthors = [],
+  onAddWord,
+  onRemoveWord,
+  onClearWords,
+  onAddAuthor,
+  onRemoveAuthor,
+  onClearAuthors,
   filterEnabled,
   onHashtagsExtracted,
   onHiddenCountChange,
@@ -119,11 +133,12 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
     <div className="relative">
       {/* Detail View Overlay Page */}
       {selectedPost && (
-        <div className="fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-[var(--ambient-bg,#f7f8fa)]">
-          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-20 pb-12">
+        <div className="fixed inset-0 z-35 overflow-y-auto overscroll-contain bg-white dark:bg-slate-900 sm:bg-[var(--ambient-bg,#f7f8fa)]">
+          <div className="max-w-[1440px] mx-auto px-0 sm:px-6 pt-0 sm:pt-20 pb-36 sm:pb-12 min-h-screen">
             <ShortDetailView
               snap={selectedPost}
               initialDiscussionMap={discussionMap}
+              onUpdateDiscussionMap={(newMap) => setDiscussionMap((prev) => ({ ...prev, ...newMap }))}
               currentUser={currentUser}
               onBack={handleClosePost}
               onSelectAuthor={handleSelectAuthor}
@@ -151,6 +166,13 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
           selectedTag={selectedTag}
           onSelectTag={onSelectTag}
           blockedWords={blockedWords}
+          blockedAuthors={blockedAuthors}
+          onAddWord={onAddWord}
+          onRemoveWord={onRemoveWord}
+          onClearWords={onClearWords}
+          onAddAuthor={onAddAuthor}
+          onRemoveAuthor={onRemoveAuthor}
+          onClearAuthors={onClearAuthors}
           filterEnabled={filterEnabled}
           onHashtagsExtracted={onHashtagsExtracted}
           onHiddenCountChange={onHiddenCountChange}
@@ -159,6 +181,7 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
           onBeforeOpenDetail={rememberScroll}
           source={source}
           onSourceChange={onSourceChange}
+          isDetailOpen={Boolean(selectedPost)}
         />
       </div>
     </div>

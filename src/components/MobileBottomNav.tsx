@@ -138,7 +138,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const isFeedActive = activeNav === 'feed' && !selectedPost  && !hasStandalonePage;
   const isDiscoverActive = activeNav === 'discover' && !selectedPost && !hasStandalonePage;
-  const isShortsActive = (activeNav === 'shorts' || activeNav === 'waves') && !selectedPost && !hasStandalonePage;
+  const isShortsActive = (activeNav === 'shorts' || activeNav === 'waves') && !hasStandalonePage;
   const isCommunitiesActive = activeNav === 'communities' && !selectedPost && !hasStandalonePage;
 
   return (

@@ -317,6 +317,13 @@ function NebulosaApp() {
                   selectedTag={shortsFilter.selectedTag}
                   onSelectTag={shortsFilter.setSelectedTag}
                   blockedWords={shortsFilter.blockedWords}
+                  blockedAuthors={shortsFilter.blockedAuthors}
+                  onAddWord={shortsFilter.addWord}
+                  onRemoveWord={shortsFilter.removeWord}
+                  onClearWords={shortsFilter.clearWords}
+                  onAddAuthor={shortsFilter.addAuthor}
+                  onRemoveAuthor={shortsFilter.removeAuthor}
+                  onClearAuthors={shortsFilter.clearAuthors}
                   filterEnabled={shortsFilter.filterEnabled}
                   onToggleFilter={shortsFilter.toggleEnabled}
                   onHashtagsExtracted={shortsFilter.setHashtags}

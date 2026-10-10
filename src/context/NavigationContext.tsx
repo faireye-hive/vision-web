@@ -228,6 +228,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         const permlink = parts[3];
         setActiveNav('shorts');
         setStandalonePage(null);
+        openedPostInAppRef.current = true;
 
         const stateSnap = (location.state as { snap?: HivePost } | null)?.snap;
         const snapMatches = Boolean(
@@ -477,14 +478,18 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setSelectedPost(null);
     setPostHeadings([]);
 
+    if (activeNav === 'shorts') {
+      openedPostInAppRef.current = false;
+      navigate('/shorts');
+      return;
+    }
+
     // If the post was opened from within this application session, popping history
     // returns to the exact prior view (preserving active category tag, query params, and scroll position):
     if (openedPostInAppRef.current && window.history.length > 1) {
       openedPostInAppRef.current = false;
       navigate(-1);
-      if (activeNav !== 'shorts') {
-        restoreScrollPosition();
-      }
+      restoreScrollPosition();
       return;
     }
     openedPostInAppRef.current = false;
@@ -502,10 +507,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       navigate(`/${activeNav}${queryString}`);
     }
 
-    // Restore scroll position for non-shorts tabs (shorts handles its own restoration)
-    if (activeNav !== 'shorts') {
-      restoreScrollPosition();
-    }
+    // Restore scroll position for non-shorts tabs
+    restoreScrollPosition();
   }, [activeNav, tag, sort, communitySubTopic, navigate, restoreScrollPosition]);
 
   const handleSelectHeading = useCallback((id: string) => {

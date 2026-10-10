@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
   RefreshCw,
@@ -17,7 +17,11 @@ import {
   AlertCircle,
   X,
   EyeOff,
-  Check
+  Check,
+  Compass,
+  Users,
+  Reply,
+  SlidersHorizontal
 } from 'lucide-react';
 import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -28,10 +32,17 @@ import {
   getContainerSnaps,
   PeakSnapsContainer,
   loadFollowingSnaps,
-  loadRepliesToAccount
+  loadRepliesToAccount,
+  MAX_CONTAINER_AGE_MS
 } from '../services/shortsApi';
-import { getCachedShorts, setCachedShorts } from '../services/shortsCache';
+import {
+  getCachedShortsFeed,
+  setCachedShortsFeed,
+  getCachedShorts,
+  setCachedShorts
+} from '../services/shortsCache';
 import { ShortsSource } from '../hooks/useShortsWordFilter';
+import { ShortsFilterDrawer } from './ShortsFilterDrawer';
 import { ShieldAlert, Loader2, Camera } from 'lucide-react';
 
 interface ShortsFeedProps {
@@ -42,6 +53,13 @@ interface ShortsFeedProps {
   selectedTag?: string;
   onSelectTag?: (tag: string) => void;
   blockedWords?: string[];
+  blockedAuthors?: string[];
+  onAddWord?: (word: string) => void;
+  onRemoveWord?: (word: string) => void;
+  onClearWords?: () => void;
+  onAddAuthor?: (author: string) => void;
+  onRemoveAuthor?: (author: string) => void;
+  onClearAuthors?: () => void;
   filterEnabled?: boolean;
   onHashtagsExtracted?: (hashtags: { tag: string; count: number }[]) => void;
   onHiddenCountChange?: (count: number) => void;
@@ -50,6 +68,7 @@ interface ShortsFeedProps {
   onBeforeOpenDetail?: () => void;
   source?: ShortsSource;
   onSourceChange?: (source: ShortsSource) => void;
+  isDetailOpen?: boolean;
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -60,6 +79,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   selectedTag = '',
   onSelectTag,
   blockedWords = [],
+  blockedAuthors = [],
+  onAddWord,
+  onRemoveWord,
+  onClearWords,
+  onAddAuthor,
+  onRemoveAuthor,
+  onClearAuthors,
   filterEnabled = true,
   onHashtagsExtracted,
   onHiddenCountChange,
@@ -67,7 +93,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   onDiscussionMapLoaded,
   onBeforeOpenDetail,
   source = 'all',
-  onSourceChange
+  onSourceChange,
+  isDetailOpen = false
 }) => {
   const [containers, setContainers] = useState<PeakSnapsContainer[]>([]);
   const [currentContainerIndex, setCurrentContainerIndex] = useState<number>(0);
@@ -87,6 +114,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Detail Modal state for opened short
   const navigate = useNavigate();
+  const location = useLocation();
+  const { selectedPost } = useNavigation();
+
+  // Hide floating compose button and modal whenever a short is opened
+  const isViewingDetail = Boolean(
+    isDetailOpen ||
+    selectedPost ||
+    location.pathname.startsWith('/shorts/@')
+  );
 
   // Progressive rendering window to prevent DOM lag/freezing ("travando")
   const [displayLimit, setDisplayLimit] = useState<number>(20);
@@ -99,7 +135,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     setDisplayLimit(20);
   }, [selectedTag, searchQuery, source]);
 
-  useEffect(() => {
+  const loadSourceFeed = useCallback(async (forceRefresh = false) => {
     if (source === 'all') {
       setSourceSnaps(null);
       setSourceError(null);
@@ -107,31 +143,27 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       return;
     }
 
-    let cancelled = false;
     setSourceLoading(true);
     setSourceError(null);
 
-    const job = source === 'following'
-      ? loadFollowingSnaps(currentUser?.username || '')
-      : currentUser?.username
-        ? loadRepliesToAccount(currentUser.username)
-        : Promise.resolve([] as HivePost[]);
-
-    job
-      .then((rows) => {
-        if (!cancelled) setSourceSnaps(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setSourceError('Could not load this list from Hive.');
-      })
-      .finally(() => {
-        if (!cancelled) setSourceLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const rows = source === 'following'
+        ? await loadFollowingSnaps(currentUser?.username || '')
+        : currentUser?.username
+          ? await loadRepliesToAccount(currentUser.username, 20, forceRefresh)
+          : [];
+      setSourceSnaps(rows);
+    } catch (err: any) {
+      console.error('Failed to load source feed:', err);
+      setSourceError('Could not load this list from Hive. Check your connection.');
+    } finally {
+      setSourceLoading(false);
+    }
   }, [source, currentUser?.username]);
+
+  useEffect(() => {
+    loadSourceFeed();
+  }, [loadSourceFeed]);
 
   // Composer states
   const [composerText, setComposerText] = useState<string>('');
@@ -141,16 +173,78 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const [showImageInput, setShowImageInput] = useState<boolean>(false);
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [showTagHelper, setShowTagHelper] = useState<boolean>(false);
+  // Mobile scroll-aware navbar visibility
+  const [isNavbarVisible, setIsNavbarVisible] = useState<boolean>(true);
+  const lastScrollYRef = useRef<number>(0);
+  const [showMobileComposerModal, setShowMobileComposerModal] = useState<boolean>(false);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState<boolean>(false);
+  const [localHashtags, setLocalHashtags] = useState<{ tag: string; count: number }[]>([]);
+
+  // Mobile swipe gesture to open filter drawer from the right edge
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleFeedTouchStart = (e: React.TouchEvent) => {
+    touchStartPosRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+  };
+
+  const handleFeedTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartPosRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - touchStartPosRef.current.y;
+    // If swiped to the left by more than 50px starting near right edge
+    if (
+      (touchStartPosRef.current.x > window.innerWidth - 80 || deltaX < -70) &&
+      deltaX < -45 &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+    ) {
+      setIsFilterDrawerOpen(true);
+    }
+    touchStartPosRef.current = null;
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY || document.documentElement.scrollTop || 0;
+      const diff = currentY - lastScrollYRef.current;
+
+      // Always show near the top
+      if (currentY <= 30) {
+        setIsNavbarVisible(true);
+        lastScrollYRef.current = currentY;
+        return;
+      }
+
+      // Hide when scrolling down
+      if (diff > 6) {
+        setIsNavbarVisible(false);
+        lastScrollYRef.current = currentY;
+      }
+      // Show when scrolling up
+      else if (diff < -6) {
+        setIsNavbarVisible(true);
+        lastScrollYRef.current = currentY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Intersection observer target for infinite scroll to next container
   const bottomObserverRef = useRef<HTMLDivElement>(null);
 
-  // Initial Load: Fetch list of @peak.snaps containers and load container #0
+  // Initial Load: Fetch list of @peak.snaps containers (within 3-5 days) and load container #0
   const loadInitialFeed = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh) {
-      const cached = getCachedShorts(selectedTag);
-      if (cached) {
-        setSnaps(cached);
+      const cached = getCachedShortsFeed(selectedTag);
+      if (cached && cached.snaps && cached.snaps.length > 0) {
+        setContainers(cached.containers || []);
+        setSnaps(cached.snaps);
+        setDiscussionMap(cached.discussionMap || {});
+        if (onDiscussionMapLoaded) onDiscussionMapLoaded(cached.discussionMap || {});
         setLoading(false);
         return;
       }
@@ -159,7 +253,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const containerList = await getPeakSnapsContainers(12, undefined, undefined, forceRefresh);
+      const containerList = await getPeakSnapsContainers(10, undefined, undefined, forceRefresh);
       setContainers(containerList);
 
       if (containerList.length > 0) {
@@ -170,7 +264,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         setSnaps(result.snaps);
         setDiscussionMap(result.discussionMap);
         if (onDiscussionMapLoaded) onDiscussionMapLoaded(result.discussionMap);
-        if (!selectedTag) setCachedShorts(result.snaps, '');
+        setCachedShortsFeed(result.snaps, containerList, result.discussionMap, selectedTag);
       } else {
         setSnaps([]);
       }
@@ -180,7 +274,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.username, selectedTag]);
+  }, [currentUser?.username, selectedTag, onDiscussionMapLoaded]);
 
   useEffect(() => {
     loadInitialFeed();
@@ -200,13 +294,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     return () => window.removeEventListener('nebulosa:resnap' as any, handleResnapEvent);
   }, []);
 
-  // Advance to next container post when reaching end of current snaps
+  // Advance to next container post when reaching end of current snaps (up to 5 days horizon)
   const loadNextContainer = useCallback(async () => {
     if (loadingMore || loading || containers.length === 0) return;
 
     const nextIndex = currentContainerIndex + 1;
     if (nextIndex >= containers.length) {
-      // Fetch older containers if needed
+      // Fetch older containers if needed, while respecting 5-day horizon
       setLoadingMore(true);
       try {
         const lastContainer = containers[containers.length - 1];
@@ -222,13 +316,16 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             (c) => !containers.some((existing) => existing.permlink === c.permlink)
           );
           if (newContainers.length > 0) {
-            setContainers((prev) => [...prev, ...newContainers]);
+            const updatedContainers = [...containers, ...newContainers];
+            setContainers(updatedContainers);
             const targetContainer = newContainers[0];
             const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
-            setSnaps((prev) => [...prev, ...result.snaps]);
+            const updatedSnaps = [...snaps, ...result.snaps];
+            setSnaps(updatedSnaps);
             setDiscussionMap((prev) => {
               const newMap = { ...prev, ...result.discussionMap };
               if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
+              setCachedShortsFeed(updatedSnaps, updatedContainers, newMap, selectedTag);
               return newMap;
             });
             setCurrentContainerIndex(nextIndex);
@@ -242,16 +339,29 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       return;
     }
 
+    // Check if target container is beyond 5-day cutoff
+    const targetContainer = containers[nextIndex];
+    if (targetContainer && targetContainer.created) {
+      const createdTime = new Date(
+        targetContainer.created.endsWith('Z') ? targetContainer.created : `${targetContainer.created}Z`
+      ).getTime();
+      if (!Number.isNaN(createdTime) && Date.now() - createdTime > MAX_CONTAINER_AGE_MS) {
+        // Beyond 5-day cutoff - avoid querying ancient containers
+        return;
+      }
+    }
+
     setLoadingMore(true);
     try {
-      const targetContainer = containers[nextIndex];
-      const result = await getContainerSnaps(targetContainer.permlink ,false, currentUser?.username || '');
+      const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
 
       // Append next container's snaps to the feed
-      setSnaps((prev) => [...prev, ...result.snaps]);
+      const updatedSnaps = [...snaps, ...result.snaps];
+      setSnaps(updatedSnaps);
       setDiscussionMap((prev) => {
         const newMap = { ...prev, ...result.discussionMap };
         if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
+        setCachedShortsFeed(updatedSnaps, containers, newMap, selectedTag);
         return newMap;
       });
       setCurrentContainerIndex(nextIndex);
@@ -260,9 +370,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, loading, containers, currentContainerIndex, currentUser?.username]);
+  }, [loadingMore, loading, containers, currentContainerIndex, currentUser?.username, snaps, selectedTag, onDiscussionMapLoaded]);
 
-  // Extract hashtags from all snaps and report to parent (for LeftSidebar)
+  // Extract hashtags from all snaps and report to parent (for LeftSidebar and Filter Drawer)
   const lastTagsRef = useRef<string>('');
   useEffect(() => {
     const map: Record<string, number> = {};
@@ -307,6 +417,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count);
 
+    setLocalHashtags(tagList);
+
     const serialized = JSON.stringify(tagList.slice(0, 30));
     if (serialized !== lastTagsRef.current) {
       lastTagsRef.current = serialized;
@@ -316,12 +428,22 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     }
   }, [snaps, onHashtagsExtracted]);
 
-  // Check if snap contains any blocked word
+  // Check if snap contains any blocked word or is written by a muted author
   const isSnapBlocked = useCallback(
     (snap: HivePost): boolean => {
-      if (!filterEnabled || !blockedWords || blockedWords.length === 0) return false;
-      const bodyLower = (snap.body || '').toLowerCase();
+      if (!filterEnabled) return false;
       const authorLower = (snap.author || '').toLowerCase();
+
+      // 1. Check blocked / muted authors
+      if (blockedAuthors && blockedAuthors.length > 0) {
+        if (blockedAuthors.some((a) => a.toLowerCase() === authorLower)) {
+          return true;
+        }
+      }
+
+      // 2. Check blocked / noise words
+      if (!blockedWords || blockedWords.length === 0) return false;
+      const bodyLower = (snap.body || '').toLowerCase();
       const categoryLower = (snap.category || '').toLowerCase();
 
       return blockedWords.some((word) => {
@@ -333,7 +455,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         return bodyLower.includes(w) || authorLower === w;
       });
     },
-    [filterEnabled, blockedWords]
+    [filterEnabled, blockedWords, blockedAuthors]
   );
 
   // Filter snaps based on spam words, selected tag, and search query
@@ -506,12 +628,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         setShowTagHelper(false);
         setPostSuccessMessage('Snap published successfully to Hive!');
         setTimeout(() => setPostSuccessMessage(null), 5000);
+        return true;
       } else {
         setPostErrorMessage(response.message || 'Failed to broadcast snap via Keychain.');
+        return false;
       }
     } catch (err: any) {
       console.error('Error posting snap:', err);
       setPostErrorMessage(err?.message || 'An error occurred while broadcasting snap.');
+      return false;
     } finally {
       setIsPosting(false);
     }
@@ -538,10 +663,105 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const activeContainer = containers[currentContainerIndex];
 
   return (
-    <div id={id} className="w-full max-w-[760px] mx-auto space-y-4">
+    <div
+      id={id}
+      onTouchStart={handleFeedTouchStart}
+      onTouchEnd={handleFeedTouchEnd}
+      className="w-full max-w-[760px] mx-auto space-y-3 sm:space-y-4"
+    >
 
-      {/* ================= SHORTS COMPOSER (POST TO COMMUNITY) ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-[24px] p-5 sm:p-6 border border-slate-200/70 dark:border-slate-800 shadow-[0_6px_24px_rgba(15,23,42,0.04)] space-y-4">
+      {/* ================= STICKY SCROLL-AWARE SUB-NAVBAR ================= */}
+      <nav
+        id="shorts-mobile-subnav"
+        aria-label="Shorts Feed Categories"
+        className={`sticky top-0 z-30 transition-all duration-300 ease-in-out ${
+          isNavbarVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : '-translate-y-full opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-1 sm:p-1.5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            id="shorts-nav-all-btn"
+            onClick={() => {
+              if (onSelectTag) onSelectTag('');
+              if (onSourceChange) onSourceChange('all');
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              source === 'all' && !selectedTag
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>All</span>
+          </button>
+
+          <button
+            type="button"
+            id="shorts-nav-feed-btn"
+            onClick={() => {
+              if (!currentUser && onRequireLogin) {
+                onRequireLogin();
+                return;
+              }
+              if (onSelectTag) onSelectTag('');
+              if (onSourceChange) onSourceChange('following');
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              source === 'following'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Feed</span>
+          </button>
+
+          <button
+            type="button"
+            id="shorts-nav-replies-btn"
+            onClick={() => {
+              if (!currentUser && onRequireLogin) {
+                onRequireLogin();
+                return;
+              }
+              if (onSelectTag) onSelectTag('');
+              if (onSourceChange) onSourceChange('replies');
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              source === 'replies'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            <Reply className="w-3.5 h-3.5" />
+            <span>Replies</span>
+          </button>
+
+          <button
+            type="button"
+            id="shorts-nav-filter-btn"
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              isFilterDrawerOpen
+                ? 'bg-blue-600 text-white shadow-xs'
+                : (blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled))
+                ? 'text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+            }`}
+            title="Open filter menu (Noise, spam hashtags & hidden authors)"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {(blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled)) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            )}
+          </button>
+        </div>
+      </nav>
+
+      {/* ================= SHORTS COMPOSER (POST TO COMMUNITY - DESKTOP ONLY) ================= */}
+      <div className="hidden sm:block bg-white dark:bg-slate-900 rounded-[24px] p-5 sm:p-6 border border-slate-200/70 dark:border-slate-800 shadow-[0_6px_24px_rgba(15,23,42,0.04)] space-y-4">
         {postSuccessMessage && (
           <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-850 text-emerald-800 dark:text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
             <div className="flex items-center gap-2">
@@ -747,17 +967,36 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       </div>
 
       {source !== 'all' && (
-        <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 text-xs">
-          <span className="font-semibold text-gray-800 dark:text-slate-100">
-            {source === 'following' ? 'Snaps from people you follow' : 'Replies to your snaps'}
-          </span>
-          <button
-            type="button"
-            onClick={() => onSourceChange?.('all')}
-            className="text-blue-600 dark:text-blue-400 font-semibold cursor-pointer"
-          >
-            Show all
-          </button>
+        <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 text-xs shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-gray-800 dark:text-slate-100">
+              {source === 'following' ? 'Snaps from people you follow' : 'Replies to your snaps (last 3 days)'}
+            </span>
+            {source === 'replies' && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-mono font-semibold">
+                hive-124838
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => loadSourceFeed(true)}
+              disabled={sourceLoading}
+              className="text-xs text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${sourceLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSourceChange?.('all')}
+              className="text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline"
+            >
+              Show all
+            </button>
+          </div>
         </div>
       )}
 
@@ -788,12 +1027,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             {hiddenCount > 0 && filterEnabled && (
               <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 rounded-xl">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                <span>{hiddenCount} shorts hidden by spam filter</span>
+                <span>{hiddenCount} shorts hidden</span>
                 <button
-                  onClick={onToggleFilter}
-                  className="text-blue-600 dark:text-blue-400 font-bold hover:underline ml-1"
+                  type="button"
+                  onClick={() => setIsFilterDrawerOpen(true)}
+                  className="text-blue-600 dark:text-blue-400 font-bold hover:underline ml-1 cursor-pointer"
                 >
-                  Show
+                  Edit Filter
                 </button>
               </div>
             )}
@@ -942,21 +1182,121 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         )}
       </div>
 
-      {/* Floating Action Button (FAB) for Quick Snap */}
-      <button
-        type="button"
-        onClick={() => {
-          const el = document.getElementById('shorts-composer-textarea');
-          if (el) {
-            el.focus();
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all active:scale-95 z-40 group lg:hidden"
-        title="Write a snap"
-      >
-        <Send className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-      </button>
+      {/* Floating Action Button (FAB) for Quick Snap - hidden when viewing a short */}
+      {!isViewingDetail && (
+        <button
+          type="button"
+          id="shorts-fab-compose-btn"
+          onClick={() => {
+            if (!currentUser && onRequireLogin) {
+              onRequireLogin();
+              return;
+            }
+            if (window.innerWidth < 640) {
+              setShowMobileComposerModal(true);
+            } else {
+              const el = document.getElementById('shorts-composer-textarea');
+              if (el) {
+                el.focus();
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+          }}
+          className="fixed bottom-20 sm:bottom-6 right-5 sm:right-6 w-13 h-13 sm:w-14 sm:h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all active:scale-95 z-40 group cursor-pointer"
+          title="Write a snap"
+        >
+          <Send className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
+        </button>
+      )}
+
+      {/* ================= MOBILE QUICK SNAP MODAL ================= */}
+      {!isViewingDetail && showMobileComposerModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 animate-in slide-in-from-bottom-6 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <img
+                  src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : 'https://images.ecency.com/u/hive/avatar/small'}
+                  alt={currentUser?.username || 'User'}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 dark:text-white">New Snap</h4>
+                  <p className="text-[10px] text-gray-400 dark:text-slate-500">Post to Hive community</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileComposerModal(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={composerText}
+              onChange={(e) => setComposerText(e.target.value)}
+              placeholder="What's happening? Share a snap..."
+              rows={4}
+              autoFocus
+              className="w-full text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-transparent focus:border-blue-500 focus:outline-none resize-none leading-relaxed"
+            />
+
+            {/* Quick Hashtag Chips */}
+            <div className="flex flex-wrap gap-1">
+              {['hive', 'shorts', 'crypto', 'photography', 'art'].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => handleInsertTag(t)}
+                  className="px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-800 text-[11px] font-medium text-gray-600 dark:text-slate-300 hover:text-blue-600 transition cursor-pointer"
+                >
+                  #{t}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className={`text-[11px] font-mono ${composerText.length > 500 ? 'text-rose-500 font-bold' : 'text-gray-400'}`}>
+                {composerText.length}/500
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  const success = await handlePostSnap();
+                  if (success) setShowMobileComposerModal(false);
+                }}
+                disabled={!composerText.trim() || isPosting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed"
+              >
+                {isPosting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{isPosting ? 'Posting...' : 'Post Snap'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SHORTS FILTER & NOISE CONTROL DRAWER ================= */}
+      <ShortsFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        blockedWords={blockedWords}
+        onAddWord={onAddWord || (() => {})}
+        onRemoveWord={onRemoveWord || (() => {})}
+        onClearWords={onClearWords || (() => {})}
+        blockedAuthors={blockedAuthors}
+        onAddAuthor={onAddAuthor || (() => {})}
+        onRemoveAuthor={onRemoveAuthor || (() => {})}
+        onClearAuthors={onClearAuthors || (() => {})}
+        filterEnabled={filterEnabled}
+        onToggleFilter={onToggleFilter || (() => {})}
+        hashtags={localHashtags}
+        selectedTag={selectedTag}
+        onSelectTag={onSelectTag}
+        hiddenCount={hiddenCount}
+      />
 
     </div>
   );

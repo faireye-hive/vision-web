@@ -20,6 +20,9 @@ export interface HivePost {
   updated?: string;
   parent_author?: string;
   parent_permlink?: string;
+  root_author?: string;
+  root_permlink?: string;
+  root_title?: string;
   depth: number;
   children: number;
   net_rshares: number;
@@ -158,7 +161,9 @@ export const DEFAULT_HIVE_NODES = [
   'https://api.deathwing.me',
   'https://rpc.ecency.com',
   'https://api.openhive.network',
-  'https://techcoderx.com'
+  'https://techcoderx.com',
+  'https://hive-api.arcange.eu',
+  'https://rpc.ausbit.dev'
 ];
 
 export const STORAGE_KEY_CUSTOM_NODES = 'nebulosa_custom_rpc_nodes';
@@ -280,7 +285,7 @@ export function resetHiveNodesToDefault(): void {
 }
 
 /**
- * Make a direct JSON-RPC call to Hive blockchain node with automatic node failover.
+ * Make a direct JSON-RPC call to Hive blockchain node with automatic multi-node failover and request timeout.
  */
 async function performHiveRpcCall<T = any>(
   method: string,
@@ -294,49 +299,66 @@ async function performHiveRpcCall<T = any>(
     params
   };
 
-  try {
-    const res = await fetch(nodeUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+  const allNodes = getAllHiveNodes();
+  // Candidate sequence: preferred node first, then other available nodes in order
+  const candidateNodes = [
+    nodeUrl,
+    ...allNodes.filter(n => n !== nodeUrl)
+  ];
 
-    if (!res.ok) {
-      throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-    }
+  let lastError: any = null;
 
-    const json = await res.json();
-    if (json.error) {
-      throw new Error(json.error.message || 'Hive RPC returned error');
-    }
+  // Try up to 4 distinct nodes before giving up
+  const maxAttempts = Math.min(candidateNodes.length, 4);
 
-    return json.result as T;
-  } catch (err: any) {
-    // Attempt fallback to secondary node if primary failed and wasn't manually specified
-    const allNodes = getAllHiveNodes();
-    if (nodeUrl === activeNode && allNodes.length > 1) {
-      const nextNode = allNodes.find(n => n !== activeNode) || allNodes[0];
-      try {
-        const fallbackRes = await fetch(nextNode, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (fallbackRes.ok) {
-          const fallbackJson = await fallbackRes.json();
-          if (!fallbackJson.error) {
-            return fallbackJson.result as T;
-          }
-        }
-      } catch {
-        // Continue to rethrow original error
+  for (let i = 0; i < maxAttempts; i++) {
+    const currentNode = candidateNodes[i];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const res = await fetch(currentNode, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
       }
+
+      const json = await res.json();
+      if (json.error) {
+        throw new Error(json.error.message || 'Hive RPC returned error');
+      }
+
+      // If we recovered using a different node and this was using default activeNode,
+      // update activeNode so the app auto-heals and future calls stay fast
+      if (currentNode !== activeNode && nodeUrl === activeNode) {
+        console.warn(`[HiveRPC] Auto-healed: switched active node from ${activeNode} to ${currentNode}`);
+        setActiveNode(currentNode);
+      }
+
+      return json.result as T;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
+      // If caller explicitly targeted a specific non-active nodeUrl and not activeNode, don't failover
+      if (nodeUrl !== activeNode && i === 0) {
+        throw err;
+      }
+      // Otherwise log and fail over to the next node
+      console.warn(`[HiveRPC] Node ${currentNode} failed for ${method} (${err?.message || err}). Trying fallback...`);
     }
-    throw err;
   }
+
+  throw lastError || new Error(`All Hive RPC nodes failed to respond for ${method}`);
 }
 
 const pendingRpcCalls = new Map<string, Promise<unknown>>();
@@ -482,11 +504,16 @@ export async function getDiscussion(
   return fetchWithCache(
     cacheKey,
     async () => {
-      const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
-        author: cleanAuthor,
-        permlink: cleanPermlink
-      });
-      return result || {};
+      try {
+        const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
+          author: cleanAuthor,
+          permlink: cleanPermlink
+        });
+        return result || {};
+      } catch (err) {
+        console.warn(`[getDiscussion] Error fetching discussion for ${cleanAuthor}/${cleanPermlink}:`, err);
+        return {};
+      }
     },
     { ttl: CACHE_TTL.DISCUSSION, forceRefresh }
   );

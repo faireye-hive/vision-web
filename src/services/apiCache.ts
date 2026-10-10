@@ -174,6 +174,17 @@ class ApiCacheManager {
   }
 
   /**
+   * Get cached item even if it has expired (useful for offline/network failure fallback)
+   */
+  public getStale<T>(key: string): T | null {
+    const entry = this.memoryCache.get(key);
+    if (entry && entry.data !== undefined && entry.data !== null) {
+      return entry.data as T;
+    }
+    return null;
+  }
+
+  /**
    * Store item in memory and storage (localStorage if persistent, else sessionStorage)
    */
   public set<T>(key: string, data: T, ttlMs: number = 180000, persistent: boolean = false): void {
@@ -324,11 +335,20 @@ export async function fetchWithCache<T>(
   }
 
   const promise = (async () => {
-    const fresh = await fetchFn();
-    if (ttl > 0 && fresh !== null && fresh !== undefined) {
-      apiCache.set<T>(cacheKey, fresh, ttl, persistent);
+    try {
+      const fresh = await fetchFn();
+      if (ttl > 0 && fresh !== null && fresh !== undefined) {
+        apiCache.set<T>(cacheKey, fresh, ttl, persistent);
+      }
+      return fresh;
+    } catch (err) {
+      const stale = apiCache.getStale<T>(cacheKey);
+      if (stale !== null && stale !== undefined) {
+        console.warn(`[fetchWithCache] fetch failed for ${cacheKey}, returning stale cache fallback:`, err);
+        return stale;
+      }
+      throw err;
     }
-    return fresh;
   })();
 
   inflightFetches.set(cacheKey, promise);
