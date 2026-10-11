@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HivePost, getPost } from '../services/hiveApi';
+import { HivePost, getPost, NON_POST_PERMLINKS } from '../services/hiveApi';
 import { PostHeading } from '../utils/sanitize';
 import { useAuth } from './AuthContext';
 
@@ -169,6 +169,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     };
 
     const loadShell = (author: string, permlink: string) => {
+      const cleanPermlink = (permlink || '').trim().toLowerCase();
+      if (!cleanPermlink || NON_POST_PERMLINKS.has(cleanPermlink)) return;
+
       const current = selectedPostRef.current;
       const isCompletePost = Boolean(
         current &&

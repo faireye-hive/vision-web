@@ -33,6 +33,7 @@ import {
   PeakSnapsContainer,
   loadFollowingSnaps,
   loadRepliesToAccount,
+  getCleanSnapTextLength,
   MAX_CONTAINER_AGE_MS
 } from '../services/shortsApi';
 import {
@@ -167,6 +168,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Composer states
   const [composerText, setComposerText] = useState<string>('');
+  const cleanCharCount = useMemo(() => getCleanSnapTextLength(composerText), [composerText]);
   const [isPosting, setIsPosting] = useState<boolean>(false);
   const [postSuccessMessage, setPostSuccessMessage] = useState<string | null>(null);
   const [postErrorMessage, setPostErrorMessage] = useState<string | null>(null);
@@ -244,7 +246,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         setContainers(cached.containers || []);
         setSnaps(cached.snaps);
         setDiscussionMap(cached.discussionMap || {});
-        if (onDiscussionMapLoaded) onDiscussionMapLoaded(cached.discussionMap || {});
+        if (onDiscussionMapLoaded) {
+          setTimeout(() => onDiscussionMapLoaded(cached.discussionMap || {}), 0);
+        }
         setLoading(false);
         return;
       }
@@ -263,7 +267,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         const result = await getContainerSnaps(firstContainer.permlink, forceRefresh, currentUser?.username || '');
         setSnaps(result.snaps);
         setDiscussionMap(result.discussionMap);
-        if (onDiscussionMapLoaded) onDiscussionMapLoaded(result.discussionMap);
+        if (onDiscussionMapLoaded) {
+          setTimeout(() => onDiscussionMapLoaded(result.discussionMap), 0);
+        }
         setCachedShortsFeed(result.snaps, containerList, result.discussionMap, selectedTag);
       } else {
         setSnaps([]);
@@ -324,10 +330,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             setSnaps(updatedSnaps);
             setDiscussionMap((prev) => {
               const newMap = { ...prev, ...result.discussionMap };
-              if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
               setCachedShortsFeed(updatedSnaps, updatedContainers, newMap, selectedTag);
               return newMap;
             });
+            if (onDiscussionMapLoaded) {
+              setTimeout(() => onDiscussionMapLoaded(result.discussionMap), 0);
+            }
             setCurrentContainerIndex(nextIndex);
           }
         }
@@ -360,10 +368,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       setSnaps(updatedSnaps);
       setDiscussionMap((prev) => {
         const newMap = { ...prev, ...result.discussionMap };
-        if (onDiscussionMapLoaded) onDiscussionMapLoaded(newMap);
         setCachedShortsFeed(updatedSnaps, containers, newMap, selectedTag);
         return newMap;
       });
+      if (onDiscussionMapLoaded) {
+        setTimeout(() => onDiscussionMapLoaded(result.discussionMap), 0);
+      }
       setCurrentContainerIndex(nextIndex);
     } catch (err) {
       console.error('Failed to load next container snaps:', err);
@@ -423,7 +433,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     if (serialized !== lastTagsRef.current) {
       lastTagsRef.current = serialized;
       if (onHashtagsExtracted) {
-        onHashtagsExtracted(tagList);
+        setTimeout(() => onHashtagsExtracted(tagList), 0);
       }
     }
   }, [snaps, onHashtagsExtracted]);
@@ -522,7 +532,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     if (lastHiddenCountRef.current !== hiddenCount) {
       lastHiddenCountRef.current = hiddenCount;
       if (onHiddenCountChange) {
-        onHiddenCountChange(hiddenCount);
+        setTimeout(() => onHiddenCountChange(hiddenCount), 0);
       }
     }
   }, [hiddenCount, onHiddenCountChange]);
@@ -573,6 +583,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
       return;
+    }
+
+    const cleanChars = getCleanSnapTextLength(composerText);
+    if (cleanChars > 300) {
+      setPostErrorMessage(`Snap text exceeds 300 characters (${cleanChars}/300, links and images excluded). Please shorten your message.`);
+      return false;
     }
 
     if (containers.length === 0) {
@@ -916,16 +932,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <div className="flex items-center gap-3">
             <span
               className={`text-[11px] font-mono ${
-                composerText.length > 500 ? 'text-rose-500 font-bold' : 'text-gray-400 dark:text-slate-500'
+                cleanCharCount > 300 ? 'text-rose-500 font-bold' : 'text-gray-400 dark:text-slate-500'
               }`}
+              title="300 visible characters limit (links and images excluded)"
             >
-              {composerText.length}/500
+              {cleanCharCount}/300
             </span>
 
             <button
               type="button"
               onClick={handlePostSnap}
-              disabled={!composerText.trim() || isPosting}
+              disabled={!composerText.trim() || cleanCharCount > 300 || isPosting}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-500/15 cursor-pointer disabled:cursor-not-allowed"
             >
               {isPosting ? (
@@ -1130,6 +1147,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             currentUser={currentUser}
             onSelectAuthor={onSelectAuthor}
             onSelectTag={onSelectTag}
+            onMuteAuthor={onAddAuthor}
+            isMuted={blockedAuthors.some((a) => a.toLowerCase() === snap.author.toLowerCase())}
             onOpenDetail={(s) => {
               onBeforeOpenDetail?.();
               navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } });
@@ -1258,8 +1277,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className={`text-[11px] font-mono ${composerText.length > 500 ? 'text-rose-500 font-bold' : 'text-gray-400'}`}>
-                {composerText.length}/500
+              <span
+                className={`text-[11px] font-mono ${cleanCharCount > 300 ? 'text-rose-500 font-bold' : 'text-gray-400'}`}
+                title="300 visible characters limit (links and images excluded)"
+              >
+                {cleanCharCount}/300
               </span>
               <button
                 type="button"
@@ -1267,7 +1289,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   const success = await handlePostSnap();
                   if (success) setShowMobileComposerModal(false);
                 }}
-                disabled={!composerText.trim() || isPosting}
+                disabled={!composerText.trim() || cleanCharCount > 300 || isPosting}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed"
               >
                 {isPosting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

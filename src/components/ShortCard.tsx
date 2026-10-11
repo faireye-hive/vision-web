@@ -10,7 +10,10 @@ import {
   Sparkles,
   Check,
   CornerDownRight,
-  X
+  X,
+  MoreHorizontal,
+  UserX,
+  Copy
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -30,6 +33,8 @@ interface ShortCardProps {
   onSelectTag?: (tag: string) => void;
   onOpenDetail?: (snap: HivePost) => void;
   onRequireLogin?: () => void;
+  onMuteAuthor?: (author: string) => void;
+  isMuted?: boolean;
   id?: string;
 }
 
@@ -57,6 +62,8 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   onSelectTag,
   onOpenDetail,
   onRequireLogin,
+  onMuteAuthor,
+  isMuted = false,
   id
 }) => {
   const [showSubcomments, setShowSubcomments] = useState(false);
@@ -66,6 +73,10 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // 3-dots options menu state
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuFeedback, setMenuFeedback] = useState<string | null>(null);
 
   // In-line reply state
   const [replyText, setReplyText] = useState('');
@@ -118,6 +129,44 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const url = `https://peakd.com/@${snap.author}/${snap.permlink}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Snap by @${snap.author}`,
+          text: snap.body ? snap.body.slice(0, 100) : '',
+          url,
+        });
+        setShowMenu(false);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setShowMenu(false);
+          return;
+        }
+      }
+    }
+
+    navigator.clipboard.writeText(url);
+    setMenuFeedback('Link copied!');
+    setTimeout(() => {
+      setMenuFeedback(null);
+      setShowMenu(false);
+    }, 1200);
+  };
+
+  const handleMute = () => {
+    if (onMuteAuthor) {
+      onMuteAuthor(snap.author);
+      setMenuFeedback(`Muted @${snap.author}`);
+      setTimeout(() => {
+        setMenuFeedback(null);
+        setShowMenu(false);
+      }, 1200);
+    }
   };
 
   const handleResnap = (e: React.MouseEvent) => {
@@ -227,16 +276,95 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               )}
             </div>
 
-            {/* Quick External Link */}
-            <a
-              href={`https://peakd.com/@${snap.author}/${snap.permlink}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open Snap on PeakD"
-              className="text-gray-300 dark:text-slate-600 hover:text-gray-600 dark:hover:text-slate-300 p-1 rounded-md transition"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {/* 3-dots Options Menu */}
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu((prev) => !prev);
+                }}
+                className="p-2 sm:p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                title="Options"
+                aria-label="Options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {showMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMenu(false);
+                    }}
+                  />
+                  <div
+                    className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-150 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 text-xs text-slate-700 dark:text-slate-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {menuFeedback ? (
+                      <div className="px-3.5 py-2.5 text-center font-medium text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{menuFeedback}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleShare}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer font-medium"
+                        >
+                          <Share2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          <span>Share Snap</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `https://peakd.com/@${snap.author}/${snap.permlink}`;
+                            navigator.clipboard.writeText(url);
+                            setMenuFeedback('Link copied!');
+                            setTimeout(() => {
+                              setMenuFeedback(null);
+                              setShowMenu(false);
+                            }, 1200);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer font-medium"
+                        >
+                          <Copy className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          <span>Copy link</span>
+                        </button>
+
+                        <a
+                          href={`https://peakd.com/@${snap.author}/${snap.permlink}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setShowMenu(false)}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer font-medium"
+                        >
+                          <ExternalLink className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                          <span>Open on PeakD</span>
+                        </a>
+
+                        {onMuteAuthor && (
+                          <button
+                            type="button"
+                            onClick={handleMute}
+                            className="w-full text-left px-3.5 py-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 cursor-pointer font-semibold border-t border-slate-100 dark:border-slate-800"
+                            title={isMuted ? `Unmute @${snap.author}` : `Mute / filter out @${snap.author}`}
+                          >
+                            <UserX className="w-4 h-4" />
+                            <span>{isMuted ? `Unmute @${snap.author}` : `Mute @${snap.author}`}</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <SnapContent
@@ -248,6 +376,8 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
             onOpenImage={setSelectedImage}
             onOpenDetail={onOpenDetail ? () => onOpenDetail(snap) : undefined}
             textClassName="text-sm text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
+            charLimit={300}
+            enableTruncation={true}
           />
 
           {/* Action Bar (Twitter / Shorts Style) */}

@@ -14,7 +14,10 @@ import {
   CornerDownRight,
   RefreshCw,
   AlertCircle,
-  X
+  X,
+  MoreHorizontal,
+  UserX,
+  Copy
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -22,7 +25,8 @@ import { markdownToSafeHtml } from '../utils/sanitize';
 import {
   cleanSnapBody,
   buildCommentTree,
-  ThreadCommentNode
+  ThreadCommentNode,
+  truncateSnapText
 } from '../services/shortsApi';
 import { SnapContent } from './SnapContent';
 import { VoteWeightDialog } from './VoteWeightDialog';
@@ -36,6 +40,8 @@ interface ShortDetailViewProps {
   onSelectAuthor: (author: string) => void;
   onSelectTag?: (tag: string) => void;
   onRequireLogin?: () => void;
+  onMuteAuthor?: (author: string) => void;
+  blockedAuthors?: string[];
 }
 
 export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
@@ -46,7 +52,9 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   onBack,
   onSelectAuthor,
   onSelectTag,
-  onRequireLogin
+  onRequireLogin,
+  onMuteAuthor,
+  blockedAuthors = []
 }) => {
   const [discussionMap, setDiscussionMap] = useState<Record<string, HivePost>>(initialDiscussionMap);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -65,17 +73,20 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   const [mainReplying, setMainReplying] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
 
+  // 3-dots menu state
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuFeedback, setMenuFeedback] = useState<string | null>(null);
+
   // Fetch full discussion specifically for this snap
   const fetchFreshDiscussion = useCallback(async (forceRefresh = false) => {
     setIsRefreshing(true);
     try {
       const directDiscussion = await getDiscussion(snap.author, snap.permlink, forceRefresh);
       if (directDiscussion && Object.keys(directDiscussion).length > 0) {
-        setDiscussionMap((prev) => {
-          const next = { ...prev, ...directDiscussion };
-          onUpdateDiscussionMap?.(next);
-          return next;
-        });
+        setDiscussionMap((prev) => ({ ...prev, ...directDiscussion }));
+        if (onUpdateDiscussionMap) {
+          setTimeout(() => onUpdateDiscussionMap(directDiscussion), 0);
+        }
       }
     } catch (err) {
       console.warn('Could not fetch fresh direct discussion for snap:', err);
@@ -92,12 +103,10 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
       const key = `${snap.author}/${snap.permlink}`;
       setDiscussionMap((prev) => {
         if (prev[key]) return prev;
-        const next = { ...prev, [key]: snap };
-        onUpdateDiscussionMap?.(next);
-        return next;
+        return { ...prev, [key]: snap };
       });
     }
-  }, [snap, onUpdateDiscussionMap]);
+  }, [snap]);
 
   // Reset local interactive state and scroll to top when changing snaps
   useEffect(() => {
@@ -106,6 +115,8 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     setIsComposerExpanded(false);
     setMainReplyText('');
     setReplyError(null);
+    setShowMenu(false);
+    setMenuFeedback(null);
 
     window.scrollTo({ top: 0, behavior: 'instant' });
     const overlay = document.querySelector('.fixed.inset-0.z-35.overflow-y-auto');
@@ -121,19 +132,62 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     snap.parent_permlink
   );
 
+  const handleShare = async () => {
+    const url = `https://peakd.com/@${snap.author}/${snap.permlink}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Snap by @${snap.author}`,
+          text: snap.body ? snap.body.slice(0, 100) : '',
+          url,
+        });
+        setShowMenu(false);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setShowMenu(false);
+          return;
+        }
+      }
+    }
+
+    navigator.clipboard.writeText(url);
+    setMenuFeedback('Link copied!');
+    setTimeout(() => {
+      setMenuFeedback(null);
+      setShowMenu(false);
+    }, 1200);
+  };
+
+  const handleMute = () => {
+    if (onMuteAuthor) {
+      onMuteAuthor(snap.author);
+      setMenuFeedback(`Muted @${snap.author}`);
+      setTimeout(() => {
+        setMenuFeedback(null);
+        setShowMenu(false);
+        onBack();
+      }, 1000);
+    }
+  };
+
   const handleOpenCommentAsSnap = useCallback((targetComment: HivePost) => {
     // Cache current snap and targetComment into discussionMap for instantaneous navigation
     const currentKey = `${snap.author}/${snap.permlink}`;
     const targetKey = `${targetComment.author}/${targetComment.permlink}`;
-    setDiscussionMap((prev) => {
-      const next = {
-        ...prev,
-        [currentKey]: snap,
-        [targetKey]: targetComment
-      };
-      onUpdateDiscussionMap?.(next);
-      return next;
-    });
+    setDiscussionMap((prev) => ({
+      ...prev,
+      [currentKey]: snap,
+      [targetKey]: targetComment
+    }));
+    if (onUpdateDiscussionMap) {
+      setTimeout(() => {
+        onUpdateDiscussionMap({
+          [currentKey]: snap,
+          [targetKey]: targetComment
+        });
+      }, 0);
+    }
 
     navigate(`/shorts/@${targetComment.author}/${targetComment.permlink}`, {
       state: { snap: targetComment }
@@ -331,15 +385,90 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            <a
-              href={`https://peakd.com/@${snap.author}/${snap.permlink}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
-              title="Open on PeakD"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
+
+            {/* 3-dots Options Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                title="Options"
+                aria-label="Options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {showMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setShowMenu(false)}
+                  />
+                  <div
+                    className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-150 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 text-xs text-slate-700 dark:text-slate-200"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {menuFeedback ? (
+                      <div className="px-3.5 py-2.5 text-center font-medium text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{menuFeedback}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleShare}
+                          className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                          <span>Share Snap</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `https://peakd.com/@${snap.author}/${snap.permlink}`;
+                            navigator.clipboard.writeText(url);
+                            setMenuFeedback('Link copied!');
+                            setTimeout(() => {
+                              setMenuFeedback(null);
+                              setShowMenu(false);
+                            }, 1200);
+                          }}
+                          className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                          <span>Copy link</span>
+                        </button>
+
+                        <a
+                          href={`https://peakd.com/@${snap.author}/${snap.permlink}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setShowMenu(false)}
+                          className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                          <span>Open on PeakD</span>
+                        </a>
+
+                        {onMuteAuthor && (
+                          <button
+                            type="button"
+                            onClick={handleMute}
+                            className="w-full text-left px-3.5 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-semibold border-t border-slate-100 dark:border-slate-800"
+                            title={`Mute @${snap.author}`}
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            <span>Mute @{snap.author}</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -456,17 +585,20 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 
             {commentTree.length > 0 ? (
               <div className="space-y-3 sm:space-y-4">
-                {commentTree.map((node) => (
-                  <ThreadCommentItem
-                    key={`${node.comment.author}-${node.comment.permlink}`}
-                    node={node}
-                    currentUser={currentUser}
-                    onSelectAuthor={onSelectAuthor}
-                    onRequireLogin={onRequireLogin}
-                    onAddChildReply={handleAddChildReply}
-                    onOpenAsSnap={handleOpenCommentAsSnap}
-                  />
-                ))}
+                {commentTree
+                  .filter((node) => !blockedAuthors.some((a) => a.toLowerCase() === node.comment.author.toLowerCase()))
+                  .map((node) => (
+                    <ThreadCommentItem
+                      key={`${node.comment.author}-${node.comment.permlink}`}
+                      node={node}
+                      currentUser={currentUser}
+                      onSelectAuthor={onSelectAuthor}
+                      onRequireLogin={onRequireLogin}
+                      onAddChildReply={handleAddChildReply}
+                      onOpenAsSnap={handleOpenCommentAsSnap}
+                      onMuteAuthor={onMuteAuthor}
+                    />
+                  ))}
               </div>
             ) : (
               <div className="py-10 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -609,6 +741,7 @@ interface ThreadCommentItemProps {
   onRequireLogin?: () => void;
   onAddChildReply: (parentAuthor: string, parentPermlink: string, newReply: HivePost) => void;
   onOpenAsSnap: (comment: HivePost) => void;
+  onMuteAuthor?: (author: string) => void;
 }
 
 const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
@@ -617,7 +750,8 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   onSelectAuthor,
   onRequireLogin,
   onAddChildReply,
-  onOpenAsSnap
+  onOpenAsSnap,
+  onMuteAuthor
 }) => {
   const { comment, replies } = node;
   const [showReplyBox, setShowReplyBox] = useState(false);
@@ -627,6 +761,11 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   const [upvoted, setUpvoted] = useState(false);
   const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
+
+  // Truncation & 3-dots menu state
+  const [isCommentExpanded, setIsCommentExpanded] = useState(false);
+  const [showCommentMenu, setShowCommentMenu] = useState(false);
+  const [commentMenuFeedback, setCommentMenuFeedback] = useState<string | null>(null);
 
   const rep = calculateReputation(comment.author_reputation);
   const avatarUrl = getHiveAvatarUrl(comment.author, 'small');
@@ -647,7 +786,13 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   }, [comment.created]);
 
   const cleanedBody = useMemo(() => cleanSnapBody(comment.body), [comment.body]);
-  const safeHtml = useMemo(() => markdownToSafeHtml(cleanedBody || comment.body), [cleanedBody, comment.body]);
+
+  const { isTruncated, truncatedText } = useMemo(() => {
+    return truncateSnapText(cleanedBody || comment.body, 300);
+  }, [cleanedBody, comment.body]);
+
+  const activeBody = isTruncated && !isCommentExpanded ? truncatedText : (cleanedBody || comment.body);
+  const safeHtml = useMemo(() => markdownToSafeHtml(activeBody), [activeBody]);
 
   const [voteOpen, setVoteOpen] = useState(false);
   const handleVote = () => {
@@ -657,6 +802,33 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
     }
     if (upvoted || voteLoading) return;
     setVoteOpen(true);
+  };
+
+  const handleCommentShare = async () => {
+    const url = `https://peakd.com/@${comment.author}/${comment.permlink}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Reply by @${comment.author}`,
+          text: comment.body ? comment.body.slice(0, 100) : '',
+          url,
+        });
+        setShowCommentMenu(false);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setShowCommentMenu(false);
+          return;
+        }
+      }
+    }
+
+    navigator.clipboard.writeText(url);
+    setCommentMenuFeedback('Link copied!');
+    setTimeout(() => {
+      setCommentMenuFeedback(null);
+      setShowCommentMenu(false);
+    }, 1200);
   };
 
   const handleReplySubmit = async (e: React.FormEvent) => {
@@ -726,7 +898,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
           className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl sm:rounded-[22px] p-3 sm:p-4 border border-slate-100 dark:border-slate-700/50 cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800/90 transition-colors group"
         >
           <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
               <button
                 type="button"
                 onClick={(e) => {
@@ -744,28 +916,145 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
               <span className="text-[11px] text-slate-400">{timeAgo}</span>
             </div>
 
-            {repliesCount > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenAsSnap(comment);
-                }}
-                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer p-1 -mr-1 flex items-center gap-1"
-                title="Open thread"
-              >
-                <span className="font-medium text-[11px]">
-                  {repliesCount} {repliesCount === 1 ? 'reply' : 'replies'}
-                </span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {repliesCount > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenAsSnap(comment);
+                  }}
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer p-1 flex items-center gap-1"
+                  title="Open thread"
+                >
+                  <span className="font-medium text-[11px]">
+                    {repliesCount} {repliesCount === 1 ? 'reply' : 'replies'}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Comment 3-dots Menu */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCommentMenu((prev) => !prev);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition cursor-pointer"
+                  title="Options"
+                >
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+
+                {showCommentMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 cursor-default"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCommentMenu(false);
+                      }}
+                    />
+                    <div
+                      className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-150 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 text-xs text-slate-700 dark:text-slate-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {commentMenuFeedback ? (
+                        <div className="px-3 py-2 text-center font-medium text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
+                          <Check className="w-3 h-3" />
+                          <span>{commentMenuFeedback}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleCommentShare}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <Share2 className="w-3 h-3 text-slate-400" />
+                            <span>Share</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `https://peakd.com/@${comment.author}/${comment.permlink}`;
+                              navigator.clipboard.writeText(url);
+                              setCommentMenuFeedback('Link copied!');
+                              setTimeout(() => {
+                                setCommentMenuFeedback(null);
+                                setShowCommentMenu(false);
+                              }, 1200);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <Copy className="w-3 h-3 text-slate-400" />
+                            <span>Copy link</span>
+                          </button>
+
+                          <a
+                            href={`https://peakd.com/@${comment.author}/${comment.permlink}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => setShowCommentMenu(false)}
+                            className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                            <span>Open on PeakD</span>
+                          </a>
+
+                          {onMuteAuthor && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onMuteAuthor(comment.author);
+                                setCommentMenuFeedback(`Muted @${comment.author}`);
+                                setTimeout(() => {
+                                  setCommentMenuFeedback(null);
+                                  setShowCommentMenu(false);
+                                }, 1000);
+                              }}
+                              className="w-full text-left px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer font-semibold border-t border-slate-100 dark:border-slate-800"
+                            >
+                              <UserX className="w-3 h-3" />
+                              <span>Mute @{comment.author}</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           <div
             className="text-[13px] sm:text-[14px] text-slate-700 dark:text-slate-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1 break-words select-text"
             dangerouslySetInnerHTML={{ __html: safeHtml }}
           />
+
+          {isTruncated && (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCommentExpanded(!isCommentExpanded);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer select-none py-0.5"
+              >
+                <span>{isCommentExpanded ? 'Show less' : 'Show more'}</span>
+                {isCommentExpanded ? (
+                  <ChevronUp className="w-3 h-3" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" />
+                )}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 sm:gap-5 mt-2.5 pt-1">
             <button

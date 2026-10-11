@@ -79,6 +79,17 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
   const [discussionMap, setDiscussionMap] = React.useState<Record<string, HivePost>>({});
   const snapKey = selectedPost ? `${selectedPost.author}/${selectedPost.permlink}` : '';
 
+  // Cache selectedPost into discussionMap so child comments can navigate back to it
+  useEffect(() => {
+    if (selectedPost && selectedPost.author && selectedPost.permlink) {
+      const key = `${selectedPost.author}/${selectedPost.permlink}`;
+      setDiscussionMap((prev) => {
+        if (prev[key]) return prev;
+        return { ...prev, [key]: selectedPost };
+      });
+    }
+  }, [selectedPost]);
+
   const rememberScroll = useCallback(() => {
     holdScrollRef.current = true;
     writeScroll(currentScroll());
@@ -143,6 +154,8 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
               onBack={handleClosePost}
               onSelectAuthor={handleSelectAuthor}
               onSelectTag={onSelectTag}
+              onMuteAuthor={onAddAuthor}
+              blockedAuthors={blockedAuthors}
               onRequireLogin={() => {
                 window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
               }}

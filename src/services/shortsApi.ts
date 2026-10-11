@@ -11,7 +11,7 @@
  * 4. As users scroll to the end of a container's snaps, the next container is automatically loaded.
  */
 
-import { hiveRpcCall, HivePost, getDiscussion, getAccountPosts, getFollowedCommentsFeed, getMutedAccounts } from './hiveApi';
+import { hiveRpcCall, HivePost, getDiscussion, getAccountPosts, getFollowedCommentsFeed, getMutedAccounts, NON_POST_PERMLINKS } from './hiveApi';
 import { fetchWithCache, apiCache, CACHE_TTL } from './apiCache';
 
 function hiveTime(value: string | undefined): number {
@@ -446,6 +446,8 @@ export interface HivePostLink {
   raw: string;
 }
 
+export { NON_POST_PERMLINKS };
+
 const HIVE_LINK_RE = /https?:\/\/(?:www\.)?(?:peakd\.com|ecency\.com|hive\.blog)\/(?:[a-z0-9-]+\/)?@([a-z0-9.-]+)\/([a-z0-9-]+)/gi;
 
 export function extractHivePostLinks(body: string, self?: { author: string; permlink: string }): HivePostLink[] {
@@ -458,6 +460,7 @@ export function extractHivePostLinks(body: string, self?: { author: string; perm
   while ((match = HIVE_LINK_RE.exec(source)) !== null) {
     const author = match[1].toLowerCase();
     const permlink = match[2].toLowerCase();
+    if (NON_POST_PERMLINKS.has(permlink)) continue;
     const key = `${author}/${permlink}`;
     if (key === selfKey || seen.has(key)) continue;
     seen.add(key);
@@ -585,4 +588,140 @@ export function cleanSnapBody(body: string): string {
     // Remove bot/app footer signatures
     .replace(/<sub>.*?Posted (?:via|using).*?<\/sub>/gi, '')
     .trim();
+}
+
+/**
+ * Extracts visible textual content from a snap body, excluding image markdown,
+ * raw URLs, markdown link destination URLs, and HTML tags.
+ */
+export function getCleanSnapText(body: string): string {
+  if (!body) return '';
+  let text = body;
+
+  // 1. Remove markdown images: ![alt](url)
+  text = text.replace(/!\[.*?\]\((?:https?:\/\/[^\s\)]+|[^\s\)]+)\)/gi, '');
+
+  // 2. Remove HTML image and media tags: <img ...>, <video ...>, <iframe ...>
+  text = text.replace(/<(?:img|video|iframe|audio|source)[^>]*\/?>/gi, '');
+
+  // 3. For markdown links [visible text](url), keep only 'visible text'
+  text = text.replace(/\[(.*?)\]\((?:https?:\/\/[^\s\)]+|[^\s\)]+)\)/gi, '$1');
+
+  // 4. Remove raw URLs (http / https)
+  text = text.replace(/https?:\/\/[^\s<>"')]+/gi, '');
+
+  // 5. Remove any remaining HTML tags
+  text = text.replace(/<[^>]+>/gi, '');
+
+  // 6. Remove bot/app footer signatures
+  text = text.replace(/<sub>.*?<\/sub>/gi, '');
+
+  return text.trim();
+}
+
+/**
+ * Returns character count of clean text, excluding links and images.
+ */
+export function getCleanSnapTextLength(body: string): number {
+  return getCleanSnapText(body).length;
+}
+
+/**
+ * Truncates markdown text to a maximum number of clean visible characters (default 300),
+ * ignoring image markdown, URLs, and link target destinations.
+ */
+export function truncateSnapText(markdown: string, charLimit: number = 300): {
+  isTruncated: boolean;
+  truncatedText: string;
+  cleanLength: number;
+} {
+  if (!markdown) {
+    return { isTruncated: false, truncatedText: '', cleanLength: 0 };
+  }
+
+  const cleanText = getCleanSnapText(markdown);
+  const cleanLength = cleanText.length;
+
+  if (cleanLength <= charLimit) {
+    return { isTruncated: false, truncatedText: markdown, cleanLength };
+  }
+
+  // Iterate through markdown while only counting characters that contribute to cleanText
+  let visibleCount = 0;
+  let cutIndex = markdown.length;
+  let i = 0;
+
+  while (i < markdown.length) {
+    // Check if at markdown image: ![alt](url)
+    if (markdown.slice(i).startsWith('![')) {
+      const match = markdown.slice(i).match(/^!\[.*?\]\([^\s\)]+\)/);
+      if (match) {
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    // Check if at HTML image or media tag: <img ... />
+    if (markdown.slice(i).match(/^<(?:img|video|iframe|audio|source)[^>]*\/?>/i)) {
+      const match = markdown.slice(i).match(/^<(?:img|video|iframe|audio|source)[^>]*\/?>/i);
+      if (match) {
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    // Check if at raw URL: https?://...
+    if (markdown.slice(i).match(/^https?:\/\/[^\s<>"')]+/i)) {
+      const match = markdown.slice(i).match(/^https?:\/\/[^\s<>"')]+/i);
+      if (match) {
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    // Check if at markdown link: [label](url)
+    if (markdown.slice(i).startsWith('[')) {
+      const match = markdown.slice(i).match(/^\[(.*?)\]\([^\s\)]+\)/);
+      if (match) {
+        const label = match[1];
+        if (visibleCount + label.length > charLimit) {
+          cutIndex = i;
+          break;
+        }
+        visibleCount += label.length;
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    // Check if at general HTML tag: <...>
+    if (markdown[i] === '<') {
+      const match = markdown.slice(i).match(/^<[^>]+>/);
+      if (match) {
+        i += match[0].length;
+        continue;
+      }
+    }
+
+    // Regular visible character
+    visibleCount++;
+    if (visibleCount >= charLimit) {
+      cutIndex = i + 1;
+      break;
+    }
+    i++;
+  }
+
+  // Snap to previous space boundary within 40 chars if possible
+  let trimmed = markdown.slice(0, cutIndex);
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace > cutIndex - 40 && lastSpace > 0) {
+    trimmed = trimmed.slice(0, lastSpace);
+  }
+
+  return {
+    isTruncated: true,
+    truncatedText: trimmed.trimEnd() + '…',
+    cleanLength
+  };
 }

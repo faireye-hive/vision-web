@@ -757,6 +757,13 @@ const PostCardComponent: React.FC<PostCardProps> = ({
             className={`discover_post_title text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug ${
               isComment ? 'hidden sm:block' : 'block'
             }`}
+            style={{
+              display: isComment ? undefined : '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              overflowWrap: 'anywhere',
+            }}
           >
             {displayTitle}
           </h2>

@@ -287,6 +287,30 @@ export function resetHiveNodesToDefault(): void {
 /**
  * Make a direct JSON-RPC call to Hive blockchain node with automatic multi-node failover and request timeout.
  */
+export const NON_POST_PERMLINKS = new Set([
+  'wallet',
+  'transfers',
+  'settings',
+  'permissions',
+  'activities',
+  'communities',
+  'comments',
+  'replies',
+  'feed',
+  'followers',
+  'following',
+  'curation',
+  'delegations',
+  'badges',
+  'notifications',
+  'recent-replies',
+  'payout',
+  'points',
+  'assets',
+  'market',
+  'proposals'
+]);
+
 async function performHiveRpcCall<T = any>(
   method: string,
   params: any = {},
@@ -335,7 +359,11 @@ async function performHiveRpcCall<T = any>(
 
       const json = await res.json();
       if (json.error) {
-        throw new Error(json.error.message || 'Hive RPC returned error');
+        const errMsg = json.error.message || 'Hive RPC returned error';
+        const isNotFound = /does not exist|not found|unknown account/i.test(errMsg);
+        const err = new Error(errMsg);
+        (err as any).isNotFound = isNotFound;
+        throw err;
       }
 
       // If we recovered using a different node and this was using default activeNode,
@@ -349,6 +377,10 @@ async function performHiveRpcCall<T = any>(
     } catch (err: any) {
       clearTimeout(timeoutId);
       lastError = err;
+      // If the post or account genuinely does not exist on blockchain, stop fallback immediately
+      if (err?.isNotFound) {
+        break;
+      }
       // If caller explicitly targeted a specific non-active nodeUrl and not activeNode, don't failover
       if (nodeUrl !== activeNode && i === 0) {
         throw err;
@@ -544,26 +576,31 @@ export async function getPost(
   const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
   const cleanPermlink = permlink.trim();
   if (!cleanAuthor || !cleanPermlink) return null;
+  if (NON_POST_PERMLINKS.has(cleanPermlink.toLowerCase())) return null;
   const cacheKey = `post:${cleanAuthor}:${cleanPermlink}:${observer}`;
 
-  return fetchWithCache(
-    cacheKey,
-    async () => {
-      try {
-        const result = await hiveRpcCall<HivePost>('bridge.get_post', {
-          author: cleanAuthor,
-          permlink: cleanPermlink,
-          observer
-        });
-        if (result && result.author) return result;
-        const fallback = await hiveRpcCall<HivePost>('condenser_api.get_content', [cleanAuthor, cleanPermlink]);
-        return fallback && fallback.author ? fallback : null;
-      } catch {
-        return null;
-      }
-    },
-    { ttl: CACHE_TTL.FEED, forceRefresh }
-  );
+  try {
+    return await fetchWithCache(
+      cacheKey,
+      async () => {
+        try {
+          const result = await hiveRpcCall<HivePost>('bridge.get_post', {
+            author: cleanAuthor,
+            permlink: cleanPermlink,
+            observer
+          });
+          if (result && result.author) return result;
+          const fallback = await hiveRpcCall<HivePost>('condenser_api.get_content', [cleanAuthor, cleanPermlink]);
+          return fallback && fallback.author ? fallback : null;
+        } catch {
+          return null;
+        }
+      },
+      { ttl: CACHE_TTL.FEED, forceRefresh }
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**

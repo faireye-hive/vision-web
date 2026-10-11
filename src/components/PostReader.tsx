@@ -49,6 +49,12 @@ import {
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
+import {
+  extract3SpeakVideoIds,
+  get3SpeakData,
+  getCached3SpeakData,
+  is3SpeakThumbnail
+} from '../utils/videoEmbeds';
 import { useAuth } from '../context/AuthContext';
 import { VoteWeightDialog } from './VoteWeightDialog';
 import { useContentFilter } from '../context/ContentFilterContext';
@@ -203,10 +209,18 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Handle image clicks inside article body to open the gallery
   const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    // If target is inside a video player facade or video, let the video play without opening image lightbox
+    if (target.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container, video, iframe')) {
+      return;
+    }
     if (target.tagName === 'IMG' && target instanceof HTMLImageElement) {
+      // If the image was hidden (duplicate video thumbnail), do not open lightbox
+      if (target.style.display === 'none') return;
+
       const container = bodyContainerRef.current;
       if (!container) return;
       const allImgs = Array.from(container.querySelectorAll('img'))
+        .filter((img) => img.style.display !== 'none' && !img.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container'))
         .map((img) => img.src)
         .filter((src) => src && !src.includes('avatar') && !src.startsWith('data:image/svg'));
 
@@ -545,10 +559,96 @@ export const PostReader: React.FC<PostReaderProps> = ({
     loadingFullBody &&
     (!currentPost.body || currentPost.body.trim().length <= 300 || Boolean(currentPost.is_truncated));
 
-  // Parse HTML and headings safely with DOMPurify
-  const { html: safeHtmlContent, headings } = useMemo(() => {
-    return markdownToSafeHtmlWithHeadings(currentPost.body || '');
+  // Extract any 3Speak video IDs from current post body
+  const threeSpeakVideoIds = useMemo(() => {
+    return extract3SpeakVideoIds(currentPost.body || '');
   }, [currentPost.body]);
+
+  // Track thumbnails from 3Speak API and metadata
+  const [threeSpeakThumbnails, setThreeSpeakThumbnails] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (currentPost.json_metadata) {
+      try {
+        const meta = typeof currentPost.json_metadata === 'string'
+          ? JSON.parse(currentPost.json_metadata)
+          : currentPost.json_metadata;
+        const thumb = meta?.video?.thumbnail || meta?.thumbnail || meta?.image?.[0];
+        if (thumb && typeof thumb === 'string') {
+          const ids = extract3SpeakVideoIds(currentPost.body || '');
+          ids.forEach((id) => {
+            initial[id] = thumb;
+          });
+        }
+      } catch {}
+    }
+    return initial;
+  });
+
+  // Fetch 3Speak embed data for thumbnail detection so duplicate standalone images are removed
+  useEffect(() => {
+    if (threeSpeakVideoIds.length === 0) return;
+    let active = true;
+
+    threeSpeakVideoIds.forEach((id) => {
+      // Check memory cache first
+      const cached = getCached3SpeakData(id);
+      if (cached?.thumbnail) {
+        setThreeSpeakThumbnails((prev) => {
+          if (prev[id] === cached.thumbnail) return prev;
+          return { ...prev, [id]: cached.thumbnail! };
+        });
+      }
+
+      // Fetch from API https://play.3speak.tv/api/embed?v=
+      get3SpeakData(id).then((data) => {
+        if (active && data?.thumbnail) {
+          setThreeSpeakThumbnails((prev) => {
+            if (prev[id] === data.thumbnail) return prev;
+            return { ...prev, [id]: data.thumbnail! };
+          });
+        }
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [threeSpeakVideoIds]);
+
+  // Parse HTML and headings safely with DOMPurify, stripping duplicate 3Speak video thumbnail images
+  const { html: safeHtmlContent, headings } = useMemo(() => {
+    return markdownToSafeHtmlWithHeadings(currentPost.body || '', {
+      threeSpeakThumbnails
+    });
+  }, [currentPost.body, threeSpeakThumbnails]);
+
+  // DOM safeguard: Hide any standalone <img> that matches the 3Speak video thumbnail
+  useEffect(() => {
+    const container = bodyContainerRef.current;
+    if (!container || threeSpeakVideoIds.length === 0) return;
+
+    const images = container.querySelectorAll('img');
+    images.forEach((img) => {
+      // Never hide images inside the video facade itself (which is the poster!)
+      if (img.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container')) return;
+
+      const src = img.getAttribute('src') || '';
+      const orig = img.getAttribute('data-original-src') || '';
+
+      for (const id of threeSpeakVideoIds) {
+        const thumb = threeSpeakThumbnails[id] || getCached3SpeakData(id)?.thumbnail;
+        if (is3SpeakThumbnail(src, thumb, id) || is3SpeakThumbnail(orig, thumb, id)) {
+          img.style.display = 'none';
+          const parent = img.parentElement;
+          if (parent && (parent.tagName === 'P' || parent.tagName === 'DIV' || parent.tagName === 'CENTER')) {
+            if (parent.children.length === 1 && !parent.textContent?.trim()) {
+              parent.style.display = 'none';
+            }
+          }
+        }
+      }
+    });
+  }, [safeHtmlContent, threeSpeakVideoIds, threeSpeakThumbnails]);
 
   // Inform parent / sidebar about extracted headings
   useEffect(() => {

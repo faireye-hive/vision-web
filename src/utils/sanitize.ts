@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { transformVideoEmbedsInMarkdown } from './videoEmbeds';
 
 export const ALLOWED_IMAGE_DOMAINS = [
   'hive.blog',
@@ -98,13 +99,16 @@ const ALLOWED_TAGS = [
   'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike', 'mark', 'sub', 'sup',
   'table', 'thead', 'tbody', 'tr', 'th', 'td',
   'img', 'figure', 'figcaption',
-  'a', 'span', 'div', 'center'
+  'a', 'span', 'div', 'center',
+  'button', 'svg', 'path'
 ];
 
 const ALLOWED_ATTR = [
   'href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel',
   'width', 'height', 'align', 'loading', 'style', 'data-align',
-  'data-blocked-src', 'data-original-src'
+  'data-blocked-src', 'data-original-src',
+  'data-video-platform', 'data-video-id', 'data-video-embed', 'data-original-url',
+  'role', 'tabindex', 'aria-label', 'viewBox', 'd'
 ];
 
 export interface PostHeading {
@@ -145,7 +149,15 @@ function restoreRawTags(text: string, store: string[]): string {
   return result;
 }
 
-export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string; headings: PostHeading[] } {
+export interface MarkdownSanitizeOptions {
+  threeSpeakThumbnails?: Record<string, string>;
+  jsonMetadata?: any;
+}
+
+export function markdownToSafeHtmlWithHeadings(
+  markdown: string,
+  options?: MarkdownSanitizeOptions
+): { html: string; headings: PostHeading[] } {
   if (!markdown || typeof markdown !== 'string') return { html: '', headings: [] };
 
   const headings: PostHeading[] = [];
@@ -159,6 +171,9 @@ export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string
     .replace(/<\/center>/gi, '</div>')
     .replace(/<div\s+align=["']?justify["']?>/gi, '<div class="text-justify my-2">')
     .replace(/<div\s+class=["']?text-justify["']?>/gi, '<div class="text-justify my-2">');
+
+  // Convert YouTube, 3Speak, and BitChute links/iframes to click-to-load video facades
+  text = transformVideoEmbedsInMarkdown(text, options);
 
   // Protege tags HTML já existentes no post (raw <img>, <div>, <sub>, <iframe> etc.)
   text = protectRawTags(text, tagStore);
@@ -321,6 +336,9 @@ export function markdownToSafeHtmlWithHeadings(markdown: string): { html: string
   return { html: safeHtml, headings };
 }
 
-export function markdownToSafeHtml(markdown: string): string {
-  return markdownToSafeHtmlWithHeadings(markdown).html;
+export function markdownToSafeHtml(
+  markdown: string,
+  options?: MarkdownSanitizeOptions
+): string {
+  return markdownToSafeHtmlWithHeadings(markdown, options).html;
 }

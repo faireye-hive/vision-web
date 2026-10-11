@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { HivePost, getPost, getPostSnippet, getHiveAvatarUrl } from '../services/hiveApi';
 import { markdownToSafeHtml } from '../utils/sanitize';
 import {
@@ -10,6 +10,7 @@ import {
   extractSnapImages,
   imageIdentity,
   stripResolvedSnapUrls,
+  truncateSnapText,
 } from '../services/shortsApi';
 import { SafeSnapImage } from './SafeSnapImage';
 
@@ -22,6 +23,8 @@ interface SnapContentProps {
   onOpenImage?: (url: string) => void;
   onOpenDetail?: () => void;
   textClassName?: string;
+  charLimit?: number;
+  enableTruncation?: boolean;
 }
 
 function ResnapCard({ link }: { link: HivePostLink }) {
@@ -76,7 +79,11 @@ export function SnapContent({
   onOpenImage,
   onOpenDetail,
   textClassName = '',
+  charLimit = 300,
+  enableTruncation = true,
 }: SnapContentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const images = useMemo(() => extractSnapImages(body || '', jsonMetadata), [body, jsonMetadata]);
   const hiveLinks = useMemo(
     () => extractHivePostLinks(body || '', { author, permlink }),
@@ -86,23 +93,59 @@ export function SnapContent({
   const [failed, setFailed] = useState<Record<string, true>>({});
 
   const shownImages = images.filter((url) => !failed[imageIdentity(url)]);
+
+  const { isTruncated, truncatedText } = useMemo(() => {
+    if (!enableTruncation) {
+      return { isTruncated: false, truncatedText: body };
+    }
+    return truncateSnapText(body || '', charLimit);
+  }, [body, enableTruncation, charLimit]);
+
+  const activeText = isTruncated && !isExpanded ? truncatedText : body;
+
   const safeHtml = useMemo(() => {
     const hidden = [
       ...shownImages,
       ...hiveLinks.map((link) => link.raw),
     ];
-    const text = collapseDuplicateHashtags(stripResolvedSnapUrls(body || '', hidden));
+    const text = collapseDuplicateHashtags(stripResolvedSnapUrls(activeText || '', hidden));
     return markdownToSafeHtml(text);
-  }, [body, shownImages, hiveLinks]);
+  }, [activeText, shownImages, hiveLinks]);
 
   return (
     <div>
       {safeHtml && (
         <div
-          onClick={onOpenDetail}
+          onClick={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container')) {
+              return;
+            }
+            onOpenDetail?.();
+          }}
           className={`${textClassName} ${onOpenDetail ? 'cursor-pointer' : ''}`}
           dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
+      )}
+
+      {isTruncated && (
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer select-none py-0.5"
+          >
+            <span>{isExpanded ? 'Show less' : 'Show more'}</span>
+            {isExpanded ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
       )}
 
       {hiveLinks.map((link) => (
