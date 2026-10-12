@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { HivePost, getPost, getPostSnippet, getHiveAvatarUrl } from '../services/hiveApi';
 import { markdownToSafeHtml } from '../utils/sanitize';
+import { extract3SpeakVideoIds, get3SpeakData, getCached3SpeakData } from '../utils/videoEmbeds';
 import {
   HivePostLink,
   collapseDuplicateHashtags,
@@ -84,7 +85,39 @@ export function SnapContent({
 }: SnapContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const images = useMemo(() => extractSnapImages(body || '', jsonMetadata), [body, jsonMetadata]);
+  // Pre-fetch 3Speak embed data and track loaded thumbnails reactively
+  const [threeSpeakThumbnails, setThreeSpeakThumbnails] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    const ids = extract3SpeakVideoIds(body, jsonMetadata);
+    for (const id of ids) {
+      const c = getCached3SpeakData(id);
+      if (c?.thumbnail) map[id] = c.thumbnail;
+    }
+    return map;
+  });
+
+  useEffect(() => {
+    let active = true;
+    const ids = extract3SpeakVideoIds(body, jsonMetadata);
+    ids.forEach((id) => {
+      get3SpeakData(id).then((data) => {
+        if (!active || !data?.thumbnail) return;
+        const thumbUrl = data.thumbnail;
+        setThreeSpeakThumbnails((prev) => {
+          if (prev[id] === thumbUrl) return prev;
+          return { ...prev, [id]: thumbUrl };
+        });
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [body, jsonMetadata]);
+
+  const images = useMemo(
+    () => extractSnapImages(body || '', jsonMetadata, threeSpeakThumbnails),
+    [body, jsonMetadata, threeSpeakThumbnails]
+  );
   const hiveLinks = useMemo(
     () => extractHivePostLinks(body || '', { author, permlink }),
     [body, author, permlink]
@@ -109,8 +142,8 @@ export function SnapContent({
       ...hiveLinks.map((link) => link.raw),
     ];
     const text = collapseDuplicateHashtags(stripResolvedSnapUrls(activeText || '', hidden));
-    return markdownToSafeHtml(text);
-  }, [activeText, shownImages, hiveLinks]);
+    return markdownToSafeHtml(text, { jsonMetadata, threeSpeakThumbnails });
+  }, [activeText, shownImages, hiveLinks, jsonMetadata, threeSpeakThumbnails]);
 
   return (
     <div>

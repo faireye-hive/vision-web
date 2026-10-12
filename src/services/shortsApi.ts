@@ -13,6 +13,12 @@
 
 import { hiveRpcCall, HivePost, getDiscussion, getAccountPosts, getFollowedCommentsFeed, getMutedAccounts, NON_POST_PERMLINKS } from './hiveApi';
 import { fetchWithCache, apiCache, CACHE_TTL } from './apiCache';
+import {
+  extract3SpeakVideoIds,
+  extract3SpeakThumbnailFromHive,
+  is3SpeakThumbnail,
+  getCached3SpeakData
+} from '../utils/videoEmbeds';
 
 function hiveTime(value: string | undefined): number {
   if (!value) return 0;
@@ -517,7 +523,11 @@ export function stripResolvedSnapUrls(body: string, urls: string[]): string {
  * Extract image URLs from a Snap markdown body.
  * The same photo is returned once, even if metadata and the body both include it.
  */
-export function extractSnapImages(body: string, jsonMetadata?: any): string[] {
+export function extractSnapImages(
+  body: string,
+  jsonMetadata?: any,
+  threeSpeakThumbnails?: Record<string, string>
+): string[] {
   const images: string[] = [];
   const seen = new Set<string>();
   const push = (url: string) => {
@@ -562,13 +572,33 @@ export function extractSnapImages(body: string, jsonMetadata?: any): string[] {
     if (match[1]) push(match[1]);
   }
 
-  // Filter out invalid, deceptive or tracking URLs
+  // 5. Exclude any image that belongs to a 3Speak video thumbnail!
+  // The video player will display this thumbnail in the facade poster,
+  // so it must NOT be duplicated as an extra image attachment.
+  const threeSpeakVideoIds = extract3SpeakVideoIds(body, jsonMetadata);
+  const hiveThumbnail = extract3SpeakThumbnailFromHive(jsonMetadata, body);
+
+  // Filter out invalid, deceptive, tracking URLs, and 3Speak video thumbnails
   return images.filter((url) => {
     if (!url || typeof url !== 'string') return false;
     const lower = url.toLowerCase().trim();
     if (!lower.startsWith('http://') && !lower.startsWith('https://')) return false;
     // Exclude tracking pixels, badges, spacer gifs and small icons
     if (lower.includes('1x1') || lower.includes('pixel') || lower.includes('spacer.gif') || lower.includes('badge')) return false;
+
+    // Check if this image is a 3Speak video thumbnail
+    if (threeSpeakVideoIds.length > 0) {
+      for (const id of threeSpeakVideoIds) {
+        const thumb = threeSpeakThumbnails?.[id] || hiveThumbnail || getCached3SpeakData(id)?.thumbnail;
+        if (is3SpeakThumbnail(url, thumb, id)) {
+          return false;
+        }
+      }
+      if (hiveThumbnail && is3SpeakThumbnail(url, hiveThumbnail)) {
+        return false;
+      }
+    }
+
     return true;
   });
 }

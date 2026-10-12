@@ -1208,15 +1208,25 @@ export function getHiveAvatarUrl(username: string, size: 'small' | 'medium' | 'l
  */
 export function getPostThumbnail(post: HivePost): string | null {
   try {
-    if (typeof post.json_metadata === 'string') {
-      const meta = JSON.parse(post.json_metadata);
-      if (meta.image && Array.isArray(meta.image) && meta.image[0]) {
-        return meta.image[0];
-      }
-    } else if (post.json_metadata && typeof post.json_metadata === 'object') {
-      if (post.json_metadata.image && Array.isArray(post.json_metadata.image) && post.json_metadata.image[0]) {
-        return post.json_metadata.image[0];
-      }
+    const meta = typeof post.json_metadata === 'string'
+      ? JSON.parse(post.json_metadata)
+      : (post.json_metadata || {});
+
+    // Check 3Speak video thumbnail fields first
+    if (meta.video?.thumbnail && typeof meta.video.thumbnail === 'string') {
+      return meta.video.thumbnail;
+    }
+    if (Array.isArray(meta.video?.info?.sourceMap)) {
+      const item = meta.video.info.sourceMap.find(
+        (s: any) => s.type === 'thumbnail' || s.url?.includes('thumbnail') || s.url?.includes('images.3speak.tv')
+      );
+      if (item?.url && typeof item.url === 'string') return item.url;
+    }
+    if (meta.thumbnail && typeof meta.thumbnail === 'string') {
+      return meta.thumbnail;
+    }
+    if (meta.image && Array.isArray(meta.image) && meta.image[0]) {
+      return meta.image[0];
     }
   } catch {
     // Ignore JSON parsing errors

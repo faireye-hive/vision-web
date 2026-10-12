@@ -58,6 +58,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { VoteWeightDialog } from './VoteWeightDialog';
 import { useContentFilter } from '../context/ContentFilterContext';
+import { translateMarkdown, translateText, POPULAR_TRANSLATION_LANGUAGES } from '../services/translationService';
+import { PostTranslatorDropdown } from './PostTranslatorDropdown';
 
 interface PostReaderProps {
   post: HivePost;
@@ -615,12 +617,72 @@ export const PostReader: React.FC<PostReaderProps> = ({
     };
   }, [threeSpeakVideoIds]);
 
+  // Full-post translation state (free, markdown-preserved)
+  const [activeTranslationLang, setActiveTranslationLang] = useState<string | null>(null);
+  const [translatedBody, setTranslatedBody] = useState<string | null>(null);
+  const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
+  const [translationProgress, setTranslationProgress] = useState<number>(0);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+
+  // Reset translation when moving between different posts
+  useEffect(() => {
+    setActiveTranslationLang(null);
+    setTranslatedBody(null);
+    setTranslatedTitle(null);
+    setIsTranslating(false);
+    setTranslationProgress(0);
+    setTranslationError(null);
+  }, [post.author, post.permlink]);
+
+  const handleTranslatePost = async (langCode: string) => {
+    if (!currentPost.body || isTranslating) return;
+    setIsTranslating(true);
+    setTranslationProgress(10);
+    setTranslationError(null);
+
+    try {
+      // 1. Translate title in parallel if available
+      const titlePromise = currentPost.title && !currentPost.title.startsWith('Re:')
+        ? translateText(currentPost.title, langCode).catch(() => currentPost.title)
+        : Promise.resolve(currentPost.title);
+
+      // 2. Translate body while preserving Markdown structure
+      const bodyPromise = translateMarkdown(currentPost.body, langCode, (percent) => {
+        setTranslationProgress(Math.max(10, percent));
+      });
+
+      const [newTitle, newBody] = await Promise.all([titlePromise, bodyPromise]);
+
+      setTranslatedTitle(newTitle);
+      setTranslatedBody(newBody);
+      setActiveTranslationLang(langCode);
+      setTranslationProgress(100);
+    } catch (err: any) {
+      console.error('Translation failed:', err);
+      setTranslationError('Could not translate post at this moment. Please try again.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleResetOriginalPost = () => {
+    setActiveTranslationLang(null);
+    setTranslatedBody(null);
+    setTranslatedTitle(null);
+    setTranslationError(null);
+  };
+
+  // Determine current active body (original or translated)
+  const activeBodyContent = translatedBody || currentPost.body || '';
+
   // Parse HTML and headings safely with DOMPurify, stripping duplicate 3Speak video thumbnail images
   const { html: safeHtmlContent, headings } = useMemo(() => {
-    return markdownToSafeHtmlWithHeadings(currentPost.body || '', {
-      threeSpeakThumbnails
+    return markdownToSafeHtmlWithHeadings(activeBodyContent, {
+      threeSpeakThumbnails,
+      jsonMetadata: currentPost.json_metadata
     });
-  }, [currentPost.body, threeSpeakThumbnails]);
+  }, [activeBodyContent, threeSpeakThumbnails, currentPost.json_metadata]);
 
   // DOM safeguard: Hide any standalone <img> that matches the 3Speak video thumbnail
   useEffect(() => {
@@ -1227,8 +1289,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         </div>
 
-        {/* Right Actions: Shortcut to Comments, Share, Ecency, Close */}
+        {/* Right Actions: Translator, Shortcut to Comments, Share, Ecency, Close */}
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          {/* Free Markdown-Preserving Translation Dropdown */}
+          <PostTranslatorDropdown
+            currentLanguage={activeTranslationLang}
+            isTranslating={isTranslating}
+            translationProgress={translationProgress}
+            onSelectLanguage={handleTranslatePost}
+            onResetOriginal={handleResetOriginalPost}
+          />
+
           {/* Header Shortcut to Comments (hidden on mobile comments as requested) */}
           <button
             onClick={scrollToComments}
@@ -1412,7 +1483,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
               {/* Big, Clear Post Title: uppercase, glued right below tag, expanding downwards, full title without truncation */}
               <h1
                 className="relative z-10 font-black uppercase leading-tight sm:leading-snug tracking-tight text-white max-w-full break-words text-lg sm:text-2xl md:text-3xl"
-                title={post.title}
+                title={translatedTitle || post.title}
                 style={{
                   border: 'none',
                   outline: 'none',
@@ -1423,11 +1494,50 @@ export const PostReader: React.FC<PostReaderProps> = ({
               >
                 {isComment && (!post.title || post.title.startsWith('Re:'))
                   ? `Comment by @${post.author}`
-                  : post.title}
+                  : (translatedTitle || post.title)}
               </h1>
             </div>
           );
         })()}
+
+        {/* Translation active notification banner */}
+        {activeTranslationLang && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                {POPULAR_TRANSLATION_LANGUAGES.find((l) => l.code === activeTranslationLang)?.flag || '🌐'}
+              </span>
+              <span>
+                Translated to{' '}
+                <strong className="font-bold">
+                  {POPULAR_TRANSLATION_LANGUAGES.find((l) => l.code === activeTranslationLang)?.name || activeTranslationLang}
+                </strong>
+                . Markdown formatting, code, images, and links preserved.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetOriginalPost}
+              className="text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline cursor-pointer flex-shrink-0"
+            >
+              Show original
+            </button>
+          </div>
+        )}
+
+        {/* Translation error notice if any */}
+        {translationError && (
+          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between">
+            <span>{translationError}</span>
+            <button
+              type="button"
+              onClick={() => setTranslationError(null)}
+              className="font-bold hover:underline cursor-pointer ml-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Main Article Body (DOMPurify protected) */}
         {isBodyLoading ? (
@@ -2166,7 +2276,29 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
   const rep = calculateReputation(comment.author_reputation);
   const avatar = getHiveAvatarUrl(comment.author, 'small');
-  const safeCommentHtml = markdownToSafeHtml(comment.body);
+
+  // Comment translation state (free, markdown-preserved)
+  const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
+  const [isTranslatingComment, setIsTranslatingComment] = useState(false);
+
+  const handleToggleTranslateComment = async () => {
+    if (translatedCommentBody) {
+      setTranslatedCommentBody(null);
+      return;
+    }
+    if (!comment.body || isTranslatingComment) return;
+    setIsTranslatingComment(true);
+    try {
+      const translated = await translateMarkdown(comment.body, 'pt');
+      setTranslatedCommentBody(translated);
+    } catch (err) {
+      console.error('Failed to translate comment:', err);
+    } finally {
+      setIsTranslatingComment(false);
+    }
+  };
+
+  const safeCommentHtml = markdownToSafeHtml(translatedCommentBody || comment.body);
   const postDate = formatPostDate(comment.created);
 
   // Child replies from discussion map
@@ -2367,6 +2499,26 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         >
           <CornerDownRight className="w-3.5 h-3.5" />
           <span>Reply</span>
+        </button>
+
+        {/* Translate comment toggle */}
+        <button
+          type="button"
+          onClick={handleToggleTranslateComment}
+          disabled={isTranslatingComment}
+          className={`flex items-center gap-1 font-semibold transition cursor-pointer ${
+            translatedCommentBody
+              ? 'text-blue-600 dark:text-blue-400 font-bold'
+              : 'text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
+          }`}
+          title={translatedCommentBody ? 'Show original comment text' : 'Translate comment (Free, preserves markdown)'}
+        >
+          {isTranslatingComment ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+          ) : (
+            <Languages className="w-3.5 h-3.5" />
+          )}
+          <span>{translatedCommentBody ? 'Original' : 'Translate'}</span>
         </button>
 
         {/* Child replies action */}

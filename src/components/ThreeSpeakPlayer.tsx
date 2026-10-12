@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Loader2, AlertCircle, RefreshCw, Play, Volume2, VolumeX, Maximize, Server, ExternalLink } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Play, Volume2, VolumeX, Maximize, Server, ExternalLink, Sparkles } from 'lucide-react';
+import { get3SpeakData, getCached3SpeakData } from '../utils/videoEmbeds';
 
 interface ThreeSpeakPlayerProps {
   sources: string[]; // [videoUrl, fallback1, fallback2, fallback3]
@@ -61,6 +62,35 @@ export const ThreeSpeakPlayer: React.FC<ThreeSpeakPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const retryCountRef = useRef<number>(0);
+
+  // Extract video ID from originalUrl if available
+  const videoId = useMemo(() => {
+    if (!originalUrl) return '';
+    const m = originalUrl.match(/(?:embed\?v=|watch\?v=|shorts\?v=|embed\/|watch\/|shorts\/)([a-z0-9.-]+\/[a-z0-9_-]+)/i);
+    return m?.[1] || '';
+  }, [originalUrl]);
+
+  // Dynamic poster thumbnail state (falls back to cached or fetched API thumbnail)
+  const [activePoster, setActivePoster] = useState<string | undefined>(poster || (videoId ? getCached3SpeakData(videoId)?.thumbnail : undefined));
+
+  useEffect(() => {
+    if (poster) {
+      setActivePoster(poster);
+      return;
+    }
+    if (videoId) {
+      const cached = getCached3SpeakData(videoId)?.thumbnail;
+      if (cached) {
+        setActivePoster(cached);
+        return;
+      }
+      get3SpeakData(videoId).then((data) => {
+        if (data?.thumbnail) {
+          setActivePoster(data.thumbnail);
+        }
+      });
+    }
+  }, [poster, videoId]);
 
   const enhancedSources = useMemo(() => {
     return buildExpandedSources(rawSources);
@@ -277,12 +307,12 @@ export const ThreeSpeakPlayer: React.FC<ThreeSpeakPlayerProps> = ({
   }
 
   return (
-    <div className="relative group w-full h-full bg-black rounded-2xl overflow-hidden select-none">
+    <div className="relative group w-full aspect-video max-h-[540px] bg-black rounded-2xl overflow-hidden select-none shadow-md border border-slate-800">
       <video
         ref={videoRef}
         controls
         playsInline
-        poster={poster}
+        poster={activePoster}
         title={title}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => {
@@ -299,7 +329,7 @@ export const ThreeSpeakPlayer: React.FC<ThreeSpeakPlayerProps> = ({
       {/* Buffering overlay */}
       {isBuffering && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-black/40 backdrop-blur-xs transition-opacity z-20">
-          <div className="p-3.5 rounded-2xl bg-black/75 shadow-2xl flex items-center gap-2.5 text-white text-xs font-semibold border border-purple-500/30">
+          <div className="p-3.5 rounded-2xl bg-black/80 shadow-2xl flex items-center gap-2.5 text-white text-xs font-semibold border border-purple-500/30">
             <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
             <span>Buffering IPFS stream ({currentIdx + 1}/{enhancedSources.length})...</span>
           </div>
@@ -318,9 +348,9 @@ export const ThreeSpeakPlayer: React.FC<ThreeSpeakPlayerProps> = ({
         </div>
       )}
 
-      {/* Top bar with gateway info */}
+      {/* Top bar with gateway info and typography */}
       <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-[11px] font-semibold text-white/90 shadow-md">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md text-[11px] font-semibold text-white/90 shadow-md border border-white/10">
           <Server className="w-3 h-3 text-purple-400" />
           <span>IPFS Node #{currentIdx + 1}</span>
           {enhancedSources.length > 1 && (
@@ -339,7 +369,7 @@ export const ThreeSpeakPlayer: React.FC<ThreeSpeakPlayerProps> = ({
         </div>
 
         {title && (
-          <span className="text-xs font-medium text-white/90 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full truncate max-w-[200px] sm:max-w-xs shadow-md">
+          <span className="text-xs font-semibold text-white/95 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full truncate max-w-[200px] sm:max-w-xs shadow-md border border-white/10">
             {title}
           </span>
         )}
