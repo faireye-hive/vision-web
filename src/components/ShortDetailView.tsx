@@ -17,7 +17,9 @@ import {
   X,
   MoreHorizontal,
   UserX,
-  Copy
+  Copy,
+  Languages,
+  Loader2
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -30,6 +32,8 @@ import {
 } from '../services/shortsApi';
 import { SnapContent } from './SnapContent';
 import { VoteWeightDialog } from './VoteWeightDialog';
+import { translateMarkdown, POPULAR_TRANSLATION_LANGUAGES } from '../services/translationService';
+import { ShortTranslatorDropdown } from './ShortTranslatorDropdown';
 
 interface ShortDetailViewProps {
   snap: HivePost;
@@ -76,6 +80,36 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   // 3-dots menu state
   const [showMenu, setShowMenu] = useState(false);
   const [menuFeedback, setMenuFeedback] = useState<string | null>(null);
+
+  // Short detail translation state (free, markdown-preserved)
+  const [activeTranslationLang, setActiveTranslationLang] = useState<string | null>(null);
+  const [translatedBody, setTranslatedBody] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
+
+  useEffect(() => {
+    setActiveTranslationLang(null);
+    setTranslatedBody(null);
+    setIsTranslating(false);
+  }, [snap.author, snap.permlink]);
+
+  const handleTranslateShort = async (langCode: string) => {
+    if (!snap.body || isTranslating) return;
+    setIsTranslating(true);
+    try {
+      const translated = await translateMarkdown(snap.body, langCode);
+      setTranslatedBody(translated);
+      setActiveTranslationLang(langCode);
+    } catch (err) {
+      console.error('Failed to translate short in detail:', err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleResetOriginalShort = () => {
+    setActiveTranslationLang(null);
+    setTranslatedBody(null);
+  };
 
   // Fetch full discussion specifically for this snap
   const fetchFreshDiscussion = useCallback(async (forceRefresh = false) => {
@@ -534,7 +568,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             </div>
 
             <SnapContent
-              body={snap.body}
+              body={translatedBody || snap.body}
               jsonMetadata={snap.json_metadata}
               author={snap.author}
               permlink={snap.permlink}
@@ -544,7 +578,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             />
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-4 sm:gap-6">
+              <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
                 <button
                   onClick={handleVote}
                   disabled={voteLoading || upvoted}
@@ -557,10 +591,20 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
                   <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${upvoted ? 'fill-current animate-bounce' : ''}`} />
                   <span>{upvoted ? 'Voted' : 'Vote'}</span>
                 </button>
+
                 <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 font-medium">
                   <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                   <span className="text-[13px]">{totalCommentsCount}</span>
                 </div>
+
+                {/* Free Markdown-Preserving Translation Dropdown */}
+                <ShortTranslatorDropdown
+                  currentLanguage={activeTranslationLang}
+                  isTranslating={isTranslating}
+                  onSelectLanguage={handleTranslateShort}
+                  onResetOriginal={handleResetOriginalShort}
+                  compact={false}
+                />
               </div>
               <button
                 onClick={handleCopyLink}
@@ -787,11 +831,35 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
 
   const cleanedBody = useMemo(() => cleanSnapBody(comment.body), [comment.body]);
 
-  const { isTruncated, truncatedText } = useMemo(() => {
-    return truncateSnapText(cleanedBody || comment.body, 300);
-  }, [cleanedBody, comment.body]);
+  // Comment translation state (free, markdown-preserved)
+  const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
+  const [isTranslatingComment, setIsTranslatingComment] = useState(false);
 
-  const activeBody = isTruncated && !isCommentExpanded ? truncatedText : (cleanedBody || comment.body);
+  const handleToggleTranslateComment = async () => {
+    if (translatedCommentBody) {
+      setTranslatedCommentBody(null);
+      return;
+    }
+    const textToTranslate = cleanedBody || comment.body;
+    if (!textToTranslate || isTranslatingComment) return;
+    setIsTranslatingComment(true);
+    try {
+      const res = await translateMarkdown(textToTranslate, 'pt');
+      setTranslatedCommentBody(res);
+    } catch (err) {
+      console.error('Failed to translate thread comment:', err);
+    } finally {
+      setIsTranslatingComment(false);
+    }
+  };
+
+  const effectiveBody = translatedCommentBody || cleanedBody || comment.body;
+
+  const { isTruncated, truncatedText } = useMemo(() => {
+    return truncateSnapText(effectiveBody, 300);
+  }, [effectiveBody]);
+
+  const activeBody = isTruncated && !isCommentExpanded ? truncatedText : effectiveBody;
   const safeHtml = useMemo(() => markdownToSafeHtml(activeBody), [activeBody]);
 
   const [voteOpen, setVoteOpen] = useState(false);
@@ -1080,6 +1148,29 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
             >
               <CornerDownRight className="w-3.5 h-3.5" />
               <span>Reply</span>
+            </button>
+
+            {/* Translate comment toggle */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleTranslateComment();
+              }}
+              disabled={isTranslatingComment}
+              className={`flex items-center gap-1 text-xs font-semibold transition cursor-pointer ${
+                translatedCommentBody
+                  ? 'text-blue-600 dark:text-blue-400 font-bold'
+                  : 'text-slate-400 hover:text-blue-600'
+              }`}
+              title={translatedCommentBody ? 'Show original comment text' : 'Translate comment (Free, preserves markdown)'}
+            >
+              {isTranslatingComment ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+              ) : (
+                <Languages className="w-3.5 h-3.5" />
+              )}
+              <span>{translatedCommentBody ? 'Original' : 'Translate'}</span>
             </button>
 
             {repliesCount > 0 && (

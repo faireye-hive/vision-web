@@ -13,7 +13,9 @@ import {
   X,
   MoreHorizontal,
   UserX,
-  Copy
+  Copy,
+  Languages,
+  Loader2
 } from 'lucide-react';
 import { HivePost, calculateReputation, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -24,6 +26,8 @@ import {
 } from '../services/shortsApi';
 import { SnapContent } from './SnapContent';
 import { VoteWeightDialog } from './VoteWeightDialog';
+import { translateMarkdown, POPULAR_TRANSLATION_LANGUAGES } from '../services/translationService';
+import { ShortTranslatorDropdown } from './ShortTranslatorDropdown';
 
 interface ShortCardProps {
   snap: HivePost;
@@ -77,6 +81,57 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   // 3-dots options menu state
   const [showMenu, setShowMenu] = useState(false);
   const [menuFeedback, setMenuFeedback] = useState<string | null>(null);
+
+  // Short translation state (free, markdown-preserved)
+  const [activeTranslationLang, setActiveTranslationLang] = useState<string | null>(null);
+  const [translatedBody, setTranslatedBody] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
+
+  const handleTranslateShort = async (langCode: string) => {
+    if (!snap.body || isTranslating) return;
+    setIsTranslating(true);
+    try {
+      const translated = await translateMarkdown(snap.body, langCode);
+      setTranslatedBody(translated);
+      setActiveTranslationLang(langCode);
+    } catch (err) {
+      console.error('Failed to translate short:', err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleResetOriginalShort = () => {
+    setActiveTranslationLang(null);
+    setTranslatedBody(null);
+  };
+
+  // Subcomment translation state (map of permlink -> translatedBody)
+  const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({});
+  const [translatingReplyKey, setTranslatingReplyKey] = useState<string | null>(null);
+
+  const handleToggleTranslateReply = async (reply: HivePost) => {
+    const key = `${reply.author}/${reply.permlink}`;
+    if (translatedReplies[key]) {
+      setTranslatedReplies((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+    const cleanText = cleanSnapBody(reply.body) || reply.body;
+    if (!cleanText || translatingReplyKey) return;
+    setTranslatingReplyKey(key);
+    try {
+      const translated = await translateMarkdown(cleanText, 'pt');
+      setTranslatedReplies((prev) => ({ ...prev, [key]: translated }));
+    } catch (err) {
+      console.error('Failed to translate subcomment:', err);
+    } finally {
+      setTranslatingReplyKey(null);
+    }
+  };
 
   // In-line reply state
   const [replyText, setReplyText] = useState('');
@@ -368,7 +423,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
           </div>
 
           <SnapContent
-            body={snap.body}
+            body={translatedBody || snap.body}
             jsonMetadata={snap.json_metadata}
             author={snap.author}
             permlink={snap.permlink}
@@ -399,8 +454,16 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                   upvoted ? 'fill-rose-600 dark:fill-rose-400 stroke-rose-600 dark:stroke-rose-400' : ''
                 }`}
               />
-              <span>{upvoted ? 'Upvoted' : 'Upvote'}</span>
+              <span>{upvoted ? 'Upvoted' : 'Vote'}</span>
             </button>
+
+            {/* Free Markdown-Preserving Translation Dropdown */}
+            <ShortTranslatorDropdown
+              currentLanguage={activeTranslationLang}
+              isTranslating={isTranslating}
+              onSelectLanguage={handleTranslateShort}
+              onResetOriginal={handleResetOriginalShort}
+            />
 
             {/* Replies / Subcomments Button */}
             <button
@@ -484,8 +547,12 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
             <div className="space-y-3 pl-2 sm:pl-4 border-l-2 border-blue-200/60 dark:border-blue-900/60 ml-2 sm:ml-4">
               {subcomments.map((reply) => {
                 const replyAvatar = getHiveAvatarUrl(reply.author, 'small');
+                const replyKey = `${reply.author}/${reply.permlink}`;
                 const replyRep = calculateReputation(reply.author_reputation);
-                const replyHtml = markdownToSafeHtml(cleanSnapBody(reply.body) || reply.body);
+                const isReplyTranslating = translatingReplyKey === replyKey;
+                const translatedReply = translatedReplies[replyKey];
+                const activeReplyBody = translatedReply || cleanSnapBody(reply.body) || reply.body;
+                const replyHtml = markdownToSafeHtml(activeReplyBody);
                 const replyTime = formatRelativeTime(reply.created);
 
                 return (
@@ -513,7 +580,27 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                         </button>
                         <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">({replyRep})</span>
                       </div>
-                      <span className="text-[11px] text-gray-400 dark:text-slate-500">{replyTime}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleTranslateReply(reply)}
+                          disabled={isReplyTranslating}
+                          className={`flex items-center gap-1 text-[11px] font-semibold transition cursor-pointer ${
+                            translatedReply
+                              ? 'text-blue-600 dark:text-blue-400 font-bold'
+                              : 'text-slate-400 hover:text-blue-600'
+                          }`}
+                          title={translatedReply ? 'Show original text' : 'Translate reply (Free, preserves markdown)'}
+                        >
+                          {isReplyTranslating ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                          ) : (
+                            <Languages className="w-3 h-3" />
+                          )}
+                          <span>{translatedReply ? 'Original' : 'Translate'}</span>
+                        </button>
+                        <span className="text-[11px] text-gray-400 dark:text-slate-500">{replyTime}</span>
+                      </div>
                     </div>
 
                     <div
