@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ShieldAlert,
   X,
@@ -12,9 +12,12 @@ import {
   SlidersHorizontal,
   ChevronRight,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck,
+  Search
 } from 'lucide-react';
 import { getHiveAvatarUrl } from '../services/hiveApi';
+import { processShortsTags } from '../utils/shortsNoiseFilter';
 
 interface ShortsFilterDrawerProps {
   isOpen: boolean;
@@ -72,7 +75,17 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
 }) => {
   const [wordInput, setWordInput] = useState('');
   const [authorInput, setAuthorInput] = useState('');
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [hideSpamTags, setHideSpamTags] = useState(true);
   const [activeTab, setActiveTab] = useState<'hashtags' | 'words' | 'authors'>('hashtags');
+
+  const { cleanTags, spamTagsCount } = useMemo(() => {
+    return processShortsTags(hashtags, {
+      hideSpam: hideSpamTags,
+      searchQuery: tagSearchQuery,
+      blockedWords
+    });
+  }, [hashtags, hideSpamTags, tagSearchQuery, blockedWords]);
 
   // Swipe-to-dismiss gesture handling
   const touchStartXRef = useRef<number>(0);

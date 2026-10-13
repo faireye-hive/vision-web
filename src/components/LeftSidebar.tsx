@@ -26,6 +26,7 @@ import { CurrentUser } from '../services/keychain';
 import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
 import { getSmartAccountsActivity } from '../services/accountsCache';
 import { ShortsSource } from '../hooks/useShortsWordFilter';
+import { processShortsTags, getFavoriteTags } from '../utils/shortsNoiseFilter';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
@@ -320,12 +321,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     });
   }, [trendingTopics, searchQuery, favTopics]);
 
-  // Ranked Shorts Hashtags from comments
+  // Ranked Shorts Hashtags from comments (with anti-noise spam filtering and pinned tags prioritized)
   const rankedShortsTags = useMemo(() => {
-    if (!shortsHashtags || shortsHashtags.length === 0) return [];
-    const query = searchQuery.trim().toLowerCase().replace(/^#/, '');
-    if (!query) return shortsHashtags;
-    return shortsHashtags.filter(item => item.tag.toLowerCase().includes(query));
+    const { cleanTags } = processShortsTags(shortsHashtags || [], {
+      hideSpam: true,
+      searchQuery,
+      favoriteTags: getFavoriteTags()
+    });
+    return cleanTags;
   }, [shortsHashtags, searchQuery]);
 
   const getRelativeTime = (timeStr?: string) => {
@@ -448,10 +451,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className={`font-bold ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>
-                        #
-                      </span>
+                    <div className="flex items-center gap-1.5 truncate">
+                      {item.isFavorite ? (
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-500 flex-shrink-0" />
+                      ) : (
+                        <span className={`font-bold ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>
+                          #
+                        </span>
+                      )}
                       <span className="truncate">{item.tag}</span>
                     </div>
 

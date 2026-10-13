@@ -44,7 +44,9 @@ import {
 } from '../services/shortsCache';
 import { ShortsSource } from '../hooks/useShortsWordFilter';
 import { ShortsFilterDrawer } from './ShortsFilterDrawer';
-import { ShieldAlert, Loader2, Camera } from 'lucide-react';
+import { MobileShortsTagsModal } from './MobileShortsTagsModal';
+import { processShortsTags, getFavoriteTags, saveFavoriteTags } from '../utils/shortsNoiseFilter';
+import { ShieldAlert, Loader2, Camera, Star } from 'lucide-react';
 
 interface ShortsFeedProps {
   currentUser: CurrentUser | null;
@@ -180,7 +182,29 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   const lastScrollYRef = useRef<number>(0);
   const [showMobileComposerModal, setShowMobileComposerModal] = useState<boolean>(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState<boolean>(false);
+  const [isTagsModalOpen, setIsTagsModalOpen] = useState<boolean>(false);
   const [localHashtags, setLocalHashtags] = useState<{ tag: string; count: number }[]>([]);
+  const [favoriteTags, setFavoriteTags] = useState<string[]>(() => getFavoriteTags());
+
+  const handleToggleFavoriteTag = useCallback((tagToToggle: string) => {
+    const clean = tagToToggle.toLowerCase().replace(/^#/, '');
+    setFavoriteTags((prev) => {
+      const exists = prev.includes(clean);
+      const next = exists ? prev.filter((t) => t !== clean) : [...prev, clean];
+      saveFavoriteTags(next);
+      return next;
+    });
+  }, []);
+
+  // Mobile quick top tags (filtered by anti-noise heuristic with pinned tags prioritized)
+  const cleanTopTags = useMemo(() => {
+    const { cleanTags } = processShortsTags(localHashtags, {
+      hideSpam: true,
+      blockedWords,
+      favoriteTags
+    });
+    return cleanTags.slice(0, 18);
+  }, [localHashtags, blockedWords, favoriteTags]);
 
   // Mobile swipe gesture to open filter drawer from the right edge
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -754,11 +778,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             <span>Replies</span>
           </button>
 
+
           <button
             type="button"
             id="shorts-nav-filter-btn"
             onClick={() => setIsFilterDrawerOpen(true)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               isFilterDrawerOpen
                 ? 'bg-blue-600 text-white shadow-xs'
                 : (blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled))
@@ -774,6 +799,79 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             )}
           </button>
         </div>
+
+        {/* ================= MOBILE CLEAN TAGS CAROUSEL (WITH ANTI-NOISE FILTER) ================= */}
+        {cleanTopTags.length > 0 && (
+          <div className="sm:hidden mt-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl py-1.5 px-2 border border-slate-200/70 dark:border-slate-800 shadow-2xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {/* All Tags Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onSelectTag) onSelectTag('');
+              }}
+              className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer ${
+                !selectedTag
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>All</span>
+            </button>
+
+            {/* Open Full Tags Modal Button */}
+            <button
+              type="button"
+              onClick={() => setIsTagsModalOpen(true)}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-950/70 border border-blue-200/80 dark:border-blue-900/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition cursor-pointer"
+              title="Browse all tags with anti-noise filter"
+            >
+              <Hash className="w-3 h-3 text-blue-500" />
+              <span>Topics</span>
+            </button>
+
+            {/* Clean, Non-Spam Tags */}
+            {cleanTopTags.map(({ tag, count, isFavorite }) => {
+              const isSelected = selectedTag.toLowerCase().replace(/^#/, '') === tag.toLowerCase();
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    if (onSelectTag) onSelectTag(isSelected ? '' : tag);
+                  }}
+                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                      : isFavorite
+                      ? 'bg-amber-50/90 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-900/60 hover:bg-amber-100'
+                      : 'bg-slate-100/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:text-blue-600 dark:hover:text-blue-400'
+                  }`}
+                  title={isFavorite ? `Pinned #${tag} (${count} snaps)` : `Filter by #${tag} (${count} snaps)`}
+                >
+                  {isFavorite ? (
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                  ) : (
+                    <span className="opacity-70">#</span>
+                  )}
+                  <span>{tag}</span>
+                  <span className={`text-[9px] font-mono px-1 rounded ${isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-200/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* View All Tags / Open Modal button */}
+            <button
+              type="button"
+              onClick={() => setIsTagsModalOpen(true)}
+              className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition cursor-pointer"
+              title="Open full tags modal with noise search"
+            >
+              <span>More...</span>
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* ================= SHORTS COMPOSER (POST TO COMMUNITY - DESKTOP ONLY) ================= */}
@@ -1034,10 +1132,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 <span>#{selectedTag}</span>
                 <button
                   onClick={() => onSelectTag && onSelectTag('')}
-                  className="ml-1 hover:text-blue-900 dark:hover:text-blue-100 font-bold"
+                  className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-100 font-bold px-1"
                   title="Clear hashtag filter"
                 >
                   &times;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTagsModalOpen(true)}
+                  className="ml-1 text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline pl-1 border-l border-blue-200 dark:border-blue-800"
+                >
+                  Change
                 </button>
               </div>
             )}
@@ -1228,6 +1333,32 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         </button>
       )}
 
+      {/* ================= MOBILE FLOATING TAGS PILL ================= */}
+      {!isViewingDetail && (
+        <button
+          type="button"
+          id="shorts-mobile-floating-tags"
+          onClick={() => setIsTagsModalOpen(true)}
+          className="sm:hidden fixed bottom-20 left-4 z-40 flex items-center gap-1.5 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-800 dark:text-slate-100 rounded-full shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs font-bold active:scale-95 transition cursor-pointer"
+          title="Browse Shorts tags"
+        >
+          <Hash className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span className="max-w-[110px] truncate">{selectedTag ? `#${selectedTag}` : 'Tags'}</span>
+          {selectedTag && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onSelectTag) onSelectTag('');
+              }}
+              className="ml-0.5 text-slate-400 hover:text-rose-500 font-black p-0.5"
+              title="Clear tag"
+            >
+              &times;
+            </span>
+          )}
+        </button>
+      )}
+
       {/* ================= MOBILE QUICK SNAP MODAL ================= */}
       {!isViewingDetail && showMobileComposerModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
@@ -1318,6 +1449,21 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         selectedTag={selectedTag}
         onSelectTag={onSelectTag}
         hiddenCount={hiddenCount}
+      />
+
+      {/* ================= MOBILE SHORTS TAGS SELECTION MODAL ================= */}
+      <MobileShortsTagsModal
+        isOpen={isTagsModalOpen}
+        onClose={() => setIsTagsModalOpen(false)}
+        hashtags={localHashtags}
+        selectedTag={selectedTag}
+        onSelectTag={onSelectTag || (() => {})}
+        blockedWords={blockedWords}
+        onAddWord={onAddWord || (() => {})}
+        onRemoveWord={onRemoveWord || (() => {})}
+        onOpenFilterDrawer={() => setIsFilterDrawerOpen(true)}
+        favoriteTags={favoriteTags}
+        onToggleFavorite={handleToggleFavoriteTag}
       />
 
     </div>
