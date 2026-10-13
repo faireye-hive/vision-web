@@ -215,7 +215,7 @@ export async function translateMarkdown(
   let currentLen = 0;
 
   for (const block of maskedBlocks) {
-    if (currentLen + block.length + DELIMITER.length > 1500 && currentBatch.length > 0) {
+    if (currentLen + block.length + DELIMITER.length > 499 && currentBatch.length > 0) {
       batches.push(currentBatch);
       currentBatch = [block];
       currentLen = block.length;
