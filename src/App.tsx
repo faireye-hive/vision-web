@@ -31,7 +31,8 @@ const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default:
 const FollowingManagerPage = lazy(() => import('./pages/FollowingManagerPage').then((m) => ({ default: m.FollowingManagerPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
-const CommunitiesPage = lazy(() => import('./pages/CommunitiesPage').then((m) => ({ default: m.CommunitiesPage })));
+const ExploreCommunitiesPage = lazy(() => import('./pages/ExploreCommunitiesPage').then((m) => ({ default: m.ExploreCommunitiesPage })));
+const ManageCommunitiesPage = lazy(() => import('./pages/ManageCommunitiesPage').then((m) => ({ default: m.ManageCommunitiesPage })));
 const PostReader = lazy(() => import('./components/PostReader').then((m) => ({ default: m.PostReader })));
 const BlockchainStatsModal = lazy(() => import('./components/BlockchainStatsModal').then((m) => ({ default: m.BlockchainStatsModal })));
 
@@ -221,11 +222,31 @@ function NebulosaApp() {
           />
         )}
 
-        {(standalonePage === 'explore' || standalonePage === 'manage') && (
-          <CommunitiesPage
-            mode={standalonePage}
+        {standalonePage === 'explore' && (
+          <ExploreCommunitiesPage
             onClose={closeStandalonePage}
-            onSwitchMode={(mode) => openStandalonePage(mode)}
+            onSwitchToManage={() => openStandalonePage('manage')}
+            onSwitchToFeed={() => {
+              closeStandalonePage();
+              handleNavChange('communities');
+            }}
+            joinedCommunities={joinedCommunities}
+            onToggleJoinCommunity={toggleJoinCommunity}
+            account={currentUser?.username || null}
+            onSelectCommunity={(communityName) => {
+              openCommunity(communityName);
+            }}
+          />
+        )}
+
+        {standalonePage === 'manage' && (
+          <ManageCommunitiesPage
+            onClose={closeStandalonePage}
+            onSwitchToExplore={() => openStandalonePage('explore')}
+            onSwitchToFeed={() => {
+              closeStandalonePage();
+              handleNavChange('communities');
+            }}
             joinedCommunities={joinedCommunities}
             onToggleJoinCommunity={toggleJoinCommunity}
             account={currentUser?.username || null}

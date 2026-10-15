@@ -6,7 +6,8 @@ import {
   SlidersHorizontal,
   ShieldAlert,
   EyeOff,
-  Compass
+  Compass,
+  Layers
 } from 'lucide-react';
 import {
   HivePost,
@@ -57,7 +58,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
   onPostsLoaded
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, joinedCommunities } = useAuth();
   const {
     sort,
     setSort,
@@ -72,8 +73,15 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     handleSelectPost,
     openContentFilterModal,
     setActiveNav,
-    feedLayoutMode
+    feedLayoutMode,
+    openCommunitiesModal,
+    openManageCommunitiesModal
   } = useNavigation();
+
+  const joinedCount = useMemo(
+    () => Object.values(joinedCommunities || {}).filter(Boolean).length,
+    [joinedCommunities]
+  );
 
   const {
     config: contentFilterConfig,
@@ -548,12 +556,43 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           id="discover-header-left"
           className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap min-w-0"
         >
-          <span
-            id="discover-header-title"
-            className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0 hidden sm:inline-block"
-          >
-            {isCommunitiesFeed ? 'Communities' : 'Discover'}
-          </span>
+          {isCommunitiesFeed ? (
+            <div className="flex items-center gap-1 p-0.5 bg-gray-100/90 dark:bg-slate-800/90 rounded-2xl border border-gray-200/50 dark:border-slate-700/50 mr-1 flex-shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs">
+                <span>Feed</span>
+              </span>
+              <button
+                type="button"
+                onClick={openCommunitiesModal}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                title="Explore and discover Hive communities"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>Explore</span>
+              </button>
+              <button
+                type="button"
+                onClick={openManageCommunitiesModal}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer"
+                title="Manage your subscribed communities"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Manage</span>
+                {joinedCount > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300">
+                    {joinedCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            <span
+              id="discover-header-title"
+              className="font-bold text-gray-900 dark:text-white text-sm sm:text-base capitalize flex-shrink-0 hidden sm:inline-block"
+            >
+              Discover
+            </span>
+          )}
 
           {/* Sort Selector */}
           <SortDropdown

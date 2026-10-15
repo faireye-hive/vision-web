@@ -13,13 +13,22 @@ import {
   Atom,
   Trophy,
   Trees,
-  Heart,
+  Sparkles,
   Wrench,
+  PawPrint,
+  Landmark,
+  GraduationCap,
+  HeartPulse,
+  Clapperboard,
+  Hexagon,
+  Scale,
+  Globe,
   Search,
   Star,
   X,
   Layers
 } from 'lucide-react';
+import { CATEGORY_DEFINITIONS } from '../data/categorySubtopics';
 
 export interface PredefinedCategory {
   id: string;
@@ -31,143 +40,83 @@ export interface PredefinedCategory {
   badgeBg: string;
 }
 
-export const PREDEFINED_CATEGORIES: PredefinedCategory[] = [
-  {
-    id: 'photography',
-    name: 'Photography',
-    tag: 'photography',
-    description: 'Street, portrait, visual arts and landscapes',
-    icon: Camera,
-    color: 'text-purple-600',
-    badgeBg: 'bg-purple-50 text-purple-700',
-  },
-  {
-    id: 'crypto',
-    name: 'Crypto & Web3',
-    tag: 'crypto',
-    description: 'Blockchain news, Bitcoin, DeFi and Web3 tech',
-    icon: Coins,
-    color: 'text-amber-500',
-    badgeBg: 'bg-amber-50 text-amber-700',
-  },
-  {
-    id: 'technology',
-    name: 'Tech',
-    tag: 'technology',
-    description: 'Programming, open-source, AI and hardware',
-    icon: Laptop,
-    color: 'text-blue-600',
-    badgeBg: 'bg-blue-50 text-blue-700',
-  },
-  {
-    id: 'gaming',
-    name: 'Gaming & Esports',
-    tag: 'gaming',
-    description: 'Video games, Web3 gaming and walkthroughs',
-    icon: Gamepad2,
-    color: 'text-emerald-600',
-    badgeBg: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    id: 'art',
-    name: 'Art & Design',
-    tag: 'art',
-    description: 'Digital art, illustrations and creative craft',
-    icon: Palette,
-    color: 'text-pink-600',
-    badgeBg: 'bg-pink-50 text-pink-700',
-  },
-  {
-    id: 'travel',
-    name: 'Travel & Explore',
-    tag: 'travel',
-    description: 'Destinations, road trips and cultural journeys',
-    icon: Compass,
-    color: 'text-teal-600',
-    badgeBg: 'bg-teal-50 text-teal-700',
-  },
-  {
-    id: 'writing',
-    name: 'Writing & Stories',
-    tag: 'writing',
-    description: 'Literature, poetry, storytelling and essays',
-    icon: BookOpen,
-    color: 'text-indigo-600',
-    badgeBg: 'bg-indigo-50 text-indigo-700',
-  },
-  {
-    id: 'music',
-    name: 'Music & Audio',
-    tag: 'music',
-    description: 'Tracks, production, performances and reviews',
-    icon: Music,
-    color: 'text-rose-600',
-    badgeBg: 'bg-rose-50 text-rose-700',
-  },
-  {
-    id: 'food',
-    name: 'Food & Cooking',
-    tag: 'food',
-    description: 'Recipes, culinary traditions and gastronomy',
-    icon: Utensils,
-    color: 'text-orange-500',
-    badgeBg: 'bg-orange-50 text-orange-700',
-  },
-  {
-    id: 'finance',
-    name: 'Finance & Markets',
-    tag: 'finance',
-    description: 'Investing, personal finance and economics',
-    icon: TrendingUp,
-    color: 'text-green-600',
-    badgeBg: 'bg-green-50 text-green-700',
-  },
-  {
-    id: 'science',
-    name: 'Science & Nature',
-    tag: 'science',
-    description: 'Discoveries, astronomy, biology and tech',
-    icon: Atom,
-    color: 'text-cyan-600',
-    badgeBg: 'bg-cyan-50 text-cyan-700',
-  },
-  {
-    id: 'sports',
-    name: 'Sports & Fitness',
-    tag: 'sports',
-    description: 'Athletics, workouts and sports coverage',
-    icon: Trophy,
-    color: 'text-red-500',
-    badgeBg: 'bg-red-50 text-red-700',
-  },
-  {
-    id: 'nature',
-    name: 'Nature & Wildlife',
-    tag: 'nature',
-    description: 'Forests, wildlife, ecology and gardening',
-    icon: Trees,
-    color: 'text-emerald-500',
-    badgeBg: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    id: 'life',
-    name: 'Life & Reflections',
-    tag: 'life',
-    description: 'Personal experiences, life lessons and thoughts',
-    icon: Heart,
-    color: 'text-rose-500',
-    badgeBg: 'bg-rose-50 text-rose-700',
-  },
-  {
-    id: 'diy',
-    name: 'DIY & Crafts',
-    tag: 'diy',
-    description: 'Do-it-yourself builds, crafts and makers',
-    icon: Wrench,
-    color: 'text-lime-600',
-    badgeBg: 'bg-lime-50 text-lime-700',
-  },
-];
+interface CategoryStyle {
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  badgeBg: string;
+}
+
+// Visual de cada categoria, indexado pelo `tag` de CATEGORY_DEFINITIONS.
+// Nome, descrição e tag vêm de categorySubtopics.ts (fonte única).
+const CATEGORY_STYLES: Record<string, CategoryStyle> = {
+  animals:     { icon: PawPrint,      color: 'text-yellow-600',  badgeBg: 'bg-yellow-50 text-yellow-700' },
+  art:         { icon: Palette,       color: 'text-pink-600',    badgeBg: 'bg-pink-50 text-pink-700' },
+  crypto:      { icon: Coins,         color: 'text-amber-500',   badgeBg: 'bg-amber-50 text-amber-700' },
+  culture:     { icon: Landmark,      color: 'text-stone-600',   badgeBg: 'bg-stone-50 text-stone-700' },
+  diy:         { icon: Wrench,        color: 'text-lime-600',    badgeBg: 'bg-lime-50 text-lime-700' },
+  education:   { icon: GraduationCap, color: 'text-sky-600',     badgeBg: 'bg-sky-50 text-sky-700' },
+  finance:     { icon: TrendingUp,    color: 'text-green-600',   badgeBg: 'bg-green-50 text-green-700' },
+  food:        { icon: Utensils,      color: 'text-orange-500',  badgeBg: 'bg-orange-50 text-orange-700' },
+  gaming:      { icon: Gamepad2,      color: 'text-emerald-600', badgeBg: 'bg-emerald-50 text-emerald-700' },
+  health:      { icon: HeartPulse,    color: 'text-red-500',     badgeBg: 'bg-red-50 text-red-700' },
+  hive:        { icon: Hexagon,       color: 'text-yellow-500',  badgeBg: 'bg-yellow-50 text-yellow-700' },
+  lifestyle:   { icon: Sparkles,      color: 'text-fuchsia-500', badgeBg: 'bg-fuchsia-50 text-fuchsia-700' },
+  media:       { icon: Clapperboard,  color: 'text-violet-600',  badgeBg: 'bg-violet-50 text-violet-700' },
+  music:       { icon: Music,         color: 'text-rose-600',    badgeBg: 'bg-rose-50 text-rose-700' },
+  nature:      { icon: Trees,         color: 'text-emerald-500', badgeBg: 'bg-emerald-50 text-emerald-700' },
+  photography: { icon: Camera,        color: 'text-purple-600',  badgeBg: 'bg-purple-50 text-purple-700' },
+  politics:    { icon: Scale,         color: 'text-slate-600',   badgeBg: 'bg-slate-100 text-slate-700' },
+  science:     { icon: Atom,          color: 'text-cyan-600',    badgeBg: 'bg-cyan-50 text-cyan-700' },
+  sports:      { icon: Trophy,        color: 'text-red-500',     badgeBg: 'bg-red-50 text-red-700' },
+  technology:  { icon: Laptop,        color: 'text-blue-600',    badgeBg: 'bg-blue-50 text-blue-700' },
+  travel:      { icon: Compass,       color: 'text-teal-600',    badgeBg: 'bg-teal-50 text-teal-700' },
+  world:       { icon: Globe,         color: 'text-indigo-500',  badgeBg: 'bg-indigo-50 text-indigo-700' },
+  writing:     { icon: BookOpen,      color: 'text-indigo-600',  badgeBg: 'bg-indigo-50 text-indigo-700' },
+};
+
+const DEFAULT_STYLE: CategoryStyle = {
+  icon: Layers,
+  color: 'text-gray-500',
+  badgeBg: 'bg-gray-50 text-gray-700',
+};
+
+export const PREDEFINED_CATEGORIES: PredefinedCategory[] = CATEGORY_DEFINITIONS.map((def) => {
+  const style = CATEGORY_STYLES[def.tag] ?? DEFAULT_STYLE;
+  return {
+    id: def.tag,
+    name: def.label,
+    tag: def.tag,
+    description: def.description ?? '',
+    icon: style.icon,
+    color: style.color,
+    badgeBg: style.badgeBg,
+  };
+});
+
+const FAV_STORAGE_KEY = 'nebulosa_fav_categories';
+const DEFAULT_FAVS = ['photography', 'crypto', 'technology'];
+
+// Ids antigos que mudaram de nome (favoritos já salvos no navegador)
+const LEGACY_ID_MAP: Record<string, string> = {
+  life: 'lifestyle',
+};
+
+function loadFavorites(): string[] {
+  try {
+    const saved = localStorage.getItem(FAV_STORAGE_KEY);
+    if (!saved) return DEFAULT_FAVS;
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return DEFAULT_FAVS;
+
+    const validIds = new Set(PREDEFINED_CATEGORIES.map((c) => c.id));
+    const migrated = parsed
+      .map((id: string) => LEGACY_ID_MAP[id] ?? id)
+      .filter((id: string) => validIds.has(id));
+    return Array.from(new Set(migrated));
+  } catch {
+    return DEFAULT_FAVS;
+  }
+}
 
 interface PredefinedCategoriesCardProps {
   currentTag: string;
@@ -179,14 +128,7 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
   onSelectTag,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [favCategories, setFavCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('nebulosa_fav_categories');
-      return saved ? JSON.parse(saved) : ['photography', 'crypto', 'technology'];
-    } catch {
-      return ['photography', 'crypto', 'technology'];
-    }
-  });
+  const [favCategories, setFavCategories] = useState<string[]>(loadFavorites);
 
   const toggleFavCategory = (catId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -195,13 +137,13 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
         ? prev.filter((id) => id !== catId)
         : [...prev, catId];
       try {
-        localStorage.setItem('nebulosa_fav_categories', JSON.stringify(updated));
+        localStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(updated));
       } catch {}
       return updated;
     });
   };
 
-const filteredCategories = useMemo(() => {
+  const filteredCategories = useMemo(() => {
     let list = PREDEFINED_CATEGORIES;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -216,18 +158,18 @@ const filteredCategories = useMemo(() => {
     return [...list].sort((a, b) => {
       const aFav = favCategories.includes(a.id);
       const bFav = favCategories.includes(b.id);
-      
-      // 1. Favoritos continuam no topo
+
+      // 1. Favoritos no topo
       if (aFav && !bFav) return -1;
       if (!aFav && bFav) return 1;
-      
-      // 2. Entre os iguais (ambos favoritos ou ambos não favoritos), ordena A-Z pelo nome
+
+      // 2. Entre iguais, ordem A-Z pelo nome
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
   }, [searchQuery, favCategories]);
 
   return (
-    <div 
+    <div
       className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4"
       style={{ padding: '5px', borderRadius: '15px', width: '250px', paddingTop: '20px', marginTop: '39px', marginBottom: '0px' }}
     >
@@ -325,7 +267,7 @@ const filteredCategories = useMemo(() => {
                         #{category.tag}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-400 dark:text-slate-500 font-normal truncate mt-0.2">
+                    <p className="text-[10px] text-gray-400 dark:text-slate-500 font-normal truncate mt-0.5">
                       {category.description}
                     </p>
                   </div>
@@ -333,7 +275,7 @@ const filteredCategories = useMemo(() => {
 
                 <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                   {isSelected && (
-                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full font-semibold">
+                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-semibold">
                       active
                     </span>
                   )}

@@ -12,10 +12,12 @@
  *
  * 2. To ADD A WHOLE NEW CATEGORY:
  *    Add a new object to the `RAW_CATEGORY_DEFINITIONS` array below with `tag`, `label`,
- *    `icon`, and your list of `subtopics`.
+ *    `icon`, and your list of `subtopics`. Then add its keywords in EXTRA_KEYWORDS
+ *    (communityClassifier) and, if needed, a line in KNOWN_CATEGORY_TO_TAG.
  *
  * NOTE: The exported CATEGORY_DEFINITIONS will automatically sort categories
  * and subtopics alphabetically (A-Z) by their `label`.
+ * All tags must be lowercase (Hive tags are always lowercase).
  */
 
 export interface Subtopic {
@@ -33,6 +35,20 @@ export interface CategoryDefinition {
 }
 
 const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
+  {
+    tag: 'animals',
+    label: 'Animals & Pets',
+    icon: '🐾',
+    description: 'Pets, domestic animals, aquariums, and animal care',
+    subtopics: [
+      { tag: 'pets', label: 'Pets' },
+      { tag: 'dogs', label: 'Dogs' },
+      { tag: 'cats', label: 'Cats' },
+      { tag: 'aquarium', label: 'Aquariums & Fish' },
+      { tag: 'horses', label: 'Horses' },
+      { tag: 'farmanimals', label: 'Farm Animals' }
+    ]
+  },
   {
     tag: 'art',
     label: 'Art & Design',
@@ -105,6 +121,48 @@ const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
     ]
   },
   {
+    tag: 'culture',
+    label: 'Culture & Society',
+    icon: '🏛️',
+    description: 'History, traditions, philosophy, religion, languages, and society',
+    subtopics: [
+      { tag: 'history', label: 'History' },
+      { tag: 'philosophy', label: 'Philosophy' },
+      { tag: 'religion', label: 'Religion & Spirituality' },
+      { tag: 'tradition', label: 'Traditions' },
+      { tag: 'society', label: 'Society' },
+      { tag: 'languages', label: 'Languages' }
+    ]
+  },
+  {
+    tag: 'diy',
+    label: 'DIY & Crafts',
+    icon: '🔧',
+    description: 'Handmade projects, crafts, repairs, and tutorials',
+    subtopics: [
+      { tag: 'crafts', label: 'Crafts' },
+      { tag: 'tutorials', label: 'Tutorials' },
+      { tag: 'handmade', label: 'Handmade' },
+      { tag: 'woodworking', label: 'Woodworking' },
+      { tag: 'sewing', label: 'Sewing & Knitting' },
+      { tag: 'upcycling', label: 'Upcycling' }
+    ]
+  },
+  {
+    tag: 'education',
+    label: 'Education',
+    icon: '🎓',
+    description: 'Learning, teaching, schools, universities, and study resources',
+    subtopics: [
+      { tag: 'learning', label: 'Learning' },
+      { tag: 'teaching', label: 'Teaching' },
+      { tag: 'university', label: 'University' },
+      { tag: 'languagelearning', label: 'Language Learning' },
+      { tag: 'stem', label: 'STEM' },
+      { tag: 'homeschool', label: 'Homeschooling' }
+    ]
+  },
+  {
     tag: 'finance',
     label: 'Finance & Economy',
     icon: '📈',
@@ -120,8 +178,81 @@ const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
     ]
   },
   {
+    tag: 'food',
+    label: 'Food & Drinks',
+    icon: '🍳',
+    description: 'Recipes, cooking experiments, street food, drinks, and baking delights',
+    subtopics: [
+      { tag: 'recipes', label: 'Recipes' },
+      { tag: 'cooking', label: 'Cooking' },
+      { tag: 'baking', label: 'Baking' },
+      { tag: 'vegan', label: 'Vegan & Plant-Based' },
+      { tag: 'dessert', label: 'Desserts & Sweets' },
+      { tag: 'streetfood', label: 'Street Food' },
+      { tag: 'coffee', label: 'Coffee & Drinks' }
+    ]
+  },
+  {
+    tag: 'health',
+    label: 'Health & Wellness',
+    icon: '❤️‍🩹',
+    description: 'Physical and mental health, nutrition, medicine, and healthy habits',
+    subtopics: [
+      { tag: 'wellness', label: 'Wellness' },
+      { tag: 'nutrition', label: 'Nutrition' },
+      { tag: 'mentalhealth', label: 'Mental Health' },
+      { tag: 'yoga', label: 'Yoga' },
+      { tag: 'meditation', label: 'Meditation' },
+      { tag: 'medicine', label: 'Medicine' }
+    ]
+  },
+  {
+    tag: 'hive',
+    label: 'Hive Ecosystem',
+    icon: '🐝',
+    description: 'Community initiatives, core updates, witnesses, proposals, and apps',
+    subtopics: [
+      { tag: 'hive-dev', label: 'Hive Dev' },
+      { tag: 'proposal', label: 'DHF Proposals' },
+      { tag: 'witness', label: 'Witness Updates' },
+      { tag: 'hive-engine', label: 'Hive Engine' },
+      { tag: 'peakd', label: 'PeakD' },
+      { tag: 'inleo', label: 'InLeo' },
+      { tag: 'ecency', label: 'Ecency' }
+    ]
+  },
+  {
+    tag: 'lifestyle',
+    label: 'Lifestyle',
+    icon: '🧘',
+    description: 'Mindfulness, personal growth, habits, home, family, and daily life',
+    subtopics: [
+      { tag: 'mindfulness', label: 'Mindfulness' },
+      { tag: 'minimalism', label: 'Minimalism' },
+      { tag: 'productivity', label: 'Productivity' },
+      { tag: 'parenting', label: 'Family & Parenting' },
+      { tag: 'fashion', label: 'Fashion & Beauty' },
+      { tag: 'dailylife', label: 'Daily Life' }
+    ]
+  },
+  {
+    tag: 'media',
+    label: 'Media & Entertainment',
+    icon: '🎬',
+    description: 'Movies, series, anime, comics, podcasts, videos, and news',
+    subtopics: [
+      { tag: 'movies', label: 'Movies' },
+      { tag: 'tv', label: 'TV Series' },
+      { tag: 'anime', label: 'Anime' },
+      { tag: 'manga', label: 'Manga & Comics' },
+      { tag: 'podcast', label: 'Podcasts' },
+      { tag: 'youtube', label: 'Videos & YouTube' },
+      { tag: 'news', label: 'News' }
+    ]
+  },
+  {
     tag: 'music',
-    label: 'Music & Movies',
+    label: 'Music',
     icon: '🎵',
     description: 'Original songs, live performances, beatmaking, and musical reviews',
     subtopics: [
@@ -136,18 +267,58 @@ const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
     ]
   },
   {
-    tag: 'food',
-    label: 'Food & Culinary',
-    icon: '🍳',
-    description: 'Recipes, cooking experiments, street food, and baking delights',
+    tag: 'nature',
+    label: 'Nature & Wildlife',
+    icon: '🌿',
+    description: 'Flora, fauna, outdoor adventures, gardening, and ecology',
     subtopics: [
-      { tag: 'recipes', label: 'Recipes' },
-      { tag: 'cooking', label: 'Cooking' },
-      { tag: 'baking', label: 'Baking' },
-      { tag: 'vegan', label: 'Vegan & Plant-Based' },
-      { tag: 'dessert', label: 'Desserts & Sweets' },
-      { tag: 'streetfood', label: 'Street Food' },
-      { tag: 'coffee', label: 'Coffee & Drinks' }
+      { tag: 'wildlife', label: 'Wildlife' },
+      { tag: 'birds', label: 'Birdwatching' },
+      { tag: 'gardening', label: 'Gardening & Plants' },
+      { tag: 'forest', label: 'Forests & Woods' },
+      { tag: 'ocean', label: 'Oceans & Marine' },
+      { tag: 'environment', label: 'Ecology & Climate' }
+    ]
+  },
+  {
+    tag: 'politics',
+    label: 'Politics & Liberty',
+    icon: '⚖️',
+    description: 'Liberty, freedom, government, rights, and political debate',
+    subtopics: [
+      { tag: 'liberty', label: 'Liberty' },
+      { tag: 'freedom', label: 'Freedom' },
+      { tag: 'government', label: 'Government' },
+      { tag: 'censorship', label: 'Censorship' },
+      { tag: 'activism', label: 'Activism' }
+    ]
+  },
+  {
+    tag: 'science',
+    label: 'Science & Cosmos',
+    icon: '🔬',
+    description: 'Scientific research, cosmic discoveries, biology, and physics',
+    subtopics: [
+      { tag: 'astronomy', label: 'Astronomy & Space' },
+      { tag: 'physics', label: 'Physics' },
+      { tag: 'biology', label: 'Biology' },
+      { tag: 'space', label: 'Cosmology' },
+      { tag: 'earthscience', label: 'Earth & Climate' },
+      { tag: 'chemistry', label: 'Chemistry' }
+    ]
+  },
+  {
+    tag: 'sports',
+    label: 'Sports & Fitness',
+    icon: '🏃',
+    description: 'Physical training, outdoor fitness, athletics, and competitions',
+    subtopics: [
+      { tag: 'fitness', label: 'Fitness & Gym' },
+      { tag: 'actifit', label: 'Actifit Daily' },
+      { tag: 'running', label: 'Running & Jogging' },
+      { tag: 'cycling', label: 'Cycling' },
+      { tag: 'football', label: 'Football / Soccer' },
+      { tag: 'martialarts', label: 'Combat & Martial Arts' }
     ]
   },
   {
@@ -169,7 +340,7 @@ const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
       { tag: 'science', label: 'Science' },
       { tag: 'innovation', label: 'Innovation' },
       { tag: 'humanoids', label: 'Humanoids' },
-      { tag: 'animatronics', label: 'animatronics' },
+      { tag: 'animatronics', label: 'Animatronics' }
     ]
   },
   {
@@ -188,114 +359,37 @@ const RAW_CATEGORY_DEFINITIONS: CategoryDefinition[] = [
     ]
   },
   {
+    tag: 'world',
+    label: 'World & Regional',
+    icon: '🌍',
+    description: 'Country and regional communities, local news, and international life',
+    subtopics: [
+      { tag: 'latam', label: 'Latin America' },
+      { tag: 'brazil', label: 'Brazil' },
+      { tag: 'europe', label: 'Europe' },
+      { tag: 'africa', label: 'Africa' },
+      { tag: 'asia', label: 'Asia' },
+      { tag: 'venezuela', label: 'Venezuela' },
+      { tag: 'philippines', label: 'Philippines' }
+    ]
+  },
+  {
     tag: 'writing',
     label: 'Writing & Literature',
     icon: '✍️',
     description: 'Creative stories, poetry, essays, book discussions, and prompts',
     subtopics: [
       { tag: 'poetry', label: 'Poetry' },
+      { tag: 'poem', label: 'Poem' },
       { tag: 'fiction', label: 'Fiction' },
       { tag: 'freewrite', label: 'Daily Freewrite' },
       { tag: 'storytelling', label: 'Short Stories' },
+      { tag: 'story', label: 'Story' },
       { tag: 'essays', label: 'Essays & Opinions' },
       { tag: 'books', label: 'Book Reviews' },
-      { tag: 'fiction', label: 'Fiction Story' },
-      { tag: 'story', label: 'Story' },
-      { tag: 'poem', label: 'Poem' },
-      { tag: 'poetry', label: 'Poetry' },
-      { tag: 'writers', label: 'Writers' },
+      { tag: 'writers', label: 'Writers' }
     ]
-  },
-  {
-    tag: 'nature',
-    label: 'Nature & Wildlife',
-    icon: '🌿',
-    description: 'Flora, fauna, outdoor adventures, gardening, and ecology',
-    subtopics: [
-      { tag: 'wildlife', label: 'Wildlife' },
-      { tag: 'birds', label: 'Birdwatching' },
-      { tag: 'gardening', label: 'Gardening & Plants' },
-      { tag: 'forest', label: 'Forests & Woods' },
-      { tag: 'ocean', label: 'Oceans & Marine' },
-      { tag: 'environment', label: 'Ecology & Climate' }
-    ]
-  },
-  {
-    tag: 'sports',
-    label: 'Sports & Fitness',
-    icon: '🏃',
-    description: 'Physical training, outdoor fitness, athletics, and competitions',
-    subtopics: [
-      { tag: 'fitness', label: 'Fitness & Gym' },
-      { tag: 'actifit', label: 'Actifit Daily' },
-      { tag: 'running', label: 'Running & Jogging' },
-      { tag: 'cycling', label: 'Cycling' },
-      { tag: 'football', label: 'Football / Soccer' },
-      { tag: 'martialarts', label: 'Combat & Martial Arts' }
-    ]
-  },
-  {
-    tag: 'lifestyle',
-    label: 'Lifestyle & Wellness',
-    icon: '🧘',
-    description: 'Mindfulness, personal growth, habits, home, and well-being',
-    subtopics: [
-      { tag: 'mindfulness', label: 'Mindfulness' },
-      { tag: 'wellness', label: 'Health & Wellness' },
-      { tag: 'diy', label: 'DIY & Crafts' },
-      { tag: 'minimalism', label: 'Minimalism' },
-      { tag: 'productivity', label: 'Productivity' },
-      { tag: 'parenting', label: 'Family & Parenting' }
-    ]
-  },
-  {
-    tag: 'science',
-    label: 'Science & Cosmos',
-    icon: '🔬',
-    description: 'Scientific research, cosmic discoveries, biology, and physics',
-    subtopics: [
-      { tag: 'astronomy', label: 'Astronomy & Space' },
-      { tag: 'physics', label: 'Physics' },
-      { tag: 'biology', label: 'Biology' },
-      { tag: 'space', label: 'Cosmology' },
-      { tag: 'earthscience', label: 'Earth & Climate' }
-    ]
-  },
-  {
-    tag: 'hive',
-    label: 'Hive Ecosystem',
-    icon: '🐝',
-    description: 'Community initiatives, core updates, witnesses, proposals, and apps',
-    subtopics: [
-      { tag: 'hive-dev', label: 'Hive Dev' },
-      { tag: 'proposal', label: 'DHF Proposals' },
-      { tag: 'witness', label: 'Witness Updates' },
-      { tag: 'hive-engine', label: 'Hive Engine' },
-      { tag: 'peakd', label: 'PeakD' },
-      { tag: 'inleo', label: 'InLeo' },
-      { tag: 'ecency', label: 'Ecency' }
-    ]
-  },
-  {
-    tag: 'diy',
-    label: 'Diy & Tutorials',
-    icon: '🔧',
-    description: 'Diy & Tutorials',
-    subtopics: [
-      { tag: 'crafts', label: 'Crafts' },
-      { tag: 'tutorials', label: 'Tutorials' },
-    ]
-  },
-  {
-    tag: 'politics',
-    label: 'Liberty & Freedom',
-    icon: '⚖️',
-    description: 'Liberty & Freedom',
-    subtopics: [
-      { tag: 'Liberty', label: 'Liberty' },
-      { tag: 'Freedom', label: 'Freedom' },
-    ]
-  },
+  }
 ];
 
 /**

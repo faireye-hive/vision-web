@@ -408,7 +408,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       if (tag && tag.startsWith('hive-')) {
         navigate(`/c/${tag}`);
       } else {
-        navigate('/discover');
+        navigate('/communities');
       }
     } else {
       navigate(`/${activeNav}`);
