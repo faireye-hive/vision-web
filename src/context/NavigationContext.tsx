@@ -68,7 +68,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const location = useLocation();
 
   const [activeNav, setActiveNav] = useState<NavTab>('discover');
-  const [sort, setSort] = useState<SortOption>('hot');
+  const [sort, setSortState] = useState<SortOption>('hot');
+
+  const setSort = useCallback((newSort: SortOption) => {
+    setSortState(newSort);
+  }, []);
   const [tag, setTagState] = useState<string>('');
   const [feedAuthor, setFeedAuthor] = useState<string | null>(null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
@@ -208,6 +212,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
+      if (sort === 'recommend') {
+        setSortState('trending');
+      }
       return release;
     }
 
@@ -306,6 +313,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         setStandalonePage(null);
       }
 
+      if (sort === 'recommend') {
+        setSortState('trending');
+      }
+
       setSelectedPost(null);
       return release;
     }
@@ -367,9 +378,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       setTagState('');
       tagRef.current = '';
       setStandalonePage(null);
+      if (sort === 'recommend') {
+        setSortState('trending');
+      }
       navigate('/communities');
     }
-  }, [navigate]);
+  }, [navigate, sort]);
 
   const openCommunity = useCallback((communityName: string) => {
     const clean = communityName.trim().toLowerCase();
@@ -378,8 +392,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setStandalonePage(null);
     setSelectedPost(null);
     setCommunitySubTopic('');
+    if (sort === 'recommend') {
+      setSortState('trending');
+    }
     navigate(`/c/${clean}`);
-  }, [navigate]);
+  }, [navigate, sort]);
 
   const openStandalonePage = useCallback((page: StandalonePage, user?: string) => {
     setStandalonePage(page);

@@ -427,7 +427,7 @@ function NebulosaApp() {
       {/* Ghost Notification Toast */}
       <NotificationToastHost />
 
-      {/* Mobile Swipe-from-Edge Drawer for Trending Topics & Followed Creators */}
+      {/* Mobile Swipe-from-Edge Drawer for Trending Topics, Followed Creators & Subscribed Communities */}
       <MobileSideDrawer
         activeNav={activeNav}
         tag={tag}
@@ -440,6 +440,10 @@ function NebulosaApp() {
         openFollowingManager={openFollowingManager}
         discoverPosts={discoverPosts}
         disabled={Boolean(selectedPost || standalonePage || activeNav === 'shorts')}
+        joinedCommunities={joinedCommunities}
+        onOpenCommunities={openCommunitiesModal}
+        onOpenManageCommunities={openManageCommunitiesModal}
+        onOpenCommunity={openCommunity}
       />
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop md:) */}

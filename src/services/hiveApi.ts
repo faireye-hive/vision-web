@@ -159,11 +159,12 @@ export interface HiveCommunity {
 export const DEFAULT_HIVE_NODES = [
   'https://api.hive.blog',
   'https://api.deathwing.me',
-  'https://rpc.ecency.com',
+  'https://api.c0ff33a.uk',
   'https://api.openhive.network',
   'https://techcoderx.com',
-  'https://hive-api.arcange.eu',
-  'https://rpc.ausbit.dev'
+  'https://rpc.mahdiyari.info',
+  'https://hiveapi.actifit.io',
+  'https://hive.atexoras.com:2096'
 ];
 
 export const STORAGE_KEY_CUSTOM_NODES = 'nebulosa_custom_rpc_nodes';
@@ -685,6 +686,72 @@ export async function getAccountsBatch(usernames: string[]): Promise<HiveAccount
   }
 
   return results;
+}
+
+export interface CreatorPreview {
+  name: string;
+  reputation?: number;
+  about?: string;
+  avatarUrl: string;
+}
+
+/**
+ * Fast lookup of Hive usernames starting with prefix
+ */
+export async function lookupAccounts(prefix: string, limit: number = 6): Promise<string[]> {
+  const cleaned = prefix.replace(/^@/, '').trim().toLowerCase();
+  if (!cleaned) return [];
+  const cacheKey = `lookup_accounts:${cleaned}:${limit}`;
+
+  return fetchWithCache(
+    cacheKey,
+    async () => {
+      try {
+        const result = await hiveRpcCall<string[]>('condenser_api.lookup_accounts', [cleaned, limit]);
+        if (!Array.isArray(result)) return [];
+        return result.filter((name) => name.toLowerCase().startsWith(cleaned));
+      } catch {
+        return [];
+      }
+    },
+    { ttl: 120000 }
+  );
+}
+
+/**
+ * Lookup creators with preview metadata (avatar, reputation, about)
+ */
+export async function lookupCreatorsWithPreview(prefix: string, limit: number = 5): Promise<CreatorPreview[]> {
+  const usernames = await lookupAccounts(prefix, limit);
+  if (usernames.length === 0) return [];
+
+  try {
+    const accounts = await getAccountsBatch(usernames);
+    return accounts.map((acc) => {
+      let about = '';
+      try {
+        const metadata = acc.posting_json_metadata
+          ? JSON.parse(acc.posting_json_metadata)
+          : acc.json_metadata
+            ? JSON.parse(acc.json_metadata)
+            : {};
+        about = metadata?.profile?.about || '';
+      } catch {
+        // ignore JSON parse error
+      }
+      return {
+        name: acc.name,
+        reputation: calculateReputation(acc.reputation),
+        about: about ? (about.length > 55 ? about.substring(0, 52) + '...' : about) : '',
+        avatarUrl: getHiveAvatarUrl(acc.name, 'small')
+      };
+    });
+  } catch {
+    return usernames.map((name) => ({
+      name,
+      avatarUrl: getHiveAvatarUrl(name, 'small')
+    }));
+  }
 }
 
 /**

@@ -17,20 +17,43 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [mobileTop, setMobileTop] = useState<number | null>(null);
+  const [leftOffset, setLeftOffset] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      setMobileTop(rect.bottom + 6);
+      const updatePosition = () => {
+        if (!dropdownRef.current) return;
+        const rect = dropdownRef.current.getBoundingClientRect();
+        const menuWidth = 260;
+        const screenMargin = 8;
+        const availableWidth = window.innerWidth;
+
+        const rightEdge = rect.left + menuWidth;
+        const overflow = rightEdge - (availableWidth - screenMargin);
+
+        if (overflow > 0) {
+          const maxShift = rect.left - screenMargin;
+          const shift = Math.min(overflow, Math.max(0, maxShift));
+          setLeftOffset(-shift);
+        } else {
+          setLeftOffset(0);
+        }
+      };
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, { passive: true });
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+        window.removeEventListener('scroll', updatePosition);
+      };
     }
   }, [isOpen]);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | PointerEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -43,6 +66,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
     };
 
     if (isOpen) {
+      document.addEventListener('pointerdown', handleClickOutside);
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
       if (category.subtopics.length > 5) {
@@ -50,6 +74,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
       }
     }
     return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -110,12 +135,14 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
         />
       </button>
 
-      {/* Floating Menu - Centered horizontally with page on mobile, standard dropdown on desktop */}
+      {/* Floating Menu - Sits directly below button with mt-1.5, matching SortDropdown */}
       {isOpen && (
         <div
           role="listbox"
-          style={mobileTop !== null && typeof window !== 'undefined' && window.innerWidth < 640 ? { top: `${mobileTop}px` } : undefined}
-          className="fixed inset-x-3 max-w-xs mx-auto sm:inset-auto sm:absolute sm:left-0 sm:right-auto sm:top-auto sm:mt-1.5 sm:w-64 sm:max-w-none sm:mx-0 rounded-2xl bg-white dark:bg-slate-900 shadow-[0_10px_35px_rgba(0,0,0,0.18)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          style={{
+            left: leftOffset !== 0 ? `${leftOffset}px` : 0,
+          }}
+          className="absolute top-full mt-1.5 w-64 sm:w-72 max-w-[calc(100vw-16px)] rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
         >
           {/* Header */}
           <div className="px-2 py-1 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 mb-1.5 pb-1.5">

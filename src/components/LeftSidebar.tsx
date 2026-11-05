@@ -64,7 +64,7 @@ const DEFAULT_FOLLOWING_LIST = [
   'tarazkp'
 ];
 
-const DEFAULT_COMMUNITIES = [
+export const DEFAULT_COMMUNITIES = [
   { name: 'hive-125125', title: 'Town Square', subscribers: 11911 },
   { name: 'hive-193816', title: 'Music Community', subscribers: 11351 },
   { name: 'hive-163772', title: 'Worldmappin (Travel)', subscribers: 18491 },

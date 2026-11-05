@@ -9,11 +9,13 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Compass,
-  UserPlus
+  UserPlus,
+  FolderOpen
 } from 'lucide-react';
 import { TrendingTopicsCard } from './TrendingTopicsCard';
-import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
+import { HivePost, getHiveAvatarUrl, getSubscriptions } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
+import { DEFAULT_COMMUNITIES } from './LeftSidebar';
 
 interface MobileSideDrawerProps {
   activeNav: string;
@@ -27,6 +29,10 @@ interface MobileSideDrawerProps {
   openFollowingManager: () => void;
   discoverPosts: HivePost[];
   disabled?: boolean;
+  joinedCommunities?: Record<string, boolean>;
+  onOpenCommunities?: () => void;
+  onOpenManageCommunities?: () => void;
+  onOpenCommunity?: (communityName: string) => void;
 }
 
 const CURATED_GUEST_CREATORS = [
@@ -51,10 +57,86 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
   followingUsersList,
   openFollowingManager,
   discoverPosts,
-  disabled = false
+  disabled = false,
+  joinedCommunities,
+  onOpenCommunities,
+  onOpenManageCommunities,
+  onOpenCommunity
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchCreators, setSearchCreators] = useState('');
+  const [searchCommunities, setSearchCommunities] = useState('');
+  const [userCommunities, setUserCommunities] = useState<{ name: string; title: string; subscribers?: number }[]>([]);
+
+  // Favorite communities
+  const [favCommunities, setFavCommunities] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('hive_fav_communities') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleFavCommunity = (commName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFavCommunities((prev) => {
+      const updated = prev.includes(commName) ? prev.filter((c) => c !== commName) : [...prev, commName];
+      try {
+        localStorage.setItem('hive_fav_communities', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    if (activeNav === 'communities') {
+      if (currentUser?.username) {
+        getSubscriptions(currentUser.username)
+          .then((subs) => {
+            if (subs && subs.length > 0) {
+              setUserCommunities(
+                subs.map(([name, title]) => ({
+                  name,
+                  title: title || name,
+                }))
+              );
+            } else {
+              setUserCommunities(DEFAULT_COMMUNITIES);
+            }
+          })
+          .catch(() => setUserCommunities(DEFAULT_COMMUNITIES));
+      } else {
+        setUserCommunities(DEFAULT_COMMUNITIES);
+      }
+    }
+  }, [activeNav, currentUser?.username]);
+
+  const displayedCommunities = useMemo(() => {
+    const list = userCommunities.length > 0 ? userCommunities : DEFAULT_COMMUNITIES;
+    const q = searchCommunities.trim().toLowerCase();
+    const filtered = q
+      ? list.filter((c) => c.title.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
+      : list;
+
+    return [...filtered].sort((a, b) => {
+      const aFav = favCommunities.includes(a.name);
+      const bFav = favCommunities.includes(b.name);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return a.title.localeCompare(b.title);
+    });
+  }, [userCommunities, searchCommunities, favCommunities]);
+
+  const handleSelectCommunity = (commName: string) => {
+    if (onOpenCommunity) {
+      onOpenCommunity(commName);
+    } else {
+      setTag(commName);
+      setFeedAuthor(null);
+    }
+    setIsOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Favorites stored in localStorage (synced with LeftSidebar)
   const [favAuthors, setFavAuthors] = useState<string[]>(() => {
@@ -249,12 +331,28 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
           title={
             activeNav === 'discover'
               ? 'Swipe right to open Trending Topics'
+              : activeNav === 'communities'
+              ? 'Swipe right to open Subscribed Communities'
               : 'Swipe right to open Followed Creators'
           }
-          aria-label={activeNav === 'discover' ? 'Open Trending Topics' : 'Open Followed Creators'}
+          aria-label={
+            activeNav === 'discover'
+              ? 'Open Trending Topics'
+              : activeNav === 'communities'
+              ? 'Open Subscribed Communities'
+              : 'Open Followed Creators'
+          }
         >
           {/* Subtle lateral edge line that doesn't clutter the UI, with generous invisible padding around it */}
-          <div className="w-1.5 group-hover:w-2 h-11 rounded-r-full bg-blue-500/70 dark:bg-blue-400/50 group-hover:bg-blue-600 transition-all shadow-[0_0_8px_rgba(59,130,246,0.35)]" />
+          <div
+            className={`w-1.5 group-hover:w-2 h-11 rounded-r-full transition-all shadow-[0_0_8px_rgba(59,130,246,0.35)] ${
+              activeNav === 'communities'
+                ? 'bg-emerald-500/70 dark:bg-emerald-400/50 group-hover:bg-emerald-600'
+                : activeNav === 'discover'
+                ? 'bg-indigo-500/70 dark:bg-indigo-400/50 group-hover:bg-indigo-600'
+                : 'bg-blue-500/70 dark:bg-blue-400/50 group-hover:bg-blue-600'
+            }`}
+          />
         </button>
       )}
 
@@ -283,6 +381,10 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
               <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
                 <Hash className="w-4 h-4" />
               </div>
+            ) : activeNav === 'communities' ? (
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                <Layers className="w-4 h-4" />
+              </div>
             ) : (
               <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex-shrink-0">
                 <Users className="w-4 h-4" />
@@ -291,11 +393,19 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
 
             <div className="min-w-0">
               <h2 className="font-bold text-sm text-gray-900 dark:text-white truncate">
-                {activeNav === 'discover' ? 'Trending Topics' : 'Followed Creators'}
+                {activeNav === 'discover'
+                  ? 'Trending Topics'
+                  : activeNav === 'communities'
+                  ? 'Subscribed Communities'
+                  : 'Followed Creators'}
               </h2>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
                 {activeNav === 'discover'
                   ? 'Popular on Hive network'
+                  : activeNav === 'communities'
+                  ? currentUser
+                    ? `${displayedCommunities.length} communities`
+                    : 'Popular Hive communities'
                   : currentUser
                   ? `${followingUsersList.length} creators followed`
                   : 'Curated Hive creators'}
@@ -472,17 +582,156 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
           {/* ================= 3. COMMUNITIES ================= */}
           {activeNav === 'communities' && (
             <div className="space-y-3">
-              <TrendingTopicsCard
-                currentTag={tag}
-                currentSort={sort}
-                feedPosts={discoverPosts}
-                onSelectTag={(newTag) => {
-                  setTag(newTag);
+              {/* Quick Navigation Buttons: Explore & Manage */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    if (onOpenCommunities) onOpenCommunities();
+                  }}
+                  className="flex items-center justify-center gap-1.5 p-2 rounded-xl text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/40 transition cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Explore</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    if (onOpenManageCommunities) onOpenManageCommunities();
+                  }}
+                  className="flex items-center justify-center gap-1.5 p-2 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/40 transition cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Manage</span>
+                  {userCommunities.length > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100">
+                      {userCommunities.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Community Search */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchCommunities}
+                  onChange={(e) => setSearchCommunities(e.target.value)}
+                  placeholder="Filter communities..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-xl text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-800 border border-gray-200/70 dark:border-slate-700 transition"
+                />
+                {searchCommunities && (
+                  <button
+                    onClick={() => setSearchCommunities('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* "All Subscribed Communities Feed" quick button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTag('');
                   setFeedAuthor(null);
                   setIsOpen(false);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-              />
+                className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer border ${
+                  !tag
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold'
+                    : 'bg-white dark:bg-slate-800/80 border-gray-200/70 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <FolderOpen className={`w-3.5 h-3.5 ${!tag ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
+                  <span>All Subscribed Feed</span>
+                </div>
+                {!tag && (
+                  <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full font-bold">
+                    Active
+                  </span>
+                )}
+              </button>
+
+              {/* Subscribed Communities List */}
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1">
+                  <span>Communities ({displayedCommunities.length})</span>
+                  <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
+                  </span>
+                </div>
+
+                <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
+                  {displayedCommunities.length > 0 ? (
+                    displayedCommunities.map((comm) => {
+                      const isFav = favCommunities.includes(comm.name);
+                      const isSelected = tag.toLowerCase() === comm.name.toLowerCase();
+
+                      return (
+                        <div
+                          key={comm.name}
+                          onClick={() => handleSelectCommunity(comm.name)}
+                          className={`flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-emerald-100 dark:bg-emerald-950/70 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold shadow-2xs'
+                              : isFav
+                              ? 'bg-amber-50/50 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-900/40 text-gray-900 dark:text-slate-100'
+                              : 'bg-white dark:bg-slate-800/80 border-gray-150 dark:border-slate-700/80 text-gray-700 dark:text-slate-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={getHiveAvatarUrl(comm.name, 'small')}
+                              alt={comm.title}
+                              className={`w-6 h-6 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 ${
+                                isSelected ? 'ring-2 ring-emerald-500' : ''
+                              }`}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
+                              }}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold leading-tight text-gray-900 dark:text-white">
+                                {comm.title}
+                              </p>
+                              <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
+                                {comm.name}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+                            {isSelected && (
+                              <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">
+                                Active
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => toggleFavCommunity(comm.name, e)}
+                              className="p-1 text-gray-300 dark:text-slate-600 hover:text-amber-500"
+                              title={isFav ? 'Remove favorite' : 'Add favorite'}
+                            >
+                              <Star className={`w-3.5 h-3.5 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
+                      No communities found.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
