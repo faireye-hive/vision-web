@@ -103,21 +103,21 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
         title="Filter by topic category"
         className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold transition cursor-pointer border select-none ${
           isOpen || currentCategory
-            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-xs'
+            ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 shadow-xs'
             : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
         {currentCategory ? (
           <span className="text-xs select-none flex-shrink-0">{currentCategory.icon}</span>
         ) : (
-          <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+          <Tag className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
         )}
         <span className="text-[11px] sm:text-xs font-semibold leading-tight truncate max-w-[100px] sm:max-w-[130px]">
           {currentCategory ? currentCategory.label : 'Categories'}
         </span>
         <ChevronDown
           className={`w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 flex-shrink-0 ${
-            isOpen ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
+            isOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
           }`}
         />
       </button>
@@ -164,8 +164,8 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               title="Show all topics without category filtering"
               className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer select-none group ${
                 !currentCategory
-                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
-                  : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-blue-50/50'
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
+                  : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100'
               }`}
             >
               <div className="flex items-start gap-2.5 min-w-0">
@@ -183,7 +183,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               </div>
 
               {!currentCategory && (
-                <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-1" />
+                <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0 ml-1" />
               )}
             </button>
 
@@ -206,8 +206,8 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                     title={cat.label}
                     className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer select-none group ${
                       isSelected
-                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
-                        : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-blue-50/50'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
+                        : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100'
                     }`}
                   >
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -226,7 +226,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
 
                     <div className="flex items-center gap-1 flex-shrink-0 ml-1.5">
                       {isSelected && (
-                        <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 mr-0.5" />
+                        <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0 mr-0.5" />
                       )}
 
                       {cat.subtopics.length > 0 && (
@@ -236,12 +236,12 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                           onClick={(e) => toggleExpand(cat.tag, e)}
                           title={`${isExpanded ? 'Hide' : 'Show'} subtopics for ${cat.label}`}
                           className={`p-1 rounded-lg hover:bg-gray-200/80 dark:hover:bg-slate-700 transition cursor-pointer text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 ${
-                            isExpanded ? 'bg-gray-200/60 dark:bg-slate-700 text-blue-600 dark:text-blue-400' : ''
+                            isExpanded ? 'bg-gray-200/60 dark:bg-slate-700 text-slate-700 dark:text-slate-200' : ''
                           }`}
                         >
                           <ChevronDown
                             className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                              isExpanded ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
+                              isExpanded ? 'rotate-180 text-slate-700 dark:text-slate-200' : ''
                             }`}
                           />
                         </button>
@@ -251,7 +251,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
 
                   {/* Expandable Subtopics List */}
                   {isExpanded && cat.subtopics.length > 0 && (
-                    <div className="pl-6 pr-2 py-1 my-0.5 ml-2 border-l-2 border-blue-200 dark:border-blue-900/60 space-y-0.5 bg-gray-50/50 dark:bg-slate-800/40 rounded-r-xl">
+                    <div className="pl-6 pr-2 py-1 my-0.5 ml-2 border-l-2 border-slate-200 dark:border-slate-700 space-y-0.5 bg-gray-50/50 dark:bg-slate-800/40 rounded-r-xl">
                       <button
                         type="button"
                         onPointerDown={(e) => e.stopPropagation()}
@@ -259,10 +259,10 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                           e.stopPropagation();
                           handleSelect(cat.tag);
                         }}
-                        className="w-full text-left py-1 px-2 rounded-lg text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100/60 dark:hover:bg-blue-950/60 transition cursor-pointer flex items-center justify-between"
+                        className="w-full text-left py-1 px-2 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer flex items-center justify-between"
                       >
                         <span>All in {cat.label}</span>
-                        <span className="text-[10px] font-mono text-blue-500/70">#{cat.tag}</span>
+                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">#{cat.tag}</span>
                       </button>
 
                       {cat.subtopics.map((sub) => (

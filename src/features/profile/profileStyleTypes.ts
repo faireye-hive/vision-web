@@ -37,6 +37,15 @@ export type ProfileBorderRadius = 'none' | 'md' | 'xl' | '3xl';
 
 export type ProfileHeaderAlignment = 'left' | 'center' | 'right';
 
+export interface ProfileReaderAppearance {
+  themeId: string;
+  accentColor: string;
+  backgroundColor: string;
+  cardBackgroundColor: string;
+  textColor: string;
+  textSecondaryColor: string;
+}
+
 // Post List & Card Layout Customization
 export type ProfileFeedViewMode = 'list' | 'grid-2' | 'grid-3' | 'magazine' | 'compact';
 export type ProfilePostImagePosition = 'right' | 'left' | 'top' | 'hidden';
@@ -53,7 +62,6 @@ export interface ProfilePostsLayoutConfig {
   snippetLines: 1 | 2 | 3 | 4;
   votePosition: ProfilePostVotePosition;
   showTags: boolean;
-  showPayout: boolean;
 }
 
 // Granular Stats items toggles
@@ -164,8 +172,7 @@ export const DEFAULT_POSTS_LAYOUT: ProfilePostsLayoutConfig = {
   showSnippet: true,
   snippetLines: 2,
   votePosition: 'bottom',
-  showTags: true,
-  showPayout: true
+  showTags: true
 };
 
 export const DEFAULT_STATS_CONFIG: ProfileStatsConfig = {

@@ -21,7 +21,7 @@ import {
   Languages,
   Loader2
 } from 'lucide-react';
-import { HivePost, calculateReputation, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
+import { HivePost, getHiveAvatarUrl, getDiscussion } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { markdownToSafeHtml } from '../utils/sanitize';
 import {
@@ -66,7 +66,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 
   // Upvote state for main snap
   const [upvoted, setUpvoted] = useState(false);
-  const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -145,7 +144,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   // Reset local interactive state and scroll to top when changing snaps
   useEffect(() => {
     setUpvoted(false);
-    setVoteCountDelta(0);
     setIsComposerExpanded(false);
     setMainReplyText('');
     setReplyError(null);
@@ -153,10 +151,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     setMenuFeedback(null);
 
     window.scrollTo({ top: 0, behavior: 'instant' });
-    const overlay = document.querySelector('.fixed.inset-0.z-35.overflow-y-auto');
-    if (overlay) {
-      overlay.scrollTop = 0;
-    }
   }, [snap.author, snap.permlink]);
 
   // Is this snap a reply to another parent Snap?
@@ -265,19 +259,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     return buildCommentTree(snap.author, snap.permlink, discussionMap);
   }, [snap.author, snap.permlink, discussionMap]);
 
-  const totalCommentsCount = useMemo(() => {
-    const countNodes = (nodes: ThreadCommentNode[]): number => {
-      let count = nodes.length;
-      for (const node of nodes) {
-        if (node.replies.length > 0) {
-          count += countNodes(node.replies);
-        }
-      }
-      return count;
-    };
-    return countNodes(commentTree);
-  }, [commentTree]);
-
   const handleVote = () => {
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
@@ -373,12 +354,11 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     });
   };
 
-  const rep = calculateReputation(snap.author_reputation);
   const avatarUrl = getHiveAvatarUrl(snap.author, 'small');
   const timeAgo = formatTime(snap.created);
 
   return (
-    <div className="w-full max-w-[760px] mx-auto animate-in fade-in slide-in-from-right-2 duration-200">
+    <div className="w-full min-w-0 max-w-none mx-auto animate-in fade-in duration-150">
       <div className="bg-white dark:bg-slate-900 rounded-none sm:rounded-[32px] border-0 sm:border border-slate-200/70 dark:border-slate-800 shadow-none sm:shadow-[0_8px_30px_rgba(15,23,42,0.04)] flex flex-col min-h-screen sm:min-h-0 relative">
         {/* Header Bar - Sticky to follow scroll */}
         <div className="flex items-center justify-between px-3.5 py-3 sm:px-6 sm:py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-30 rounded-none sm:rounded-t-[32px]">
@@ -405,7 +385,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span>{totalCommentsCount} {totalCommentsCount === 1 ? 'reply' : 'replies'}</span>
+                <span>Open conversation</span>
               </div>
             </div>
           </div>
@@ -560,8 +540,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
                   @{snap.author}
                 </button>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-                  <span>{rep}</span>
-                  <span aria-hidden="true">&middot;</span>
                   <span>{timeAgo}</span>
                 </div>
               </div>
@@ -594,7 +572,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 
                 <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 font-medium">
                   <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                  <span className="text-[13px]">{totalCommentsCount}</span>
+                  <span className="text-[13px]">Replies</span>
                 </div>
 
                 {/* Free Markdown-Preserving Translation Dropdown */}
@@ -623,7 +601,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
                 Discussion
               </h3>
               <span className="text-xs text-slate-400">
-                {totalCommentsCount} {totalCommentsCount === 1 ? 'comment' : 'comments'}
+                Join the conversation
               </span>
             </div>
 
@@ -757,7 +735,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
         onClose={() => setVoteOpen(false)}
         onVoted={() => {
           setUpvoted(true);
-          setVoteCountDelta((prev) => prev + 1);
         }}
       />
 
@@ -803,7 +780,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   const [submittingReply, setSubmittingReply] = useState(false);
 
   const [upvoted, setUpvoted] = useState(false);
-  const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
 
   // Truncation & 3-dots menu state
@@ -811,7 +787,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   const [showCommentMenu, setShowCommentMenu] = useState(false);
   const [commentMenuFeedback, setCommentMenuFeedback] = useState<string | null>(null);
 
-  const rep = calculateReputation(comment.author_reputation);
   const avatarUrl = getHiveAvatarUrl(comment.author, 'small');
 
   const timeAgo = useMemo(() => {
@@ -936,7 +911,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
     }
   };
 
-  const netVotes = (comment.active_votes?.length || 0) + voteCountDelta;
   const repliesCount = Math.max(replies.length, comment.children || 0);
 
   return (
@@ -977,9 +951,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
               >
                 @{comment.author}
               </button>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {rep}
-              </span>
               <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">&middot;</span>
               <span className="text-[11px] text-slate-400">{timeAgo}</span>
             </div>
@@ -996,7 +967,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                   title="Open thread"
                 >
                   <span className="font-medium text-[11px]">
-                    {repliesCount} {repliesCount === 1 ? 'reply' : 'replies'}
+                    View thread
                   </span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1131,12 +1102,14 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
                 e.stopPropagation();
                 handleVote();
               }}
+              aria-label={upvoted ? 'Voted' : 'Vote on this reply'}
+              title={upvoted ? 'Voted' : 'Vote on this reply'}
               className={`flex items-center gap-1 text-xs font-semibold transition cursor-pointer ${
                 upvoted ? 'text-rose-600' : 'text-slate-400 hover:text-rose-600'
               }`}
             >
               <Heart className={`w-3.5 h-3.5 ${upvoted ? 'fill-current' : ''}`} />
-              <span>{netVotes}</span>
+              <span>{upvoted ? 'Voted' : 'Vote'}</span>
             </button>
             <button
               type="button"
@@ -1184,7 +1157,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
               >
                 <MessageCircle className="w-3 h-3" />
                 <span>
-                  {repliesCount} {repliesCount === 1 ? 'reply' : 'replies'}
+                  View thread
                 </span>
                 <ChevronRight className="w-3 h-3" />
               </button>
@@ -1224,7 +1197,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
             onClose={() => setVoteOpen(false)}
             onVoted={() => {
               setUpvoted(true);
-              setVoteCountDelta(1);
             }}
           />
         </div>

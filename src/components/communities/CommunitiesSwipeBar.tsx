@@ -40,7 +40,7 @@ export const CommunitiesSwipeBar: React.FC<CommunitiesSwipeBarProps> = ({
         aria-pressed={isAllActive}
         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition flex-shrink-0 cursor-pointer ${
           isAllActive
-            ? 'bg-blue-600 text-white shadow-xs'
+          ? 'bg-slate-800 text-white shadow-xs dark:bg-slate-200 dark:text-slate-900'
             : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200/80 dark:hover:bg-slate-700'
         }`}
         title="Show feed from all followed communities"
@@ -80,7 +80,7 @@ export const CommunitiesSwipeBar: React.FC<CommunitiesSwipeBarProps> = ({
             aria-pressed={isSelected}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition flex-shrink-0 cursor-pointer border ${
               isSelected
-                ? 'bg-emerald-600 text-white font-bold shadow-xs border-emerald-600 ring-2 ring-emerald-500/30'
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold shadow-xs border-slate-300 dark:border-slate-600 ring-1 ring-slate-300/70 dark:ring-slate-600/70'
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200/80 dark:hover:bg-slate-700 border-transparent'
             }`}
             title={`Load posts from ${comm.title || comm.name}`}
@@ -104,7 +104,7 @@ export const CommunitiesSwipeBar: React.FC<CommunitiesSwipeBarProps> = ({
       <button
         type="button"
         onClick={onOpenExplore}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-blue-50/90 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/50 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 transition flex-shrink-0 cursor-pointer ml-auto"
+        className="inline-flex lg:hidden items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex-shrink-0 cursor-pointer ml-auto"
         title="Explore and subscribe to more communities on Hive"
       >
         <Compass className="w-3.5 h-3.5" />

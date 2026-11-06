@@ -50,8 +50,6 @@ function isSnapComment(post: HivePost): boolean {
   return (post.parent_author || '').toLowerCase() === 'peak.snaps';
 }
 
-import { getCachedReplies, setCachedReplies } from './shortsCache';
-
 // Maximum age for snap containers (3 to 5 days horizon)
 export const MAX_CONTAINER_DAYS = 5;
 export const MAX_CONTAINER_AGE_MS = MAX_CONTAINER_DAYS * 24 * 60 * 60 * 1000;
@@ -109,117 +107,101 @@ export function isPeakSnapReply(post: HivePost): boolean {
 }
 
 /**
- * Snaps written by people you follow, taken from the followed-comments feed.
- * That feed is already cached; this keeps comments from followed accounts.
+ * Snaps written by followed accounts, from the same cached comments feed used
+ * by the main Feed. The caller can raise `limit` page by page to include more
+ * followed accounts without scanning Snaps containers.
  */
-export async function loadFollowingSnaps(account: string): Promise<HivePost[]> {
-  if (!account) return [];
-  const comments = await getFollowedCommentsFeed(account);
-  const snapComments = comments.filter(isSnapComment);
-  if (snapComments.length > 0) return snapComments;
-  return comments.slice(0, 30);
+export interface FollowingSnapsPage {
+  posts: HivePost[];
+  hasMore: boolean;
+  nextLimit: number;
+}
+
+export async function loadFollowingSnaps(
+  account: string,
+  forceRefresh: boolean = false,
+  limit: number = 45
+): Promise<FollowingSnapsPage> {
+  const me = account.replace(/^@/, '').trim().toLowerCase();
+  if (!me) return { posts: [], hasMore: false, nextLimit: limit + 45 };
+
+  const safeLimit = Math.min(limit, 300);
+  const comments = await getFollowedCommentsFeed(me, forceRefresh, safeLimit, 7);
+  const posts = comments
+    .filter((post) => post.author && isSnapComment(post))
+    .sort((a, b) => hiveTime(b.created) - hiveTime(a.created));
+  return {
+    posts,
+    hasMore: safeLimit < 300 && comments.length >= safeLimit,
+    nextLimit: Math.min(safeLimit + 45, 300)
+  };
 }
 
 /**
- * Replies directed to your snaps/account.
- * Uses bridge.get_account_posts directly with sort="replies", account=<user>, limit=20.
- * Strictly filters to replies belonging to the Peak Snaps community ("hive-124838").
- * Paginates up to 3 days if needed to find snap replies, stopping immediately
- * once older posts are encountered. Results are cached to prevent repeated RPC calls.
- * Does NOT scan containers like the general Shorts feed.
+ * Replies on the current account's latest Snaps. The authored Snap list comes
+ * from the same account-comments API used by the Profile > Comments tab; only
+ * Snaps that report replies are opened, so this never scans Peak Snaps containers.
  */
+export interface RepliesSourcePage {
+  posts: HivePost[];
+  hasMore: boolean;
+  nextCursor: { author: string; permlink: string } | null;
+}
+
 export async function loadRepliesToAccount(
   account: string,
-  _limit: number = 20,
-  forceRefresh: boolean = false
-): Promise<HivePost[]> {
+  limit: number = 20,
+  forceRefresh: boolean = false,
+  cursor?: { author: string; permlink: string } | null
+): Promise<RepliesSourcePage> {
   const me = account.replace(/^@/, '').trim().toLowerCase();
-  if (!me) return [];
-
-  if (!forceRefresh) {
-    const cached = getCachedReplies(me);
-    if (cached) return cached;
-  }
+  if (!me) return { posts: [], hasMore: false, nextCursor: null };
 
   const muted = await getMutedAccounts(me).catch(() => [] as string[]);
-  const mutedNames = new Set(muted);
+  const mutedNames = new Set(muted.map((name) => name.toLowerCase()));
 
-  const now = Date.now();
-  const snapReplies: HivePost[] = [];
+  const ownComments = await getAccountPosts(
+    'comments', me, limit, forceRefresh, cursor?.author, cursor?.permlink
+  ).catch(() => [] as HivePost[]);
+  const lastComment = ownComments[ownComments.length - 1];
+  const nextCursor = lastComment?.author && lastComment?.permlink
+    ? { author: lastComment.author, permlink: lastComment.permlink }
+    : null;
+
+  const ownSnaps = ownComments
+    .filter((post) => isSnapComment(post) && post.author && post.permlink)
+    .sort((a, b) => hiveTime(b.created) - hiveTime(a.created))
+    .slice(0, 20);
+  const snapsWithReplies = ownSnaps.filter((snap) =>
+    Number(snap.children) > 0 || (Array.isArray(snap.replies) && snap.replies.length > 0)
+  );
+
+  const discussionResults = await Promise.all(snapsWithReplies.map(async (snap) => ({
+    snap,
+    discussion: await getDiscussion(snap.author, snap.permlink, forceRefresh)
+  })));
   const seenPermlinks = new Set<string>();
+  const snapReplies = discussionResults.flatMap(({ snap, discussion }) =>
+    Object.values(discussion).filter((post) => {
+      if (!post?.author || !post.permlink || mutedNames.has(post.author.toLowerCase())) return false;
+      if ((post.parent_author || '').toLowerCase() !== snap.author.toLowerCase()) return false;
+      if ((post.parent_permlink || '').toLowerCase() !== snap.permlink.toLowerCase()) return false;
 
-  let startAuthor: string | undefined = undefined;
-  let startPermlink: string | undefined = undefined;
-  let page = 0;
-  const maxPages = 6; // Safety limit (scans up to 120 replies across pages)
-
-  while (page < maxPages) {
-    page++;
-    const params: Record<string, any> = {
-      account: me,
-      limit: 20,
-      sort: 'replies'
-    };
-
-    if (startAuthor && startPermlink) {
-      params.start_author = startAuthor;
-      params.start_permlink = startPermlink;
-    }
-
-    let batch: HivePost[] = [];
-    try {
-      const res = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', params);
-      batch = Array.isArray(res) ? res : [];
-    } catch (err) {
-      console.warn(`[loadRepliesToAccount] Failed page ${page}:`, err);
-      break;
-    }
-
-    if (batch.length === 0) break;
-
-    // When paginating with start_author/start_permlink, the first post is the anchor from the previous page
-    const items: HivePost[] = (startAuthor && startPermlink) ? batch.slice(1) : batch;
-    if (items.length === 0) break;
-
-    let reached3DayHorizon = false;
-
-    for (const post of items) {
-      if (!post || !post.author || !post.permlink) continue;
-
-      const postTime = hiveTime(post.created);
-      // Stop examining posts older than 3 days
-      if (postTime > 0 && (now - postTime) > MAX_REPLIES_AGE_MS) {
-        reached3DayHorizon = true;
-        break;
-      }
-
-      if (seenPermlinks.has(post.permlink)) continue;
-      seenPermlinks.add(post.permlink);
-
-      if (mutedNames.has(post.author.toLowerCase())) continue;
-
-      // Filter: strictly check for peak.snaps community ("hive-124838")
-      if (isPeakSnapReply(post)) {
-        snapReplies.push(post);
-      }
-    }
-
-    // Stop paginating if we reached posts older than 3 days or if the batch was smaller than requested limit
-    if (reached3DayHorizon || batch.length < 20) {
-      break;
-    }
-
-    // Advance pagination anchor
-    const lastItem: HivePost = items[items.length - 1];
-    startAuthor = lastItem.author;
-    startPermlink = lastItem.permlink;
-  }
+      const key = `${post.author.toLowerCase()}/${post.permlink.toLowerCase()}`;
+      if (seenPermlinks.has(key)) return false;
+      seenPermlinks.add(key);
+      return true;
+    })
+  );
 
   // Sort newest first
   snapReplies.sort((a, b) => hiveTime(b.created) - hiveTime(a.created));
 
-  setCachedReplies(me, snapReplies);
-  return snapReplies;
+  return {
+    posts: snapReplies,
+    hasMore: ownComments.length >= limit && !!nextCursor,
+    nextCursor
+  };
 }
 
 export async function getPeakSnapsContainers(

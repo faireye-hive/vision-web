@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   X,
   Layers,
-  Filter,
   Sparkles,
   TrendingUp,
   Clock
@@ -22,6 +21,7 @@ import { CommunityCardSkeletons } from '../components/communities/CommunityCardS
 import { CommunitiesTabNav } from '../components/communities/CommunitiesTabNav';
 
 export interface ExploreCommunitiesPageProps {
+  embedded?: boolean;
   onClose: () => void;
   onSwitchToManage: () => void;
   onSwitchToFeed?: () => void;
@@ -34,8 +34,7 @@ export interface ExploreCommunitiesPageProps {
 type SortOrder = 'rank' | 'subs' | 'new';
 
 const PAGE_SIZE = 100;
-const AUTO_LOAD_MIN_RESULTS = 12;
-const AUTO_LOAD_MAX_PAGES = 5;
+const DISPLAY_PAGE_SIZE = 40;
 const SORT_OPTIONS: { id: SortOrder; label: string; icon: React.ReactNode }[] = [
   { id: 'rank', label: 'Rank', icon: <TrendingUp className="w-3.5 h-3.5" /> },
   { id: 'subs', label: 'Subscribers', icon: <Layers className="w-3.5 h-3.5" /> },
@@ -51,6 +50,14 @@ interface StoredPrefs {
 }
 
 const DEFAULT_PREFS: StoredPrefs = { sortOrder: 'rank', category: 'all', hideSensitive: true };
+
+function sortCatalog(communities: HiveCommunity[], order: SortOrder): HiveCommunity[] {
+  if (order === 'rank') return communities;
+  return [...communities].sort((a, b) => {
+    if (order === 'subs') return (b.subscribers || 0) - (a.subscribers || 0);
+    return Date.parse(b.created_at || '') - Date.parse(a.created_at || '');
+  });
+}
 
 function loadPrefs(): StoredPrefs {
   try {
@@ -69,6 +76,7 @@ function loadPrefs(): StoredPrefs {
 }
 
 export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
+  embedded = false,
   onClose,
   onSwitchToManage,
   onSwitchToFeed,
@@ -85,7 +93,8 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMoreList, setHasMoreList] = useState(true);
-  const [hasMoreSearch, setHasMoreSearch] = useState(true);
+  const [hasMoreSearch, setHasMoreSearch] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(DISPLAY_PAGE_SIZE);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>(initialPrefs.sortOrder);
   const [category, setCategory] = useState(initialPrefs.category);
@@ -96,10 +105,10 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const forceLiveReload = useRef(false);
 
-  const autoPages = useRef(0);
   const isSearching = searchQuery.trim().length >= 2;
-  const hasMore = searchResults ? hasMoreSearch : hasMoreList;
+  const hasMore = isSearching ? hasMoreSearch : hasMoreList;
   const joinedCount = useMemo(() => Object.values(joinedCommunities).filter(Boolean).length, [joinedCommunities]);
 
   // Save display preferences
@@ -111,17 +120,35 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
     }
   }, [sortOrder, category, hideSensitive]);
 
-  // Load primary list from Hive API
+  // Load the checked-in rank snapshot first. Hive is only queried when the user
+  // changes sort, asks for more, or explicitly searches beyond the snapshot.
   useEffect(() => {
     let mounted = true;
     setLoading(true);
     setLoadError(null);
-    setHasMoreList(true);
-    listCommunities(sortOrder, PAGE_SIZE)
+    setSearchResults(null);
+    setHasMoreSearch(false);
+    setVisibleCount(DISPLAY_PAGE_SIZE);
+    const useLiveRefresh = forceLiveReload.current;
+    forceLiveReload.current = false;
+
+    const load = !useLiveRefresh
+      ? fetch(`${import.meta.env.BASE_URL}data/communities-rank.json`)
+          .then((response) => {
+            if (!response.ok) throw new Error('Cached community catalog is unavailable.');
+            return response.json() as Promise<HiveCommunity[]>;
+          })
+          .then((listed) => {
+            if (!Array.isArray(listed) || listed.length === 0) throw new Error('Cached community catalog is empty.');
+            return sortCatalog(listed, sortOrder);
+          })
+      : listCommunities(sortOrder, PAGE_SIZE, true);
+
+    load
       .then((listed) => {
         if (!mounted) return;
         setCommunities(listed || []);
-        setHasMoreList((listed || []).length >= PAGE_SIZE);
+        setHasMoreList(useLiveRefresh ? (listed || []).length >= PAGE_SIZE : true);
         setLoading(false);
       })
       .catch(() => {
@@ -134,39 +161,19 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
     };
   }, [sortOrder, reloadKey]);
 
-  // Search communities on Hive (debounced)
+  // Search the local catalog first; searching Hive is an explicit action below.
   useEffect(() => {
-    const query = searchQuery.trim();
-    if (query.length < 2) {
-      setSearchResults(null);
-      setSearchLoading(false);
-      return;
-    }
-    let mounted = true;
-    setSearchLoading(true);
-    const handle = window.setTimeout(() => {
-      listCommunities(sortOrder, PAGE_SIZE, false, '', query)
-        .then((listed) => {
-          if (!mounted) return;
-          setSearchResults(listed || []);
-          setHasMoreSearch((listed || []).length >= PAGE_SIZE);
-          setLoadError(null);
-          setSearchLoading(false);
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setLoadError('Could not search communities on Hive.');
-          setSearchLoading(false);
-        });
-    }, 280);
-    return () => {
-      mounted = false;
-      window.clearTimeout(handle);
-    };
+    setSearchResults(null);
+    setHasMoreSearch(false);
+    setSearchLoading(false);
+    setVisibleCount(DISPLAY_PAGE_SIZE);
   }, [searchQuery, sortOrder]);
 
   const catalog = useMemo(() => {
-    return searchResults ?? communities;
+    if (!searchResults?.length) return communities;
+    const merged = new Map(communities.map((community) => [community.name, community]));
+    searchResults.forEach((community) => merged.set(community.name, community));
+    return [...merged.values()];
   }, [communities, searchResults]);
 
   const classified = useMemo(() => catalog.map(classifyCommunity), [catalog]);
@@ -228,13 +235,29 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   const topicTotal = [...categoryCounts.values()].reduce((sum, count) => sum + count, 0);
   const languageTotal = languageCounts.reduce((sum, [, count]) => sum + count, 0);
 
-  const viewLoading = isSearching ? searchLoading && searchResults === null : loading;
-  const showSearchingHint = isSearching && searchLoading && searchResults !== null;
+  const viewLoading = loading;
+  const showSearchingHint = isSearching && searchLoading;
+
+  const searchHive = async () => {
+    if (searchLoading) return;
+    setSearchLoading(true);
+    setActionError(null);
+    try {
+      const listed = await listCommunities(sortOrder, PAGE_SIZE, true, '', searchQuery.trim());
+      setSearchResults(listed);
+      setHasMoreSearch(listed.length >= PAGE_SIZE);
+      setVisibleCount(DISPLAY_PAGE_SIZE);
+    } catch {
+      setActionError('Could not search communities on Hive. Please try again.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   const loadMore = async () => {
     if (loadingMore) return;
     if (isSearching && searchResults === null) return;
-    const source = searchResults ?? communities;
+    const source = isSearching ? (searchResults || []) : communities;
     const last = source[source.length - 1]?.name;
     if (!last) return;
     setLoadingMore(true);
@@ -246,7 +269,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
         return [...map.values()];
       };
       const more = batch.length >= PAGE_SIZE;
-      if (searchResults) {
+      if (isSearching) {
         setSearchResults((prev) => merge(prev || []));
         setHasMoreSearch(more);
       } else {
@@ -260,21 +283,9 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
     }
   };
 
-  // Auto-pagination when filtering narrow topics
   useEffect(() => {
-    autoPages.current = 0;
-  }, [category, language, searchQuery, sortOrder, onlySubscribed, hideSensitive]);
-
-  useEffect(() => {
-    const filtering = category !== 'all' || language !== 'all' || onlySubscribed;
-    if (!filtering) return;
-    if (loading || loadingMore || searchLoading || !hasMore || loadError) return;
-    if (isSearching && searchResults === null) return;
-    if (filtered.length >= AUTO_LOAD_MIN_RESULTS || autoPages.current >= AUTO_LOAD_MAX_PAGES) return;
-    autoPages.current += 1;
-    loadMore();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered.length, category, language, onlySubscribed, loading, loadingMore, searchLoading, hasMore, loadError]);
+    setVisibleCount(DISPLAY_PAGE_SIZE);
+  }, [category, language, onlySubscribed, hideSensitive]);
 
   const subscribe = async (name: string) => {
     if (joinedCommunities[name]) {
@@ -295,6 +306,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
 
   const retry = () => {
     setLoadError(null);
+    forceLiveReload.current = true;
     setReloadKey((key) => key + 1);
   };
 
@@ -314,10 +326,11 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
         joinedCount={joinedCount}
         onBack={onSwitchToFeed || onClose}
         showBack={true}
+        mobileOnly={embedded}
       />
 
       {/* Hero Header & Search Bar */}
-      <header className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 mb-4 shadow-xs">
+      <header className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl ${embedded ? 'p-4 mb-3' : 'p-5 mb-4'} shadow-xs`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
@@ -333,7 +346,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {!embedded && <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={onSwitchToManage}
@@ -342,7 +355,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
               <Layers className="w-3.5 h-3.5" />
               <span>Manage Subscriptions ({joinedCount})</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Search & Sort Controls */}
@@ -354,7 +367,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by community name, description, or topic..."
+              placeholder="Search the loaded community catalog..."
               aria-label="Search communities"
               className="w-full pl-9 pr-9 py-2.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-transparent focus:border-blue-500/40 transition"
             />
@@ -419,9 +432,9 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
       </header>
 
       {/* Two-Column Responsive Layout (Taxonomy Sidebar + Communities Grid) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-4 items-start">
+      <div className={`${embedded ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-4'} items-start`}>
         {/* Desktop Sidebar Filters */}
-        <aside className="hidden lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
+        <aside className={`${embedded ? 'hidden' : 'hidden lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4'}`}>
           <section className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-3 shadow-xs">
             <h2 className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">
               Topic
@@ -468,8 +481,43 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
 
         {/* Communities Results Section */}
         <section className="min-w-0">
+          {embedded && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+              <div className="mr-auto min-w-[120px] px-1">
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Browse topics</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{catalog.length.toLocaleString()} cached communities</p>
+              </div>
+              <label className="sr-only" htmlFor="explore-category-select">Filter by topic</label>
+              <select
+                id="explore-category-select"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className="min-w-[150px] max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {choices.map((choice) => (
+                  <option key={choice.tag} value={choice.tag}>
+                    {choice.icon} {choice.label} ({choice.tag === 'all' ? topicTotal : categoryCounts.get(choice.tag) || 0})
+                  </option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor="explore-language-select">Filter by language</label>
+              <select
+                id="explore-language-select"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                className="min-w-[145px] max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="all">All languages ({languageTotal})</option>
+                {languageRows.filter(([code]) => code !== 'all').map(([code, count]) => {
+                  const info = describeLanguage(code);
+                  return <option key={code} value={code}>{info.flag} {info.name} ({count})</option>;
+                })}
+              </select>
+            </div>
+          )}
+
           {/* Mobile Horizontal Filter Chips */}
-          <div className="lg:hidden space-y-2 mb-3">
+          {!embedded && <div className="lg:hidden space-y-2 mb-3">
             <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar" role="group" aria-label="Topic filter">
               {choices.map((choice) => (
                 <button
@@ -522,7 +570,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
                 })}
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Feedback messages */}
           {actionError && (
@@ -553,7 +601,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
             </div>
           ) : filtered.length === 0 ? (
             !loadError && (
-              <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-12 text-center space-y-3 shadow-xs">
+              <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-8 sm:p-12 text-center space-y-3 shadow-xs">
                 <Compass className="w-10 h-10 mx-auto text-gray-300 dark:text-slate-600" />
                 <h3 className="font-bold text-gray-800 dark:text-slate-200 text-base">
                   No communities found
@@ -577,12 +625,22 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
                     Clear all filters
                   </button>
                 )}
+                {isSearching && !searchResults && (
+                  <button
+                    type="button"
+                    onClick={searchHive}
+                    disabled={searchLoading}
+                    className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                  >
+                    {searchLoading ? 'Searching Hive…' : 'Search all Hive communities'}
+                  </button>
+                )}
               </div>
             )
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filtered.map((item) => (
+                {filtered.slice(0, visibleCount).map((item) => (
                   <CommunityCard
                     key={item.community.name}
                     item={item}
@@ -595,7 +653,32 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
                 ))}
               </div>
 
-              {hasMore && (
+              {isSearching && !searchResults && (
+                <div className="mt-5 text-center">
+                  <button
+                    type="button"
+                    onClick={searchHive}
+                    disabled={searchLoading}
+                    className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    {searchLoading ? 'Searching Hive…' : 'Search Hive for more matches'}
+                  </button>
+                </div>
+              )}
+
+              {filtered.length > visibleCount && (
+                <div className="text-center mt-5">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((count) => count + DISPLAY_PAGE_SIZE)}
+                    className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Show {Math.min(DISPLAY_PAGE_SIZE, filtered.length - visibleCount)} more from this catalog
+                  </button>
+                </div>
+              )}
+
+              {hasMore && filtered.length <= visibleCount && (!isSearching || Boolean(searchResults)) && (
                 <div className="text-center mt-6">
                   <button
                     type="button"
@@ -605,7 +688,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
                   >
                     {loadingMore
                       ? `Loading next ${PAGE_SIZE}...`
-                      : `Load more communities (${catalog.length} loaded)`}
+                      : isSearching ? 'Load more search results from Hive' : `Load next ${PAGE_SIZE} communities from Hive`}
                   </button>
                 </div>
               )}
@@ -615,7 +698,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
           <p className="mt-5 flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
-              Communities are loaded live from the Hive blockchain. Subscribing signs a Posting operation.
+              The first 1,000 ranked communities are bundled locally. More communities and remote search results load from Hive when requested. Subscribing signs a Posting operation.
               {catalog.length > 0 && ` Currently showing from ${catalog.length} communities loaded.`}
             </span>
           </p>

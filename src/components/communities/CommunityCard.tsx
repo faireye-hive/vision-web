@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, Users, ShieldAlert } from 'lucide-react';
+import { ArrowUpRight, Check, Plus, ShieldAlert, Users } from 'lucide-react';
 import { getHiveAvatarUrl } from '../../services/hiveApi';
 import { ClassifiedCommunity } from '../../utils/communityTaxonomy';
 
@@ -21,114 +21,116 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
   onPickCategory
 }) => {
   const { community } = item;
+  const name = community.title || community.name;
   const authors = community.num_authors || 0;
 
   return (
-    <article className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 flex flex-col justify-between gap-3 shadow-xs hover:border-gray-200 dark:hover:border-slate-700 transition duration-150 [content-visibility:auto] [contain-intrinsic-size:auto_190px]">
+    <article className="group relative flex min-h-[184px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.035)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:shadow-black/20 [content-visibility:auto] [contain-intrinsic-size:auto_184px]">
+      <div aria-hidden="true" className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-700" />
+
       <div>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+            aria-label={`Open ${name}`}
+          >
             <img
               src={community.avatar_url || getHiveAvatarUrl(community.name, 'small')}
-              alt={community.title || community.name}
+              alt=""
               loading="lazy"
-              className="w-11 h-11 rounded-2xl object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 border border-gray-100/80 dark:border-slate-700/60"
+              className="h-12 w-12 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50 object-cover shadow-sm dark:border-slate-700 dark:bg-slate-800"
               onError={(event) => {
                 (event.target as HTMLImageElement).src = getHiveAvatarUrl('hive', 'small');
               }}
             />
-            <div className="min-w-0">
-              <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate">
-                {community.title || community.name}
-              </h3>
-              <p className="text-[11px] font-mono text-gray-400 dark:text-slate-500 truncate">
+            <span className="min-w-0">
+              <span className="block line-clamp-2 text-[14px] font-bold leading-snug text-slate-900 transition group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-300">
+                {name}
+              </span>
+              <span className="mt-0.5 block truncate font-mono text-[10px] tracking-wide text-slate-400 dark:text-slate-500">
                 {community.name}
-              </p>
-            </div>
-          </div>
+              </span>
+            </span>
+          </button>
 
           <button
             type="button"
             onClick={onToggleJoin}
             disabled={busy}
-            aria-label={
+            aria-label={joined ? `Unsubscribe from ${name}` : `Subscribe to ${name}`}
+            className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-[11px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-wait disabled:opacity-60 ${
               joined
-                ? `Unsubscribe from ${community.title || community.name}`
-                : `Subscribe to ${community.title || community.name}`
-            }
-            className={`group text-xs px-3.5 py-1.5 rounded-full font-bold flex-shrink-0 transition-colors disabled:opacity-60 cursor-pointer ${
-              joined
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-300'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                ? 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                : 'bg-slate-900 text-white shadow-sm hover:bg-blue-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white'
             }`}
           >
             {busy ? (
-              'Signing...'
+              <span className="px-1">Signing…</span>
             ) : joined ? (
-              <>
-                <span className="group-hover:hidden">Subscribed</span>
-                <span className="hidden group-hover:inline">Unsubscribe</span>
-              </>
+              <><Check className="h-3.5 w-3.5" /> Subscribed</>
             ) : (
-              'Subscribe'
+              <><Plus className="h-3.5 w-3.5" /> Subscribe</>
             )}
           </button>
         </div>
 
-        <p className="text-xs text-gray-600 dark:text-slate-300 line-clamp-2 min-h-[2rem] mt-2.5">
-          {community.about || 'No description provided.'}
+        <p className="mt-3 min-h-9 line-clamp-2 text-xs leading-[1.45rem] text-slate-600 dark:text-slate-300">
+          {community.about || 'A Hive community for sharing and discovering ideas.'}
         </p>
 
-        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+        <div className="mt-2.5 flex min-h-6 flex-wrap items-center gap-1.5">
           {onPickCategory ? (
             <button
               type="button"
               onClick={onPickCategory}
               title={`Filter by ${item.categoryLabel}`}
-              className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300 transition"
+              className="max-w-full truncate rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {item.categoryIcon} {item.categoryLabel}
             </button>
           ) : (
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">
+            <span className="max-w-full truncate rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
               {item.categoryIcon} {item.categoryLabel}
             </span>
           )}
 
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             {item.language.flag} {item.language.name}
           </span>
 
           {community.is_nsfw && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/50">
-              <ShieldAlert className="w-2.5 h-2.5" /> Sensitive
+            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200/70 bg-rose-50 px-2 py-1 text-[10px] font-semibold text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400">
+              <ShieldAlert className="h-3 w-3" /> Sensitive
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-slate-800 text-[11px] text-gray-500 dark:text-slate-400">
-        <span className="inline-flex items-center gap-1">
-          <Users className="w-3.5 h-3.5 text-gray-400" />
-          <span className="font-semibold text-gray-700 dark:text-slate-300">
+      <footer className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <Users className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <span className="font-bold text-slate-800 dark:text-slate-200">
             {(community.subscribers || 0).toLocaleString()}
-          </span>{' '}
-          members
+          </span>
+          <span>members</span>
           {authors > 0 && (
-            <span className="text-gray-400 dark:text-slate-500">
-              &middot; {authors.toLocaleString()} active
-            </span>
+            <>
+              <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+              <span className="truncate">{authors.toLocaleString()} active</span>
+            </>
           )}
-        </span>
+        </div>
 
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer"
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
         >
-          View feed <ExternalLink className="w-3 h-3" />
+          View feed <ArrowUpRight className="h-3.5 w-3.5" />
         </button>
-      </div>
+      </footer>
     </article>
   );
 };

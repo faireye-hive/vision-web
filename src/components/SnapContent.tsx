@@ -6,7 +6,6 @@ import { extract3SpeakVideoIds, get3SpeakData, getCached3SpeakData } from '../ut
 import {
   HivePostLink,
   collapseDuplicateHashtags,
-  extractHashtags,
   extractHivePostLinks,
   extractSnapImages,
   imageIdentity,
@@ -14,6 +13,58 @@ import {
   truncateSnapText,
 } from '../services/shortsApi';
 import { SafeSnapImage } from './SafeSnapImage';
+
+const TRUSTED_SNAP_LINK_HOSTS = [
+  'peakd.com',
+  'ecency.com',
+  'hive.blog',
+  '3speak.tv',
+  '3speak.com',
+  '3speak.online'
+];
+
+function isTrustedSnapLink(url: URL): boolean {
+  if (url.origin === window.location.origin) return true;
+  const host = url.hostname.toLowerCase();
+  return TRUSTED_SNAP_LINK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function linkifyHashtags(html: string): string {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  textNodes.forEach((textNode) => {
+    if (textNode.parentElement?.closest('a, button, code, pre')) return;
+    const value = textNode.nodeValue || '';
+    const matches = Array.from(value.matchAll(/(^|\s)#([a-zA-Z0-9_\u0080-\uFFFF]+)/g));
+    if (!matches.length) return;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    matches.forEach((match) => {
+      const start = match.index ?? 0;
+      const tagStart = start + match[1].length;
+      const tagEnd = tagStart + match[2].length + 1;
+      fragment.append(value.slice(cursor, tagStart));
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.snapTag = match[2];
+      button.title = `Filter Shorts by #${match[2]}`;
+      button.className = 'font-semibold text-blue-600 hover:underline dark:text-blue-400';
+      button.textContent = `#${match[2]}`;
+      fragment.append(button);
+      cursor = tagEnd;
+    });
+    fragment.append(value.slice(cursor));
+    textNode.replaceWith(fragment);
+  });
+
+  return template.innerHTML;
+}
 
 interface SnapContentProps {
   body: string;
@@ -122,7 +173,6 @@ export function SnapContent({
     () => extractHivePostLinks(body || '', { author, permlink }),
     [body, author, permlink]
   );
-  const hashtags = useMemo(() => extractHashtags(body || ''), [body]);
   const [failed, setFailed] = useState<Record<string, true>>({});
 
   const shownImages = images.filter((url) => !failed[imageIdentity(url)]);
@@ -144,6 +194,7 @@ export function SnapContent({
     const text = collapseDuplicateHashtags(stripResolvedSnapUrls(activeText || '', hidden));
     return markdownToSafeHtml(text, { jsonMetadata, threeSpeakThumbnails });
   }, [activeText, shownImages, hiveLinks, jsonMetadata, threeSpeakThumbnails]);
+  const displayHtml = useMemo(() => onSelectTag ? linkifyHashtags(safeHtml) : safeHtml, [safeHtml, onSelectTag]);
 
   return (
     <div>
@@ -151,13 +202,46 @@ export function SnapContent({
         <div
           onClick={(e) => {
             const target = e.target as HTMLElement;
+            const tagButton = target.closest<HTMLElement>('[data-snap-tag]');
+            if (tagButton) {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelectTag?.(tagButton.dataset.snapTag || '');
+              return;
+            }
             if (target.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container')) {
+              return;
+            }
+            const anchor = target.closest<HTMLAnchorElement>('a');
+            if (anchor) {
+              e.preventDefault();
+              e.stopPropagation();
+              const href = anchor.getAttribute('href');
+              if (!href) return;
+
+              let destination: URL;
+              try {
+                destination = new URL(href, window.location.href);
+              } catch {
+                return;
+              }
+
+              if (destination.protocol !== 'https:' && destination.protocol !== 'http:') return;
+
+              if (!isTrustedSnapLink(destination)) {
+                const shouldContinue = window.confirm(
+                  `This link will take you outside Nebulosa.\n\nDestination: ${destination.hostname}\n${destination.href}\n\nContinue only if you trust this site.`
+                );
+                if (!shouldContinue) return;
+              }
+
+              window.open(destination.href, '_blank', 'noopener,noreferrer');
               return;
             }
             onOpenDetail?.();
           }}
           className={`${textClassName} ${onOpenDetail ? 'cursor-pointer' : ''}`}
-          dangerouslySetInnerHTML={{ __html: safeHtml }}
+          dangerouslySetInnerHTML={{ __html: displayHtml }}
         />
       )}
 
@@ -184,22 +268,6 @@ export function SnapContent({
       {hiveLinks.map((link) => (
         <ResnapCard key={`${link.author}/${link.permlink}`} link={link} />
       ))}
-
-      {hashtags.length > 0 && onSelectTag && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {hashtags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => onSelectTag(tag)}
-              className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2.5 py-1 rounded-full transition cursor-pointer"
-              title={`Filter shorts by #${tag}`}
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      )}
 
       {shownImages.length > 0 && (
         <div className={`mt-3 ${shownImages.length === 1 ? '' : 'grid gap-2 grid-cols-2'}`}>

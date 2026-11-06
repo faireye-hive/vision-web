@@ -504,9 +504,6 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
                       <MessageCircle className="w-4 h-4 text-indigo-400" />
                       <span>{premierePost.children} Fan Notes</span>
                     </span>
-                    <span className="text-emerald-400 font-bold">
-                      ${Number(premierePost.pending_payout_value?.split(' ')[0] || 0).toFixed(2)}
-                    </span>
                   </div>
 
                   <button
@@ -721,9 +718,6 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
                             )}
                           </div>
 
-                          <span className="text-emerald-400 font-bold">
-                            ${Number(post.pending_payout_value?.split(' ')[0] || 0).toFixed(2)}
-                          </span>
                         </div>
                       </div>
 

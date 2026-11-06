@@ -25,7 +25,7 @@ const SORT_OPTIONS = [
     id: 'recommend' as const,
     label: 'Recommend',
     icon: Compass,
-    iconColor: 'text-violet-600 dark:text-violet-400',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Personalized feed based on your upvoted posts & HiveSense',
     badge: 'Smart',
   },
@@ -33,7 +33,7 @@ const SORT_OPTIONS = [
     id: 'hot' as const,
     label: 'Hot',
     icon: Flame,
-    iconColor: 'text-amber-500',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Rapid momentum and recent active engagement',
     badge: null,
   },
@@ -41,15 +41,15 @@ const SORT_OPTIONS = [
     id: 'trending' as const,
     label: 'Trending',
     icon: TrendingUp,
-    iconColor: 'text-blue-600',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Highest post rewards and top community votes',
     badge: null,
   },
   {
     id: 'created' as const,
-    label: 'New',
+    label: 'Created',
     icon: Sparkles,
-    iconColor: 'text-emerald-600',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Real-time latest posts published on Hive',
     badge: 'Live',
   },
@@ -57,7 +57,7 @@ const SORT_OPTIONS = [
     id: 'payout' as const,
     label: 'Payout',
     icon: DollarSign,
-    iconColor: 'text-emerald-500',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Posts with the highest pending rewards',
     badge: null,
   },
@@ -65,7 +65,7 @@ const SORT_OPTIONS = [
     id: 'muted' as const,
     label: 'Muted',
     icon: VolumeX,
-    iconColor: 'text-rose-500',
+    iconColor: 'text-slate-500 dark:text-slate-400',
     description: 'Downvoted or filtered community posts',
     badge: null,
   },
@@ -157,7 +157,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
           iconOnly ? 'p-1.5 sm:px-2 sm:py-1' : 'px-2 py-1 sm:px-2.5 sm:py-1'
         } rounded-full text-xs font-semibold transition cursor-pointer border select-none shrink-0 ${
           isOpen
-            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-xs'
+            ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-xs'
             : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
@@ -170,7 +170,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
         )}
         <ChevronDown
           className={`w-2.5 h-2.5 text-gray-400 dark:text-slate-500 transition-transform duration-150 flex-shrink-0 ${
-            isOpen ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
+            isOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
           }`}
         />
       </button>
@@ -209,8 +209,8 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                   title={option.description}
                   className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer select-none group ${
                     isCurrent
-                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
-                      : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-blue-50/50'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-start gap-2.5 min-w-0">
@@ -234,7 +234,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                   </div>
 
                   {isCurrent && (
-                    <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-1" />
+                    <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0 ml-1" />
                   )}
                 </button>
               );

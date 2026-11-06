@@ -22,6 +22,7 @@ import { CommunitiesTabNav } from '../components/communities/CommunitiesTabNav';
 import { requestLogin } from '../utils/authEvents';
 
 export interface ManageCommunitiesPageProps {
+  embedded?: boolean;
   onClose: () => void;
   onSwitchToExplore: () => void;
   onSwitchToFeed?: () => void;
@@ -69,6 +70,7 @@ function loadPrefs(): StoredPrefs {
 const communityCache = new Map<string, HiveCommunity>();
 
 export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
+  embedded = false,
   onClose,
   onSwitchToExplore,
   onSwitchToFeed,
@@ -276,13 +278,14 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
         joinedCount={joinedCount}
         onBack={onSwitchToFeed || onClose}
         showBack={true}
+        mobileOnly={embedded}
       />
 
       {/* Hero Header & Search Bar */}
-      <header className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 mb-4 shadow-xs">
+      <header className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl ${embedded ? 'p-4 mb-3' : 'p-5 mb-4'} shadow-xs`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+            <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
               <Layers className="w-6 h-6" />
             </div>
             <div>
@@ -290,8 +293,8 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                   Manage Subscriptions
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                  {owned.length} Joined
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {owned.length} subscribed
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
@@ -302,7 +305,7 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {!embedded && <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={onSwitchToExplore}
@@ -311,7 +314,7 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
               <Compass className="w-3.5 h-3.5" />
               <span>Explore All Communities</span>
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Search & Sort Controls (only if account has items or is logged in) */}
@@ -326,7 +329,7 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search your subscribed communities..."
                 aria-label="Search subscribed communities"
-                className="w-full pl-9 pr-9 py-2.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 border border-transparent focus:border-emerald-500/40 transition"
+                className="w-full pl-9 pr-9 py-2.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-transparent focus:border-blue-500/40 transition"
               />
               {searchQuery && (
                 <button
@@ -407,9 +410,9 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-4 items-start">
+        <div className={`${embedded ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-4'} items-start`}>
           {/* Desktop Taxonomy Sidebar */}
-          {owned.length > 0 && (
+          {!embedded && owned.length > 0 && (
             <aside className="hidden lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-4">
               <section className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-3 shadow-xs">
                 <h2 className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">
@@ -459,9 +462,44 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
           )}
 
           {/* Communities Results Section */}
-          <section className={`min-w-0 ${owned.length === 0 ? 'lg:col-span-2' : ''}`}>
+          <section className={`min-w-0 ${!embedded && owned.length === 0 ? 'lg:col-span-2' : ''}`}>
+            {embedded && owned.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+                <div className="mr-auto min-w-[120px] px-1">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Your communities</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Filter your subscriptions</p>
+                </div>
+                <label className="sr-only" htmlFor="manage-category-select">Filter by topic</label>
+                <select
+                  id="manage-category-select"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  className="min-w-[150px] max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  {choices.map((choice) => (
+                    <option key={choice.tag} value={choice.tag}>
+                      {choice.icon} {choice.label} ({choice.tag === 'all' ? topicTotal : categoryCounts.get(choice.tag) || 0})
+                    </option>
+                  ))}
+                </select>
+                <label className="sr-only" htmlFor="manage-language-select">Filter by language</label>
+                <select
+                  id="manage-language-select"
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                  className="min-w-[145px] max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <option value="all">All languages ({languageTotal})</option>
+                  {languageRows.filter(([code]) => code !== 'all').map(([code, count]) => {
+                    const info = describeLanguage(code);
+                    return <option key={code} value={code}>{info.flag} {info.name} ({count})</option>;
+                  })}
+                </select>
+              </div>
+            )}
+
             {/* Mobile Filter Chips */}
-            {owned.length > 0 && (
+            {owned.length > 0 && !embedded && (
               <div className="lg:hidden space-y-2 mb-3">
                 <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar" role="group" aria-label="Topic filter">
                   {choices.map((choice) => (
@@ -472,7 +510,7 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
                       aria-pressed={category === choice.tag}
                       className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition ${
                         category === choice.tag
-                          ? 'bg-emerald-600 text-white shadow-xs'
+                          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
                           : 'bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300'
                       }`}
                     >

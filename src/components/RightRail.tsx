@@ -1,10 +1,9 @@
-import { Sparkles } from 'lucide-react';
+import { Compass, Layers, Sparkles } from 'lucide-react';
 import { HivePost } from '../services/hiveApi';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
 import { CommunityInfoCard } from './CommunityInfoCard';
 import { CommunityTopicsCard } from './CommunityTopicsCard';
-import { SubscribedCommunitiesCard } from './SubscribedCommunitiesCard';
 import { TrendingTopicsCard } from './TrendingTopicsCard';
 import { RecommendedUsersCard } from './RecommendedUsersCard';
 import { ShortsWordFilterCard } from './ShortsWordFilterCard';
@@ -41,15 +40,14 @@ export function RightRail({
     setFeedAuthor,
     handleSelectAuthor,
     feedAuthor,
-    openCommunity,
-    setCommunitySubTopic,
+    standalonePage,
   } = useNavigation();
   const { currentUser, followingUsersList, setFollowingUsersList } = useAuth();
 
   if (activeNav === 'shorts') {
     return (
-      <>
-        <ReadingStyleCard />
+      <div className="w-full space-y-3">
+        <ReadingStyleCard neutralAccent />
         <ShortsWordFilterCard
           blockedWords={blockedWords}
           onAddWord={onAddBlockedWord}
@@ -60,60 +58,64 @@ export function RightRail({
           hiddenCount={shortsHiddenCount}
         />
 
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100" style={{ width: '280px', marginTop: '39px' }}>
+        <div className="space-y-2.5 rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="font-bold text-sm text-gray-900 dark:text-white">About Shorts</h3>
+            <Sparkles className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white">About Shorts</h3>
           </div>
-          <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed">
-            Shorts brings decentralized microblogging to Hive. Snaps are published by community members directly as comments under container posts by <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>.
+          <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-400">
+            Short posts published on Hive through <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>.
           </p>
-          <div className="pt-2 border-t border-gray-100 dark:border-slate-800 space-y-2 text-xs text-gray-500 dark:text-slate-400">
-            <div className="flex items-center justify-between">
-              <span>Protocol</span>
-              <span className="font-semibold text-gray-800 dark:text-slate-200">PeakD Snaps</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Source</span>
-              <span className="font-semibold text-gray-800 dark:text-slate-200">@peak.snaps</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Feed Type</span>
-              <span className="font-semibold text-blue-600 dark:text-blue-400">Twitter-like Stream</span>
-            </div>
+          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <span>Hive microblog</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">PeakD Snaps</span>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (activeNav === 'communities') {
+    if (standalonePage === 'explore' || standalonePage === 'manage') {
+      const exploring = standalonePage === 'explore';
+      return (
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {exploring ? <Compass className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {exploring ? 'Community directory' : 'Your communities'}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {exploring ? 'Find a space that fits your interests.' : 'Manage the communities you follow.'}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:text-slate-400">
+            {exploring
+              ? 'Browse the cached directory by topic or language. Search Hive when you need communities beyond the local list.'
+              : 'Your followed communities stay available in the left sidebar for quick access.'}
+          </p>
+        </section>
+      );
+    }
     if (tag && tag.startsWith('hive-')) {
       return (
         <>
-          <ReadingStyleCard />
           <CommunityInfoCard communityName={tag} onSelectAuthor={handleSelectAuthor} />
           <CommunityTopicsCard communityPosts={communityPosts} currentTag={tag} />
         </>
       );
     }
-    return (
-      <>
-        <ReadingStyleCard />
-        <SubscribedCommunitiesCard
-          onSelectCommunity={(commName) => {
-            openCommunity(commName);
-            setCommunitySubTopic('');
-          }}
-        />
-      </>
-    );
+    return <CommunityTopicsCard communityPosts={communityPosts} currentTag={tag} />;
   }
 
   if (activeNav === 'discover') {
     return (
       <>
-        <ReadingStyleCard />
+        <ReadingStyleCard neutralAccent />
         <TrendingTopicsCard
           currentTag={tag}
           currentSort={sort}

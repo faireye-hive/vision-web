@@ -40,7 +40,7 @@ export interface NavigationContextType {
   setSelectedPost: (post: HivePost | null) => void;
   postHeadings: PostHeading[];
   setPostHeadings: React.Dispatch<React.SetStateAction<PostHeading[]>>;
-  handleSelectPost: (post: HivePost, pushHistory?: boolean, jumpToComments?: boolean) => void;
+  handleSelectPost: (post: HivePost, pushHistory?: boolean, jumpToComments?: boolean, preserveStandalonePage?: StandalonePage) => void;
   handleClosePost: () => void;
   handleSelectHeading: (id: string) => void;
   handleOpenNotificationPost: (author: string, permlink: string) => Promise<void>;
@@ -109,6 +109,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const activeNavRef = useRef<NavTab>(activeNav);
   activeNavRef.current = activeNav;
   const openedPostInAppRef = useRef<boolean>(false);
+  const returnToProfileAfterPostRef = useRef(false);
   selectedPostRef.current = selectedPost;
   const tagRef = useRef<string>(tag);
   tagRef.current = tag;
@@ -264,7 +265,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       if (segments.length >= 2) {
         const cleanAuthor = segments[0].replace(/^@/, '');
         const cleanPermlink = segments.slice(1).join('/');
-        setStandalonePage(null);
+        const routeState = location.state as { readerOrigin?: string } | null;
+        setStandalonePage(routeState?.readerOrigin === 'profile' ? 'profile' : null);
         loadShell(cleanAuthor, cleanPermlink);
         return release;
       }
@@ -303,8 +305,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       const tabParam = searchParams.get('tab');
       syncTopic();
 
-      // If explicit tab is provided, show standalone page.
-      // Otherwise, show the feed (standalonePage = null).
+      if (tabParam === 'explore' || tabParam === 'manage') {
+        setTagState('');
+        tagRef.current = '';
+        setCommunitySubTopic('');
+      }
+
+      // Restore the selected Communities section inside the shared app shell.
+      // Without a tab query, show the communities feed.
       if (tabParam === 'manage') {
         setStandalonePage('manage');
       } else if (tabParam === 'explore') {
@@ -412,8 +420,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     } else if (page === 'following') {
       navigate('/following');
     } else if (page === 'explore') {
+      setTagState('');
+      tagRef.current = '';
+      setCommunitySubTopic('');
       navigate('/communities?tab=explore');
     } else if (page === 'manage') {
+      setTagState('');
+      tagRef.current = '';
+      setCommunitySubTopic('');
       navigate('/communities?tab=manage');
     }
   }, [currentUser?.username, navigate]);
@@ -468,12 +482,16 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     }, 50);
   }, []);
 
-  const handleSelectPost = useCallback((post: HivePost, pushHistory = true, jumpToComments = false) => {
+  const handleSelectPost = useCallback((post: HivePost, pushHistory = true, jumpToComments = false, preserveStandalonePage?: StandalonePage) => {
     saveScrollPosition();
     setSelectedPost(post);
-    setStandalonePage(null);
+    setStandalonePage(preserveStandalonePage || null);
+    returnToProfileAfterPostRef.current = preserveStandalonePage === 'profile';
     openedPostInAppRef.current = true;
-    navigate(`/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`);
+    navigate(
+      `/post/@${post.author}/${post.permlink}${jumpToComments ? '#comments' : ''}`,
+      preserveStandalonePage === 'profile' ? { state: { readerOrigin: 'profile' } } : undefined
+    );
 
     // If the post was passed with an incomplete or truncated body (e.g. HiveSense snippet or from recommendation),
     // fetch the complete authoritative full post from Hive RPC blockchain so the reader renders the entire article:
@@ -497,6 +515,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const handleClosePost = useCallback(() => {
     setSelectedPost(null);
     setPostHeadings([]);
+
+    if (returnToProfileAfterPostRef.current) {
+      returnToProfileAfterPostRef.current = false;
+      openedPostInAppRef.current = false;
+      setStandalonePage('profile');
+      navigate(`/profile/@${profileUser || currentUser?.username || ''}`, { replace: true });
+      restoreScrollPosition();
+      return;
+    }
 
     if (activeNav === 'shorts') {
       openedPostInAppRef.current = false;
@@ -529,7 +556,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Restore scroll position for non-shorts tabs
     restoreScrollPosition();
-  }, [activeNav, tag, sort, communitySubTopic, navigate, restoreScrollPosition]);
+  }, [activeNav, tag, sort, communitySubTopic, profileUser, currentUser?.username, navigate, restoreScrollPosition]);
 
   const handleSelectHeading = useCallback((id: string) => {
     const element = document.getElementById(id);

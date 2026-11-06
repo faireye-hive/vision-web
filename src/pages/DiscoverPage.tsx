@@ -16,11 +16,8 @@ import {
 import {
   HivePost,
   getRankedPosts,
-  getCachedRankedPosts,
-  getSubscriptions
+  getCachedRankedPosts
 } from '../services/hiveApi';
-import { DEFAULT_COMMUNITIES } from '../components/LeftSidebar';
-import { CommunitiesSwipeBar } from '../components/communities/CommunitiesSwipeBar';
 import {
   getRecommendationsForUser,
   subscribeRecommendationStatus,
@@ -90,49 +87,6 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     () => Object.values(joinedCommunities || {}).filter(Boolean).length,
     [joinedCommunities]
   );
-
-  // Subscribed communities for Communities Feed swipe carousel
-  const [followedCommunities, setFollowedCommunities] = useState<Array<{ name: string; title: string }>>([]);
-  const [isSubsLoading, setIsSubsLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!isCommunitiesFeed) return;
-    if (currentUser?.username) {
-      let mounted = true;
-      setIsSubsLoading(true);
-      getSubscriptions(currentUser.username)
-        .then((subs) => {
-          if (!mounted) return;
-          if (subs && subs.length > 0) {
-            setFollowedCommunities(subs.map(([name, title]) => ({ name, title: title || name })));
-          } else {
-            setFollowedCommunities(DEFAULT_COMMUNITIES);
-          }
-          setIsSubsLoading(false);
-        })
-        .catch(() => {
-          if (mounted) {
-            setFollowedCommunities(DEFAULT_COMMUNITIES);
-            setIsSubsLoading(false);
-          }
-        });
-      return () => {
-        mounted = false;
-      };
-    } else {
-      setFollowedCommunities(DEFAULT_COMMUNITIES);
-    }
-  }, [currentUser?.username, isCommunitiesFeed]);
-
-  const displayCommunities = useMemo(() => {
-    const base = followedCommunities.length > 0 ? [...followedCommunities] : [...DEFAULT_COMMUNITIES];
-    Object.keys(joinedCommunities || {}).forEach((name) => {
-      if (joinedCommunities[name] && !base.some((c) => c.name === name)) {
-        base.push({ name, title: name });
-      }
-    });
-    return base.filter((c) => joinedCommunities[c.name] !== false);
-  }, [followedCommunities, joinedCommunities]);
 
   const {
     config: contentFilterConfig,
@@ -584,7 +538,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   return (
     <div
       id="discover-page"
-      className="space-y-4 sm:space-y-5 w-full min-w-0 max-w-[860px] mx-auto px-0"
+      className="space-y-3 sm:space-y-4 w-full min-w-0 max-w-full mx-auto px-0"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -598,7 +552,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         >
           <div
             id="discover-pull-refresh-pill"
-            className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-bold bg-white dark:bg-slate-900 px-3.5 py-1.5 rounded-full shadow-md border border-blue-100 dark:border-blue-900/50"
+            className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-semibold bg-white dark:bg-slate-900 px-3.5 py-1.5 rounded-full shadow-sm border border-slate-200 dark:border-slate-700"
           >
             <RefreshCw
               id="discover-pull-refresh-icon"
@@ -614,28 +568,25 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       {/* Header controls bar - Auto-hide on scroll down, show on scroll up on mobile */}
       <div
         id="discover-header"
-        className={`bg-white/90 dark:bg-[#0c1222]/95 backdrop-blur-xl border border-gray-200/70 dark:border-slate-800/80 rounded-2xl sm:rounded-3xl shadow-[0_4px_24px_-4px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_30px_-4px_rgba(0,0,0,0.5)] z-40 flex flex-nowrap items-center justify-between gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 transition-all duration-300 ease-out sticky top-0 sm:relative max-w-full overflow-visible ${
+        className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm z-40 flex flex-nowrap items-center justify-between gap-1 sm:gap-2 px-2 sm:px-3 py-2 transition-all duration-300 ease-out sticky top-0 sm:relative max-w-full overflow-visible ${
           headerVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : '-translate-y-16 opacity-0 pointer-events-none sm:translate-y-0 sm:opacity-100 sm:pointer-events-auto'
         }`}
       >
-        {/* Top ambient hairline glow */}
-        <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/50 to-transparent pointer-events-none rounded-t-2xl sm:rounded-t-3xl" />
-
         <div
           id="discover-header-left"
           className="flex items-center flex-nowrap gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-visible py-0.5"
         >
           {isCommunitiesFeed ? (
-            <div className="flex items-center gap-0.5 p-0.5 bg-gray-100/90 dark:bg-slate-800/90 rounded-xl sm:rounded-2xl border border-gray-200/50 dark:border-slate-700/50 shrink-0 shadow-inner">
-              <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs whitespace-nowrap">
+            <div className="flex items-center gap-0.5 p-0.5 bg-gray-100/90 dark:bg-slate-800/90 rounded-xl sm:rounded-2xl border border-gray-200/50 dark:border-slate-700/50 shrink-0 shadow-inner lg:hidden">
+              <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs whitespace-nowrap">
                 <span>Feed</span>
               </span>
               <button
                 type="button"
                 onClick={openCommunitiesModal}
-                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
                 title="Explore and discover Hive communities"
               >
                 <Compass className="w-3.5 h-3.5" />
@@ -644,7 +595,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <button
                 type="button"
                 onClick={openManageCommunitiesModal}
-                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
                 title="Manage your subscribed communities"
               >
                 <Layers className="w-3.5 h-3.5" />
@@ -657,7 +608,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               </button>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center p-1.5 rounded-full bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-500/15 text-blue-600 dark:text-blue-400 shrink-0 shadow-2xs">
+            <div className="hidden sm:flex items-center p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
               <Sparkles className="w-3 h-3" />
             </div>
           )}
@@ -714,7 +665,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {tag && !activeCategory && !isCommunitiesFeed && (
             <div
               id="discover-tag-chip"
-              className="flex items-center gap-1 bg-blue-50/90 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-bold shrink-0 max-w-[95px] sm:max-w-[130px] shadow-2xs animate-in fade-in"
+              className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold shrink-0 max-w-[95px] sm:max-w-[130px] animate-in fade-in"
             >
               <span id="discover-tag-chip-label" className="truncate">#{tag}</span>
               <button
@@ -723,7 +674,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                   setTag('');
                   setFeedAuthor(null);
                 }}
-                className="hover:text-blue-900 dark:hover:text-blue-100 font-bold ml-0.5 cursor-pointer p-0.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/60 transition shrink-0"
+                className="hover:text-slate-900 dark:hover:text-white font-bold ml-0.5 cursor-pointer p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0"
                 title="Clear topic filter"
               >
                 <X id="discover-tag-chip-clear-icon" className="w-3 h-3" />
@@ -735,13 +686,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {communitySubTopic && (
             <div
               id="discover-subtopic-chip"
-              className="flex items-center gap-1 bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-bold shrink-0 max-w-[95px] sm:max-w-[130px] shadow-2xs animate-in fade-in"
+              className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold shrink-0 max-w-[95px] sm:max-w-[130px] animate-in fade-in"
             >
               <span id="discover-subtopic-chip-label" className="truncate">#{communitySubTopic}</span>
               <button
                 id="discover-subtopic-chip-clear-btn"
                 onClick={() => setCommunitySubTopic('')}
-                className="hover:text-indigo-900 dark:hover:text-indigo-100 font-bold ml-0.5 cursor-pointer p-0.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition shrink-0"
+                className="hover:text-slate-900 dark:hover:text-white font-bold ml-0.5 cursor-pointer p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0"
                 title="Clear subtopic filter"
               >
                 <X id="discover-subtopic-chip-clear-icon" className="w-3 h-3" />
@@ -759,9 +710,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             title={feedLayoutMode === 'gallery' ? 'Switch to Compact List view' : 'Switch to Gallery view'}
           >
             {feedLayoutMode === 'gallery' ? (
-              <LayoutList className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <LayoutList className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             ) : (
-              <LayoutGrid className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <LayoutGrid className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             )}
             <span className="hidden lg:inline">{feedLayoutMode === 'gallery' ? 'Gallery' : 'List'}</span>
           </button>
@@ -772,9 +723,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             onClick={openContentFilterModal}
             className={`px-2 py-1 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer border shrink-0 ${
               contentFilterConfig.enabled && filteredOutStats.total > 0
-                ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+                ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700'
                 : contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0)
-                ? 'bg-blue-50/50 dark:bg-blue-950/30 border-blue-200/60 dark:border-blue-900/40 text-blue-600 dark:text-blue-400'
+                ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200'
                 : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700/80 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
             }`}
             title={
@@ -785,7 +736,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           >
             <SlidersHorizontal
               id="discover-filters-icon"
-              className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"
+              className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300"
             />
             <span id="discover-filters-label" className="hidden md:inline">Filters</span>
             {contentFilterConfig.enabled && (contentFilterConfig.words.length > 0 || contentFilterConfig.authors.length > 0) && (
@@ -793,7 +744,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                 id="discover-filters-count"
                 className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                   filteredOutStats.total > 0
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900'
                     : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                 }`}
                 title={`${filteredOutStats.total} ${filteredOutStats.total === 1 ? 'post' : 'posts'} hidden`}
@@ -813,7 +764,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             >
               <RefreshCw
                 id="discover-refresh-icon"
-                className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`}
+                className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-slate-600 dark:text-slate-300' : ''}`}
               />
             </button>
           )}
@@ -822,13 +773,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       {/* Active Category Spotlight Sub-banner */}
       {activeCategory && !isCommunitiesFeed && (
-        <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-purple-50/80 dark:from-[#0c1222]/90 dark:via-blue-950/30 dark:to-[#0c1222]/90 border border-blue-200/60 dark:border-blue-900/50 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-sm animate-in fade-in">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-base shrink-0 border border-blue-500/20">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-base shrink-0 border border-slate-200 dark:border-slate-700">
               {activeCategory.icon || `#`}
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white truncate">
+              <h4 className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate">
                 {activeCategory.label} Discovery
               </h4>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
@@ -839,25 +790,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           <button
             type="button"
             onClick={() => { setTag(''); setFeedAuthor(null); }}
-            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline px-2.5 py-1 rounded-xl hover:bg-blue-100/60 dark:hover:bg-blue-900/40 transition shrink-0 cursor-pointer"
+            className="text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-2.5 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
           >
             Show All
           </button>
         </div>
-      )}
-
-      {/* ================= FOLLOWED COMMUNITIES SWIPE CAROUSEL ================= */}
-      {isCommunitiesFeed && (
-        <CommunitiesSwipeBar
-          communities={displayCommunities}
-          currentTag={tag}
-          onSelectCommunity={(commName) => {
-            setTag(commName);
-            setFeedAuthor(null);
-          }}
-          onOpenExplore={openCommunitiesModal}
-          loading={isSubsLoading}
-        />
       )}
 
       {/* Error banner */}
@@ -890,15 +827,15 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       {sort === 'recommend' && !username ? (
         <div
           id="discover-recommend-login-prompt"
-          className="relative overflow-hidden p-8 sm:p-12 text-center max-w-lg mx-auto bg-white/85 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl border border-violet-200/60 dark:border-violet-900/40 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.25)] my-6 animate-in fade-in"
+          className="relative overflow-hidden p-6 sm:p-8 text-center max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm my-4 animate-in fade-in"
         >
           {/* Subtle ambient blur orb */}
-          <div className="absolute -top-12 -right-12 w-44 h-44 bg-violet-500/10 dark:bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -top-12 -right-12 w-44 h-44 bg-slate-200/60 dark:bg-slate-800/50 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-slate-100 dark:bg-slate-800/40 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-500 text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/25 ring-4 ring-violet-50 dark:ring-violet-950/40">
-              <Sparkles className="w-8 h-8 animate-pulse" />
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center mx-auto mb-4 border border-slate-200 dark:border-slate-700">
+              <Sparkles className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">
               Personalized Recommendations
@@ -908,7 +845,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             </p>
             <button
               onClick={requestLogin}
-              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-violet-600/30 hover:shadow-lg hover:shadow-violet-600/40 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-semibold text-xs sm:text-sm shadow-sm active:scale-[0.98] transition-all cursor-pointer"
             >
               <Compass className="w-4 h-4" />
               Sign In with Hive
@@ -963,35 +900,35 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {sort === 'recommend' && (
             <div
               id="discover-recommend-header-banner"
-              className="px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-violet-50/90 via-indigo-50/70 to-purple-50/90 dark:from-[#110d29]/90 dark:via-[#131131]/80 dark:to-[#170e2f]/90 border border-violet-200/70 dark:border-violet-900/50 flex items-center justify-between text-xs text-violet-900 dark:text-violet-200 shadow-sm mb-3 animate-in fade-in"
+              className="px-4 py-3 sm:px-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-800 dark:text-slate-200 shadow-sm mb-3 animate-in fade-in"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-violet-600/10 dark:bg-violet-400/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0 border border-violet-500/20">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="font-extrabold flex items-center gap-2">
                     <span>HiveSense Tailored for @{username}</span>
                     {recStatus?.isSyncing && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-200/80 dark:bg-violet-850 text-violet-900 dark:text-violet-200 animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-violet-600 dark:bg-violet-400 animate-ping" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
                         Syncing
                       </span>
                     )}
                   </div>
                   {recStatus?.isSyncing ? (
-                    <div className="text-[11px] text-violet-700/80 dark:text-violet-300/80 mt-0.5">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                       Analyzing seed upvotes in background ({recStatus.currentSeedIndex}/{recStatus.totalSeeds || 30} seeds, {recStatus.totalPostsFound} stories found)...
                     </div>
                   ) : (
-                    <div className="text-[11px] text-violet-700/70 dark:text-violet-300/70 mt-0.5">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                       Curated from your active blockchain interactions & communities
                     </div>
                   )}
                 </div>
               </div>
               {recStatus?.isSyncing && (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400 shrink-0">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 </div>
               )}
@@ -1066,20 +1003,20 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                 onClick={handleLoadMore}
                 disabled={loadingMore}
                 title="Fetch older posts from the blockchain"
-                className="group relative inline-flex items-center gap-2.5 px-7 py-3 rounded-full bg-white dark:bg-slate-900 border border-gray-200/80 dark:border-slate-800 hover:border-blue-500/40 dark:hover:border-blue-500/40 hover:bg-gray-50/90 dark:hover:bg-slate-850 text-gray-800 dark:text-slate-100 text-xs sm:text-sm font-extrabold shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_20px_rgba(59,130,246,0.12)] disabled:opacity-50 transition-all duration-200 cursor-pointer active:scale-95"
+                className="group relative inline-flex items-center gap-2.5 px-6 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-semibold shadow-sm disabled:opacity-50 transition-all duration-200 cursor-pointer active:scale-[0.98]"
               >
                 {loadingMore ? (
                   <span id="discover-load-more-loading" className="flex items-center gap-2">
                     <RefreshCw
                       id="discover-load-more-spinner"
-                      className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400"
+                      className="w-4 h-4 animate-spin text-slate-600 dark:text-slate-300"
                     />
                     Loading more stories...
                   </span>
                 ) : (
                   <>
                     <span>Load More Stories</span>
-                    <Sparkles className="w-3.5 h-3.5 text-blue-500 group-hover:rotate-12 transition-transform duration-300" />
+                    <Sparkles className="w-3.5 h-3.5 text-slate-500 group-hover:rotate-12 transition-transform duration-300" />
                   </>
                 )}
               </button>
@@ -1089,9 +1026,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       ) : filteredOutStats.total > 0 ? (
         <div
           id="discover-filtered-empty"
-          className="p-10 sm:p-14 text-center space-y-4 bg-white/85 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-gray-200/70 dark:border-slate-800/80 text-gray-900 dark:text-slate-100"
+          className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-gray-900 dark:text-slate-100"
         >
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700">
             <EyeOff id="discover-filtered-empty-icon" className="w-7 h-7" />
           </div>
           <div id="discover-filtered-empty-content" className="space-y-1">
@@ -1112,7 +1049,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             <button
               id="discover-filtered-empty-adjust-btn"
               onClick={openContentFilterModal}
-              className="px-5 py-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition shadow-sm hover:shadow-md cursor-pointer active:scale-95"
+              className="px-4 py-2.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-semibold transition shadow-sm cursor-pointer active:scale-[0.98]"
             >
               Adjust Content Filters
             </button>
@@ -1128,9 +1065,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       ) : (
         <div
           id="discover-empty"
-          className="p-12 sm:p-16 text-center space-y-4 bg-white/85 dark:bg-[#0c1222]/90 backdrop-blur-xl rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-gray-200/70 dark:border-slate-800/80 text-gray-900 dark:text-slate-100"
+          className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-gray-900 dark:text-slate-100"
         >
-          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto border border-blue-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mx-auto border border-slate-200 dark:border-slate-700">
             <Compass id="discover-empty-icon" className="w-7 h-7" />
           </div>
           <p id="discover-empty-text" className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 font-medium max-w-md mx-auto leading-relaxed">
@@ -1144,7 +1081,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           </p>
           {sort === 'recommend' ? (
             recStatus?.isSyncing && (
-              <div className="flex items-center justify-center gap-2 text-xs text-violet-600 dark:text-violet-400 font-semibold pt-1">
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-semibold pt-1">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 <span>Syncing recommendation queue quietly...</span>
               </div>
@@ -1158,7 +1095,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                 setFeedAuthor(null);
                 setActiveNav('discover');
               }}
-              className="px-5 py-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition shadow-sm hover:shadow-md cursor-pointer active:scale-95"
+              className="px-4 py-2.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-semibold transition shadow-sm cursor-pointer active:scale-[0.98]"
             >
               {selectedLanguage !== 'global' ? 'Reset to Global Feed' : 'Refresh Feed'}
             </button>

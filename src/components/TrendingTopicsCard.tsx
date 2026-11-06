@@ -211,17 +211,17 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
   }, [currentTag, blockchainTags, feedPosts, favTopics, searchQuery, noiseSet]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[15px] p-2.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3.5" style={{ marginTop: '0px' }}>
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 shadow-sm border border-slate-200/80 dark:border-slate-800 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+          <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex-shrink-0">
             <TrendingUp className="w-4 h-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <h3 className="font-bold text-sm text-gray-900 dark:text-white">Trending Topics</h3>
-              <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded-full border border-blue-200/50 dark:border-blue-800/50">
+              <span className="text-[9px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded-full border border-slate-200 dark:border-slate-700">
                 {!currentTag ? 'Hive' : 'Contextual'}
               </span>
             </div>
@@ -260,7 +260,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={!currentTag ? 'Search blockchain topics...' : `Search in #${currentTag}...`}
-          className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
+          className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-500 focus:bg-white dark:focus:bg-slate-800 transition"
         />
         {searchQuery && (
           <button
@@ -278,18 +278,18 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
         title="Show all topics without tag filter"
         className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
           !currentTag
-            ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold'
+            ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
             : 'hover:bg-gray-50 dark:hover:bg-slate-800/60 text-gray-700 dark:text-slate-300'
         }`}
       >
         <div className="flex items-center gap-2">
-          <div className={`p-1 rounded-lg ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
+          <div className={`p-1 rounded-lg ${!currentTag ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
             <Compass className="w-3 h-3" />
           </div>
           <span>All Topics</span>
         </div>
         {!currentTag && (
-          <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
+          <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-2 py-0.5 rounded-full font-bold">
             active
           </span>
         )}
@@ -332,9 +332,9 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
                   showMuted ? 'cursor-default border border-transparent hover:border-rose-200 dark:hover:border-rose-900/50' : 'cursor-pointer'
                 } ${
                   isSelected
-                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold shadow-xs'
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                     : isFav
-                      ? 'bg-amber-50/40 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
+                      ? 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-gray-800 dark:text-slate-200'
                       : showMuted 
                         ? 'bg-rose-50/30 dark:bg-rose-950/10 text-rose-700 dark:text-rose-400 opacity-80'
                         : 'hover:bg-gray-50 dark:hover:bg-slate-800/60 text-gray-700 dark:text-slate-300'
@@ -346,8 +346,8 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
                     showMuted 
                       ? 'text-rose-400 dark:text-rose-500' 
                       : isSelected 
-                        ? 'text-blue-600 dark:text-blue-400' 
-                        : 'text-gray-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400'
+                    ? 'text-slate-700 dark:text-slate-200'
+                        : 'text-gray-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                   }`}>
                     #
                   </span>
@@ -356,7 +356,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
 
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {isSelected && (
-                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full font-semibold">
+                    <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full font-semibold">
                       active
                     </span>
                   )}
@@ -420,7 +420,7 @@ export const TrendingTopicsCard: React.FC<TrendingTopicsCardProps> = ({
       {currentTag && (
         <button
           onClick={() => onSelectTag('')}
-          className="w-full py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold text-center block cursor-pointer border-t border-gray-100 dark:border-slate-800 pt-3"
+          className="w-full py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:underline font-semibold text-center block cursor-pointer border-t border-slate-100 dark:border-slate-800 pt-3"
         >
           Clear topic filter (#{currentTag})
         </button>

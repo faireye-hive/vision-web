@@ -4,7 +4,7 @@ const WORDS_KEY = 'hive_shorts_blocked_words';
 const AUTHORS_KEY = 'hive_shorts_blocked_authors';
 const ENABLED_KEY = 'hive_shorts_filter_enabled';
 
-export type ShortsSource = 'all' | 'following' | 'replies';
+export type ShortsSource = 'all' | 'hot' | 'following' | 'replies';
 
 function readBlockedWords(): string[] {
   try {

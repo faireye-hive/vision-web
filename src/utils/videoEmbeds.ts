@@ -345,7 +345,7 @@ export function is3SpeakThumbnail(
 }
 
 // Regex patterns for detecting video URLs
-const YOUTUBE_URL_REGEX = /(?:https?:)?\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
+const YOUTUBE_URL_REGEX = /(?:https?:)?\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
 const THREESPEAK_URL_REGEX = /(?:https?:)?\/\/(?:play\.)?3speak\.(?:tv|online)\/(?:embed\?v=|watch\?v=|shorts\?v=|embed\/|watch\/|shorts\/)([a-z0-9.-]+\/[a-z0-9_-]+)/i;
 const BITCHUTE_URL_REGEX = /(?:https?:)?\/\/(?:www\.)?bitchute\.com\/(?:video|embed)\/([a-zA-Z0-9_-]+)/i;
 
@@ -438,9 +438,13 @@ export function buildVideoFacadeHtml(info: VideoInfo): string {
 
   const platformName = platformNames[info.platform] || 'Video';
   const badgeColor = platformBadgeColors[info.platform] || 'bg-slate-700 text-white';
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char] || char);
+  const safeTitle = info.title ? escapeHtml(info.title) : '';
 
   const thumbnailHtml = info.thumbnailUrl
-    ? `<img src="${info.thumbnailUrl}" alt="${platformName} Video" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />`
+    ? `<img src="${escapeHtml(info.thumbnailUrl)}" alt="${platformName} Video" data-video-poster="true" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />`
     : `<div class="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950 flex items-center justify-center"><span class="text-slate-500 text-xs font-semibold tracking-wider uppercase">${platformName}</span></div>`;
 
   return `
@@ -476,6 +480,8 @@ export function buildVideoFacadeHtml(info: VideoInfo): string {
         Click to play
       </span>
     </div>
+
+    ${safeTitle ? `<div class="absolute bottom-3 left-3 right-3 z-10 line-clamp-2 text-left text-sm font-semibold text-white drop-shadow-md">${safeTitle}</div>` : ''}
   </div>
 </div>
 `.trim();
@@ -496,6 +502,20 @@ export function transformVideoEmbedsInMarkdown(
 
   let result = markdown;
   const threeSpeakIds = extract3SpeakVideoIds(markdown, options?.jsonMetadata);
+  const renderedVideos = new Set<string>();
+  let rendered3SpeakVideo = false;
+  const renderVideo = (info: VideoInfo) => {
+    const key = `${info.platform}:${info.id.toLowerCase()}`;
+    if (renderedVideos.has(key)) return '';
+    // Hive posts commonly include both an embedded 3Speak player and a
+    // separate “Watch on 3Speak” link to that same clip. The link can use a
+    // legacy URL variant, so its parsed ID is not always byte-for-byte equal.
+    const titleKey = (info.title || '').normalize('NFKD').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+    if (info.platform === '3speak' && rendered3SpeakVideo && titleKey.startsWith('watch on')) return '';
+    renderedVideos.add(key);
+    if (info.platform === '3speak') rendered3SpeakVideo = true;
+    return buildVideoFacadeHtml(info);
+  };
 
   // Seed options with thumbnail from Hive jsonMetadata if available
   const hiveThumb = extract3SpeakThumbnailFromHive(options?.jsonMetadata, markdown);
@@ -519,7 +539,7 @@ export function transformVideoEmbedsInMarkdown(
         if (info.platform === '3speak' && activeThumbs[info.id]) {
           info.thumbnailUrl = activeThumbs[info.id];
         }
-        return buildVideoFacadeHtml(info);
+        return renderVideo(info);
       }
       return match;
     }
@@ -532,7 +552,7 @@ export function transformVideoEmbedsInMarkdown(
       const info = parseVideoUrl(url, options?.jsonMetadata);
       if (info) {
         if (thumb) info.thumbnailUrl = thumb;
-        return buildVideoFacadeHtml(info);
+        return renderVideo(info);
       }
       return match;
     }
@@ -545,13 +565,45 @@ export function transformVideoEmbedsInMarkdown(
       const info = parseVideoUrl(url, options?.jsonMetadata);
       if (info) {
         if (thumb) info.thumbnailUrl = thumb;
-        return buildVideoFacadeHtml(info);
+        return renderVideo(info);
       }
       return match;
     }
   );
 
-  // 4. Standalone video URLs on their own line (or wrapped in <center>...</center> or <p>...</p>)
+  // 4. Markdown links often use the video title as visible text. Render them
+  // as a video card instead of leaving a plain title link in the Snap text.
+  result = result.replace(
+    /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi,
+    (match, title, url) => {
+      const info = parseVideoUrl(url, options?.jsonMetadata);
+      if (!info) return match;
+      info.title = title.trim();
+      if (info.platform === '3speak' && activeThumbs[info.id]) {
+        info.thumbnailUrl = activeThumbs[info.id];
+      }
+      return renderVideo(info);
+    }
+  );
+
+  // HTML links to a video are common in Hive posts too. Convert only links
+  // whose destination parses as a supported video URL; leave all other HTML
+  // for the normal sanitizer pipeline.
+  result = result.replace(
+    /<a\b([^>]*?)href=["'](https?:\/\/[^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi,
+    (match, _before, url, _after, title) => {
+      const info = parseVideoUrl(url, options?.jsonMetadata);
+      if (!info) return match;
+      const plainTitle = String(title).replace(/<[^>]*>/g, '').trim();
+      if (plainTitle) info.title = plainTitle;
+      if (info.platform === '3speak' && activeThumbs[info.id]) {
+        info.thumbnailUrl = activeThumbs[info.id];
+      }
+      return renderVideo(info);
+    }
+  );
+
+  // 5. Standalone video URLs on their own line (or wrapped in <center>...</center> or <p>...</p>)
   result = result.replace(
     /(?:^|(?:\r?\n)|<center>|<p>)\s*(https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|3speak\.tv|3speak\.online|play\.3speak\.tv|bitchute\.com)\/[^\s<>"']+)\s*(?:<\/center>|<\/p>|(?:\r?\n)|$)/gim,
     (match, url) => {
@@ -560,13 +612,14 @@ export function transformVideoEmbedsInMarkdown(
         if (info.platform === '3speak' && activeThumbs[info.id]) {
           info.thumbnailUrl = activeThumbs[info.id];
         }
-        return `\n\n${buildVideoFacadeHtml(info)}\n\n`;
+        const facade = renderVideo(info);
+        return facade ? `\n\n${facade}\n\n` : '\n';
       }
       return match;
     }
   );
 
-  // 5. If this post contains a 3Speak video, remove any standalone static image that is the 3Speak thumbnail
+  // 6. If this post contains a 3Speak video, remove any standalone static image that is the 3Speak thumbnail
   if (threeSpeakIds.length > 0) {
     // Strip standalone markdown images: ![alt](url)
     result = result.replace(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/gi, (imgMatch, imgUrl) => {
@@ -581,6 +634,9 @@ export function transformVideoEmbedsInMarkdown(
 
     // Strip standalone HTML images: <img src="url" ... />
     result = result.replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*\/?>/gi, (imgMatch, imgUrl) => {
+      // The image inside our generated facade is the player poster itself,
+      // not a duplicate standalone thumbnail from the post body.
+      if (/\bdata-video-poster=["']true["']/i.test(imgMatch)) return imgMatch;
       for (const id of threeSpeakIds) {
         const thumb = activeThumbs[id] || getCached3SpeakData(id)?.thumbnail;
         if (is3SpeakThumbnail(imgUrl, thumb, id)) {
