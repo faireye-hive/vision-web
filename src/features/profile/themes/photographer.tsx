@@ -431,10 +431,6 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
                       <span>{centerpiecePost.children || 0}</span>
                     </button>
 
-                    <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-xl border border-emerald-500/20">
-                      ${Number(centerpiecePost.pending_payout_value?.split(' ')[0] || centerpiecePost.payout || 0).toFixed(2)}
-                    </span>
-
                     <button
                       type="button"
                       onClick={() => onSelectPost(centerpiecePost)}
@@ -625,9 +621,6 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
                             </button>
                           </div>
 
-                          <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            ${Number(post.pending_payout_value?.split(' ')[0] || post.payout || 0).toFixed(2)}
-                          </span>
                         </div>
 
                         {/* Quick dialogue reply bar for artist correspondence */}
@@ -839,7 +832,7 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
           {/* Lightbox Bottom Controls */}
           <div className="w-full max-w-5xl pt-3 flex items-center justify-between text-white text-xs" onClick={(e) => e.stopPropagation()}>
             <span className="font-mono text-white/70">
-              Captured: {formatDate(lightboxImage.post.created)} • ${Number(lightboxImage.post.pending_payout_value?.split(' ')[0] || lightboxImage.post.payout || 0).toFixed(2)}
+              Captured: {formatDate(lightboxImage.post.created)}
             </span>
 
             <button

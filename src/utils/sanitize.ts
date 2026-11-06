@@ -11,17 +11,44 @@ export const ALLOWED_IMAGE_DOMAINS = [
   'leopedia.io',
   'liketu.com',
   'tenor.com',
+  'giphy.com',
+  'giphyusercontent.com',
+  'imgur.com',
+  'ytimg.com',
   '3speak.tv',
+  '3speak.online',
+  'ipfs-3speak.b-cdn.net',
   'actifit.io',
   'skatehype.com',
   'img.truvvle.com'
 ];
+
+function getValidatedProxySource(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() !== 'wsrv.nl' || parsed.protocol !== 'https:') return null;
+    const source = parsed.searchParams.get('url');
+    if (!source) return null;
+    const sourceUrl = /^https?:\/\//i.test(source) ? new URL(source) : new URL(`https://${source}`);
+    const host = sourceUrl.hostname.toLowerCase();
+    if (!['http:', 'https:'].includes(sourceUrl.protocol) || host === 'wsrv.nl') return null;
+    const allowed = ALLOWED_IMAGE_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+    return allowed ? sourceUrl.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 export function isAllowedImageHost(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
     const host = parsed.hostname.toLowerCase();
+    // Video facades may already contain a wsrv.nl URL. Trust it only when its
+    // source parameter points to one of our allowlisted image hosts.
+    if (host === 'wsrv.nl') {
+      return Boolean(getValidatedProxySource(url));
+    }
     return ALLOWED_IMAGE_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
   } catch {
     return false;
@@ -30,6 +57,17 @@ export function isAllowedImageHost(url: string): boolean {
 
 export function getSafeImageUrl(url: string | null, options?: { width?: number }): string | null {
   if (!url || !isAllowedImageHost(url)) return null;
+  // 3Speak's own image service already serves optimized WebP posters. Sending
+  // these through a second image proxy has caused broken video thumbnails.
+  try {
+    if (new URL(url).hostname.toLowerCase() === 'images.3speak.tv') return url;
+  } catch {
+    return null;
+  }
+  if (/^https:\/\/wsrv\.nl\//i.test(url)) {
+    const sourceUrl = getValidatedProxySource(url);
+    return sourceUrl ? buildProxiedImageUrl(sourceUrl) : null;
+  }
   if (!IMAGE_PROXY_ENABLED) return url;
 
   const stripped = url.replace(/^https?:\/\//, '');
@@ -80,7 +118,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       node.classList.add('nebulosa-blocked-image');
     } else {
       // Domínio confiável: agora sim pode passar pelo proxy com segurança
-      const finalSrc = IMAGE_PROXY_ENABLED ? buildProxiedImageUrl(src) : src;
+      const isValidatedProxy = /^https:\/\/wsrv\.nl\//i.test(src);
+      const is3SpeakPoster = (() => {
+        try { return new URL(src).hostname.toLowerCase() === 'images.3speak.tv'; } catch { return false; }
+      })();
+      const finalSrc = IMAGE_PROXY_ENABLED && !isValidatedProxy && !is3SpeakPoster ? buildProxiedImageUrl(src) : src;
       node.setAttribute('src', finalSrc);
       node.setAttribute('data-original-src', src); // guarda o original, útil pra debug/"abrir original"
       node.classList.add(
@@ -108,6 +150,7 @@ const ALLOWED_ATTR = [
   'width', 'height', 'align', 'loading', 'style', 'data-align',
   'data-blocked-src', 'data-original-src',
   'data-video-platform', 'data-video-id', 'data-video-embed', 'data-original-url',
+  'data-video-poster',
   'role', 'tabindex', 'aria-label', 'viewBox', 'd'
 ];
 
@@ -333,7 +376,22 @@ export function markdownToSafeHtmlWithHeadings(
   });
 
   const safeHtml = sanitizeHtml(html);
-  return { html: safeHtml, headings };
+  // Some Hive posts contain an embedded player plus a separate “Watch on
+  // 3Speak” link. That link can survive the Markdown conversion as a second
+  // facade, so remove the CTA card after sanitization as a final dedupe pass.
+  const template = document.createElement('template');
+  template.innerHTML = safeHtml;
+  let found3SpeakPlayer = false;
+  template.content.querySelectorAll<HTMLElement>('.nebulosa-lazy-video-facade[data-video-platform="3speak"]').forEach((facade) => {
+    const label = (facade.textContent || '').normalize('NFKD').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+    const isWatchCta = label.includes('watch on 3speak');
+    if (found3SpeakPlayer && isWatchCta) {
+      facade.closest('.nebulosa-video-container')?.remove();
+      return;
+    }
+    found3SpeakPlayer = true;
+  });
+  return { html: template.innerHTML, headings };
 }
 
 export function markdownToSafeHtml(

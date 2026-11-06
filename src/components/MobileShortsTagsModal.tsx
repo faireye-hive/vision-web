@@ -312,7 +312,7 @@ export const MobileShortsTagsModal: React.FC<MobileShortsTagsModalProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
-              {cleanTags.map(({ tag, count, isSpam, isFavorite }) => {
+              {cleanTags.map(({ tag, isSpam, isFavorite }) => {
                 const isSelected = normalizedCurrentTag === tag.toLowerCase();
                 const formattedTag = `#${tag}`;
                 const isBlocked = blockedWords.some((w) => {
@@ -351,20 +351,8 @@ export const MobileShortsTagsModal: React.FC<MobileShortsTagsModalProps> = ({
                       </span>
                     </div>
 
-                    {/* Count & Star Pin Button */}
+                    {/* Star / Pin Button */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <span
-                        className={`text-[9px] font-mono px-1 py-0.2 rounded ${
-                          isSelected
-                            ? 'bg-blue-700 text-blue-100'
-                            : isFavorite
-                            ? 'bg-amber-100/80 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200'
-                            : 'bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        {count}
-                      </span>
-
                       {/* Star / Pin Button */}
                       <button
                         type="button"

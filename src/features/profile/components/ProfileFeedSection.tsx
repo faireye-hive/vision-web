@@ -368,7 +368,7 @@ export const ProfileFeedSection: React.FC<ProfileFeedSectionProps> = ({
 /**
  * Fully Customizable Post Card
  * Honors: imagePosition (top, right, left, hidden), titlePosition (above, below),
- * showSnippet, snippetLines, votePosition (bottom, top-right, hidden), showTags, and showPayout.
+ * showSnippet, snippetLines, votePosition (bottom, top-right, hidden), and showTags.
  */
 function ClassicProfilePostCard({
   post,
@@ -387,7 +387,6 @@ function ClassicProfilePostCard({
 
   const thumb = getPostThumbnail(post);
   const tags = extractPostTags(post).filter((tag) => !isNoiseTag(tag)).slice(0, 5);
-  const payout = post.pending_payout_value || (post.is_paidout ? 'paid' : '0.000 HBD');
 
   const { postsLayout } = style;
   const roundedClass = BORDER_RADIUS_CLASSES[style.borderRadius];
@@ -489,12 +488,6 @@ function ClassicProfilePostCard({
         <MessageSquare className="w-3 h-3" />
         {post.children || 0}
       </span>
-
-      {postsLayout.showPayout && payout && (
-        <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-md">
-          {payout}
-        </span>
-      )}
 
       {postsLayout.votePosition === 'bottom' && (
         <button
@@ -649,7 +642,6 @@ function CustomProfilePostCard({
 
   const thumb = getPostThumbnail(post);
   const tags = extractPostTags(post).filter((tag) => !isNoiseTag(tag)).slice(0, 5);
-  const payout = post.pending_payout_value || (post.is_paidout ? 'paid' : '0.000 HBD');
 
   const { postsLayout } = style;
   const designMode = postsLayout?.feedView || 'list';
@@ -771,12 +763,6 @@ function CustomProfilePostCard({
         <MessageSquare className="w-3 h-3" />
         {post.children || 0}
       </span>
-
-      {postsLayout.showPayout && payout && (
-        <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-md">
-          {payout}
-        </span>
-      )}
 
       {postsLayout.votePosition === 'bottom' && (
         <button

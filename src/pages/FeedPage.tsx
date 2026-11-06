@@ -250,7 +250,7 @@ export const FeedPage: React.FC = () => {
 
   return (
     <div
-      className="space-y-4 w-full min-w-0 max-w-[824px]"
+      className="space-y-3 sm:space-y-4 w-full min-w-0 max-w-full"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -261,7 +261,7 @@ export const FeedPage: React.FC = () => {
           className="flex items-center justify-center transition-all overflow-hidden sm:hidden"
           style={{ height: `${pullDistance}px` }}
         >
-          <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-semibold bg-white dark:bg-slate-900 px-3 py-1 rounded-full shadow-sm border border-slate-200 dark:border-slate-700">
             <RefreshCw className={`w-3.5 h-3.5 ${pullDistance >= 45 ? 'animate-spin' : ''}`} />
             <span>{pullDistance >= 45 ? 'Release to refresh' : 'Pull to refresh'}</span>
           </div>
@@ -270,7 +270,7 @@ export const FeedPage: React.FC = () => {
 
       {/* Author Feed Filter Banner (When author filter is active) */}
       {feedAuthor && (
-        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm flex items-center justify-between gap-3 animate-in fade-in text-gray-900 dark:text-slate-100">
           <div className="flex items-center gap-3 min-w-0">
             <img
               src={getHiveAvatarUrl(feedAuthor, 'medium')}
@@ -333,8 +333,8 @@ export const FeedPage: React.FC = () => {
       )}
 
       {/* Feed Controls Header */}
-      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-3 sm:px-6 sm:py-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none text-gray-900 dark:text-slate-100 relative z-20" style={{ marginBottom: '5px', borderRadius: '15px', minHeight: '45px' }}>
-        <div className="flex flex-row items-center justify-between gap-1.5 sm:gap-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl px-2 sm:px-3 py-2 shadow-sm text-gray-900 dark:text-slate-100 relative z-20">
+        <div className="flex flex-row items-center justify-between gap-1 sm:gap-2">
           <div className="flex items-center flex-wrap sm:flex-nowrap gap-1 sm:gap-2.5 min-w-0">
             {/* "Your Feed" title (hidden on mobile to save space) */}
             <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base hidden sm:inline">
@@ -344,7 +344,7 @@ export const FeedPage: React.FC = () => {
             {/* Feed Mode Selector Dropdown: compact icon-only on mobile, full on desktop */}
             <div className="relative inline-flex items-center">
               {/* Mobile compact select (icon + label + chevron) */}
-              <div className="sm:hidden relative inline-flex items-center gap-1.5 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-sm font-semibold px-3 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 shadow-2xs">
+              <div className="sm:hidden relative inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700">
                 <span className="text-blue-600 dark:text-blue-400">
                   {followingMode === 'root' ? (
                     <FileText className="w-4 h-4" />
@@ -389,7 +389,7 @@ export const FeedPage: React.FC = () => {
                       localStorage.setItem('hive_following_mode', mode);
                     } catch {}
                   }}
-                  className="appearance-none bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-gray-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition shadow-2xs"
+                  className="appearance-none bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-semibold pl-8 pr-7 py-1.5 rounded-xl border border-slate-200/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer transition"
                   title="Filter following feed mode"
                 >
                   <option value="root">Root Posts</option>
@@ -414,7 +414,7 @@ export const FeedPage: React.FC = () => {
               <label
                 className={`inline-flex items-center gap-1.5 sm:gap-1.5 px-2.5 sm:px-2.5 py-1.5 sm:py-1.5 rounded-xl text-sm sm:text-xs font-semibold border transition cursor-pointer select-none ${
                   !hideReblogs
-                    ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100/70'
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-200 hover:bg-blue-100/70 dark:hover:bg-blue-950/60'
                     : 'bg-white dark:bg-slate-800 border-gray-200/80 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
                 title={!hideReblogs ? 'Reblogs are visible. Uncheck to hide.' : 'Reblogs are hidden. Check to show.'}
@@ -423,9 +423,9 @@ export const FeedPage: React.FC = () => {
                   type="checkbox"
                   checked={!hideReblogs}
                   onChange={handleToggleHideReblogs}
-                  className="w-4 h-4 sm:w-3.5 sm:h-3.5 rounded text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-purple-600"
+                  className="w-4 h-4 sm:w-3.5 sm:h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-slate-600 cursor-pointer accent-blue-600"
                 />
-                <Repeat className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-purple-600 dark:text-purple-400" />
+                <Repeat className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-blue-600 dark:text-blue-300" />
                 <span className="hidden sm:inline">Reblogs</span>
               </label>
             )}
@@ -434,7 +434,7 @@ export const FeedPage: React.FC = () => {
             {currentUser && (
               <button
                 onClick={openFollowingManager}
-                className="inline-flex items-center gap-1 px-2 py-1.5 sm:px-0 sm:py-0 rounded-xl bg-blue-50/60 dark:bg-blue-950/40 sm:bg-transparent border border-blue-150 dark:border-blue-900/40 sm:border-0 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-0.5 sm:ml-1 cursor-pointer transition shadow-2xs sm:shadow-none"
+                className="inline-flex items-center gap-1 px-2 py-1.5 sm:px-0 sm:py-0 rounded-xl bg-slate-100 dark:bg-slate-800 sm:bg-transparent border border-slate-200 dark:border-slate-700 sm:border-0 text-xs text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-300 font-semibold ml-0.5 sm:ml-1 cursor-pointer transition sm:shadow-none"
                 title="Manage Followed authors"
               >
                 <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
@@ -490,7 +490,7 @@ export const FeedPage: React.FC = () => {
 
       {/* Error Banner */}
       {error && (
-        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between" style={{ height: '30px', marginBottom: '5px', paddingTop: '10px', borderRadius: '15px', overflow: 'hidden' }}>
+        <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/70 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex items-start justify-between gap-3">
           <div>
             <p className="font-semibold">Unable to fetch feed from Hive RPC</p>
             <p className="text-gray-600 dark:text-slate-400 mt-0.5">{error}</p>
@@ -511,7 +511,7 @@ export const FeedPage: React.FC = () => {
           {[...Array(5)].map((_, i) => (
             <div
               key={i}
-              className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none animate-pulse space-y-4 border border-gray-100 dark:border-slate-800"
+              className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm animate-pulse space-y-4 border border-slate-200/80 dark:border-slate-800"
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-800" />
@@ -533,7 +533,7 @@ export const FeedPage: React.FC = () => {
         </div>
       ) : !currentUser && !feedAuthor ? (
         /* Guest user in feed */
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800">
+        <div className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800">
           <UserPlus className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />
           <div>
             <h3 className="text-base font-bold text-gray-800 dark:text-white">Connect your Hive account</h3>
@@ -543,14 +543,14 @@ export const FeedPage: React.FC = () => {
           </div>
           <button
             onClick={() => setActiveNav('discover')}
-            className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+            className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-sm cursor-pointer"
           >
             Explore Discover Feed
           </button>
         </div>
       ) : posts.length === 0 ? (
         /* Empty following feed */
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800">
+        <div className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800">
           <UserPlus className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />
           <div>
             <h3 className="text-base font-bold text-gray-800 dark:text-white">
@@ -570,7 +570,7 @@ export const FeedPage: React.FC = () => {
           </div>
           <button
             onClick={() => setActiveNav('discover')}
-            className="px-5 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+            className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-sm cursor-pointer"
           >
             Explore Discover Feed
           </button>
@@ -634,7 +634,7 @@ export const FeedPage: React.FC = () => {
         </div>
       ) : filteredOutStats.total > 0 ? (
         /* Filters empty state */
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+        <div className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 text-gray-900 dark:text-slate-100">
           <EyeOff className="w-12 h-12 text-blue-400 mx-auto" />
           <div>
             <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are hidden by your filters</h3>
@@ -645,20 +645,20 @@ export const FeedPage: React.FC = () => {
           <div className="flex items-center justify-center gap-3 flex-wrap pt-1">
             <button
               onClick={openContentFilterModal}
-              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold transition shadow-xs cursor-pointer"
+              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-sm cursor-pointer"
             >
               Adjust Content Filters
             </button>
             <button
               onClick={toggleFilterEnabled}
-              className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
+              className="px-4 py-2 text-xs bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-xl font-semibold transition cursor-pointer"
             >
               Temporarily Pause Filters
             </button>
             <button
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="px-4 py-2 text-xs bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-full font-semibold transition cursor-pointer"
+              className="px-4 py-2 text-xs bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-xl font-semibold transition cursor-pointer"
             >
               {loadingMore ? 'Loading...' : 'Load More Posts'}
             </button>
@@ -666,8 +666,8 @@ export const FeedPage: React.FC = () => {
         </div>
       ) : (
         /* All reblogs empty state */
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] border border-gray-100 dark:border-slate-800 text-gray-900 dark:text-slate-100">
-          <Repeat className="w-10 h-10 text-purple-400 mx-auto" />
+        <div className="p-8 sm:p-10 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 text-gray-900 dark:text-slate-100">
+          <Repeat className="w-10 h-10 text-blue-500/70 dark:text-blue-300/70 mx-auto" />
           <div>
             <h3 className="text-base font-bold text-gray-800 dark:text-white">All loaded posts are reblogs</h3>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
@@ -677,7 +677,7 @@ export const FeedPage: React.FC = () => {
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={handleToggleHideReblogs}
-              className="px-4 py-2 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-full font-semibold transition cursor-pointer shadow-xs"
+              className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition cursor-pointer shadow-sm"
             >
               Enable Reblogs
             </button>

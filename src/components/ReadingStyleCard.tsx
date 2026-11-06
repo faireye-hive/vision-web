@@ -56,11 +56,13 @@ function ChoiceRow<T extends string>({
   value,
   options,
   onChange,
+  neutralAccent = false,
 }: {
   label: string;
   value: T;
   options: { id: T; label: string }[];
   onChange: (id: T) => void;
+  neutralAccent?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -75,7 +77,9 @@ function ChoiceRow<T extends string>({
               onClick={() => onChange(option.id)}
               className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
                 active
-                  ? 'bg-blue-600 text-white'
+                  ? neutralAccent
+                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
+                    : 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
               }`}
             >
@@ -88,7 +92,7 @@ function ChoiceRow<T extends string>({
   );
 }
 
-export function ReadingStyleCard() {
+export function ReadingStyleCard({ neutralAccent = false }: { neutralAccent?: boolean }) {
   const { activeNav, feedLayoutMode, setFeedLayoutMode } = useNavigation();
   const isFeedLayoutApplicable = activeNav === 'discover' || activeNav === 'communities';
 
@@ -124,18 +128,7 @@ export function ReadingStyleCard() {
 
   return (
     <div
-      className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-3 text-gray-900 dark:text-slate-100"
-      style={{
-        borderRadius: '15px',
-        paddingTop: '10px',
-        marginTop: '-20px',
-        marginBottom: '4px',
-        paddingLeft: '10px',
-        paddingRight: '10px',
-        paddingBottom: open ? '20px' : '10px',
-        height: open ? 'auto' : '45px',
-        overflow: open ? 'visible' : 'hidden'
-      }}
+      className={`overflow-hidden rounded-2xl border border-slate-200/70 bg-white text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 ${open ? 'space-y-3 p-4' : 'min-h-[48px] p-3'}`}
     >
       <button
         type="button"
@@ -144,7 +137,7 @@ export function ReadingStyleCard() {
         aria-expanded={open}
       >
         <div className="flex items-center gap-2">
-          <CaseSensitive className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <CaseSensitive className={`w-4 h-4 ${neutralAccent ? 'text-slate-600 dark:text-slate-300' : 'text-blue-600 dark:text-blue-400'}`} />
           <h3 className="font-bold text-sm text-gray-900 dark:text-white">Reading</h3>
           {isFeedLayoutApplicable && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 capitalize">
@@ -163,7 +156,7 @@ export function ReadingStyleCard() {
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500">
                   Feed View
                 </p>
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                <span className={`text-[10px] font-bold ${neutralAccent ? 'text-slate-600 dark:text-slate-300' : 'text-blue-600 dark:text-blue-400'}`}>
                   {feedLayoutMode === 'gallery' ? 'Gallery (Visual)' : 'List (Compact)'}
                 </span>
               </div>
@@ -173,7 +166,7 @@ export function ReadingStyleCard() {
                   onClick={() => setFeedLayoutMode('list')}
                   className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                     feedLayoutMode === 'list'
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? neutralAccent ? 'bg-slate-800 text-white shadow-xs dark:bg-slate-200 dark:text-slate-900' : 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -185,7 +178,7 @@ export function ReadingStyleCard() {
                   onClick={() => setFeedLayoutMode('gallery')}
                   className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                     feedLayoutMode === 'gallery'
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? neutralAccent ? 'bg-slate-800 text-white shadow-xs dark:bg-slate-200 dark:text-slate-900' : 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -196,15 +189,15 @@ export function ReadingStyleCard() {
             </div>
           )}
 
-          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+          <span className={`inline-flex items-center gap-1 text-[10px] ${neutralAccent ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
             <Check className="w-3 h-3" />
             Saved in this browser
           </span>
-          <ChoiceRow label="Size" value={style.size} options={SIZES} onChange={(size) => update({ size })} />
-          <ChoiceRow label="Font" value={style.family} options={FAMILIES} onChange={(family) => update({ family })} />
-          <ChoiceRow label="Text color" value={style.tone} options={TONES} onChange={(tone) => update({ tone })} />
-          <ChoiceRow label="Background" value={style.ambient} options={DAY_AMBIENTS} onChange={(ambient) => update({ ambient })} />
-          <ChoiceRow label="Dark backgrounds" value={style.ambient} options={NIGHT_AMBIENTS} onChange={(ambient) => update({ ambient })} />
+          <ChoiceRow label="Size" value={style.size} options={SIZES} onChange={(size) => update({ size })} neutralAccent={neutralAccent} />
+          <ChoiceRow label="Font" value={style.family} options={FAMILIES} onChange={(family) => update({ family })} neutralAccent={neutralAccent} />
+          <ChoiceRow label="Text color" value={style.tone} options={TONES} onChange={(tone) => update({ tone })} neutralAccent={neutralAccent} />
+          <ChoiceRow label="Background" value={style.ambient} options={DAY_AMBIENTS} onChange={(ambient) => update({ ambient })} neutralAccent={neutralAccent} />
+          <ChoiceRow label="Dark backgrounds" value={style.ambient} options={NIGHT_AMBIENTS} onChange={(ambient) => update({ ambient })} neutralAccent={neutralAccent} />
         </div>
       )}
     </div>

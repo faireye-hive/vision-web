@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarksProvider } from './context/BookmarksContext';
 import { ContentFilterProvider, useContentFilter } from './context/ContentFilterContext';
@@ -25,6 +25,7 @@ import { requestLogin } from './utils/authEvents';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
 import { useShortsWordFilter } from './hooks/useShortsWordFilter';
+import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
 
 const ShortsPage = lazy(() => import('./pages/ShortsPage').then((m) => ({ default: m.ShortsPage })));
 const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default: m.WritePage })));
@@ -45,9 +46,11 @@ function RouteFallback() {
 }
 
 function NebulosaApp() {
+  const location = useLocation();
   const { currentUser, login, logout, joinedCommunities, toggleJoinCommunity, followingUsersList } = useAuth();
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
+  const [profileReaderAppearance, setProfileReaderAppearance] = useState<ProfileReaderAppearance | null>(null);
 
   const handleDiscoverPostsLoaded = useCallback((loaded: HivePost[]) => {
     setDiscoverPosts(loaded);
@@ -63,6 +66,7 @@ function NebulosaApp() {
     setSort,
     tag,
     setTag,
+    setCommunitySubTopic,
     feedAuthor,
     setFeedAuthor,
     handleSelectAuthor,
@@ -93,6 +97,23 @@ function NebulosaApp() {
     selectedLanguage,
     setSelectedLanguage
   } = useNavigation();
+
+  const isEmbeddedCommunitiesPage = activeNav === 'communities' &&
+    (standalonePage === 'explore' || standalonePage === 'manage');
+  const isCommunityPostOpen = activeNav === 'communities' && Boolean(selectedPost) && !standalonePage;
+  const isProfilePostOpen = Boolean(profileReaderAppearance && selectedPost && standalonePage === 'profile');
+  const isHivePostOpenInShorts = activeNav === 'shorts' && location.pathname.startsWith('/post/') && Boolean(selectedPost) && !standalonePage;
+
+  useEffect(() => {
+    if (!selectedPost) setProfileReaderAppearance(null);
+  }, [selectedPost]);
+  const [visitedCommunityPages, setVisitedCommunityPages] = useState({ explore: false, manage: false });
+
+  useEffect(() => {
+    if (standalonePage === 'explore' || standalonePage === 'manage') {
+      setVisitedCommunityPages((visited) => ({ ...visited, [standalonePage]: true }));
+    }
+  }, [standalonePage]);
 
   const shortsFilter = useShortsWordFilter();
 
@@ -214,7 +235,10 @@ function NebulosaApp() {
           <ProfilePage
             username={profileUser || currentUser?.username || ''}
             onClose={closeStandalonePage}
-            onSelectPost={(post) => handleSelectPost(post)}
+            onSelectPost={(post, appearance) => {
+              setProfileReaderAppearance(appearance || null);
+              handleSelectPost(post, true, false, 'profile');
+            }}
             onOpenUser={(user) => openStandalonePage('profile', user)}
             onOpenCommunity={(communityName) => {
               openCommunity(communityName);
@@ -222,7 +246,7 @@ function NebulosaApp() {
           />
         )}
 
-        {standalonePage === 'explore' && (
+        {standalonePage === 'explore' && !isEmbeddedCommunitiesPage && (
           <ExploreCommunitiesPage
             onClose={closeStandalonePage}
             onSwitchToManage={() => openStandalonePage('manage')}
@@ -239,7 +263,7 @@ function NebulosaApp() {
           />
         )}
 
-        {standalonePage === 'manage' && (
+        {standalonePage === 'manage' && !isEmbeddedCommunitiesPage && (
           <ManageCommunitiesPage
             onClose={closeStandalonePage}
             onSwitchToExplore={() => openStandalonePage('explore')}
@@ -257,10 +281,42 @@ function NebulosaApp() {
         )}
         </Suspense>
 
-        {/* ================= IN-PLACE POST READER (BOOKMARKS & OUTLINE) ================= */}
-        {selectedPost && !standalonePage && activeNav !== 'shorts' && (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start animate-in fade-in duration-150">
-            <aside className="hidden lg:block sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+        {isProfilePostOpen && selectedPost && (
+          <div
+            className="fixed inset-x-0 bottom-0 top-16 z-[90] overflow-y-auto px-2 py-3 sm:px-5 sm:py-5"
+            style={{ backgroundColor: profileReaderAppearance?.backgroundColor || 'var(--reading-bg, #f8fafc)' }}
+          >
+            <div className="mx-auto w-full max-w-[980px]">
+              <Suspense fallback={<RouteFallback />}>
+                <PostReader
+                  post={selectedPost}
+                  profileAppearance={profileReaderAppearance}
+                  onClose={handleClosePost}
+                  onSelectAuthor={handleSelectAuthor}
+                  onSelectTag={setTag}
+                  currentUser={currentUser}
+                  onRequireLogin={requestLogin}
+                  onHeadingsExtracted={setPostHeadings}
+                  onSelectPost={(post) => handleSelectPost(post, true, false, 'profile')}
+                />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
+        {/* ================= RESPONSIVE THREE-COLUMN LAYOUT ================= */}
+        <div
+          className={`${isProfilePostOpen
+            ? 'mx-auto grid w-full max-w-[980px] grid-cols-1 items-start justify-center gap-5 rounded-3xl p-1 sm:p-4'
+            : 'grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,824px)_300px] items-start justify-center gap-5'
+          } ${standalonePage && !isEmbeddedCommunitiesPage ? 'hidden' : 'grid'}`}
+          style={isProfilePostOpen && profileReaderAppearance?.backgroundColor
+            ? { backgroundColor: profileReaderAppearance.backgroundColor }
+            : undefined}
+        >
+          {/* Left Navigation Sidebar */}
+          <aside className={`${isProfilePostOpen ? 'hidden' : 'hidden lg:block sticky top-20 self-start'}`}>
+            {selectedPost && !standalonePage && activeNav !== 'shorts' && activeNav !== 'communities' ? (
               <PostSidebar
                 post={selectedPost}
                 headings={postHeadings}
@@ -268,38 +324,9 @@ function NebulosaApp() {
                 onSelectPost={handleSelectPost}
                 onClose={handleClosePost}
               />
-            </aside>
-
-            <section className="min-w-0 flex-1">
-              <Suspense fallback={<RouteFallback />}>
-                <PostReader
-                  post={selectedPost}
-                  onClose={handleClosePost}
-                  onSelectAuthor={handleSelectAuthor}
-                  onSelectTag={(t) => {
-                    setTag(t);
-                    handleClosePost();
-                  }}
-                  currentUser={currentUser}
-                  onRequireLogin={requestLogin}
-                  onHeadingsExtracted={setPostHeadings}
-                  onSelectPost={(p) => handleSelectPost(p, true, false)}
-                />
-              </Suspense>
-            </section>
-          </div>
-        )}
-
-        {/* ================= RESPONSIVE THREE-COLUMN LAYOUT ================= */}
-        <div
-          className={`grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,824px)_300px] justify-center gap-5 items-start ${
-            (selectedPost && activeNav !== 'shorts') || standalonePage ? 'hidden' : 'grid'
-          }`}
-        >
-          {/* Left Navigation Sidebar */}
-          <aside className="hidden lg:block sticky top-20 self-start">
-            <LeftSidebar
+            ) : <LeftSidebar
               activeNav={activeNav}
+              communitiesSection={standalonePage === 'explore' || standalonePage === 'manage' ? standalonePage : 'feed'}
               onNavChange={handleNavChange}
               currentSort={sort}
               onSortChange={(s) => setSort(s)}
@@ -318,21 +345,102 @@ function NebulosaApp() {
               selectedShortTag={shortsFilter.selectedTag}
               onSelectShortTag={shortsFilter.setSelectedTag}
               shortsSource={shortsFilter.source}
-              onShortsSourceChange={shortsFilter.setSource}
-            />
+              onShortsSourceChange={(source) => {
+                if (source !== 'all' && !currentUser) requestLogin();
+                else {
+                  shortsFilter.setSelectedTag('');
+                  shortsFilter.setSource(source);
+                }
+              }}
+              onOpenShortsFilters={() => window.dispatchEvent(new CustomEvent('nebulosa:open-shorts-filters'))}
+              onOpenShortsComposer={() => window.dispatchEvent(new CustomEvent('nebulosa:open-shorts-composer'))}
+            />}
           </aside>
 
           {/* Center Main Screen Feed Area */}
           <section className="min-w-0 flex-1">
-            {activeNav === 'feed' && <FeedPage />}
-            {activeNav === 'discover' && <DiscoverPage onPostsLoaded={handleDiscoverPostsLoaded} />}
-            {activeNav === 'communities' && (
-              <DiscoverPage
-                isCommunitiesFeed={true}
-                onPostsLoaded={handleCommunityPostsLoaded}
-              />
+            {selectedPost && !standalonePage && (activeNav !== 'shorts' || isProfilePostOpen || isHivePostOpenInShorts) && (activeNav !== 'communities' || isProfilePostOpen) ? (
+              <div className="min-w-0 animate-in fade-in duration-150">
+                <Suspense fallback={<RouteFallback />}>
+                  <PostReader
+                    post={selectedPost}
+                    profileAppearance={profileReaderAppearance}
+                    onClose={handleClosePost}
+                    onSelectAuthor={handleSelectAuthor}
+                    onSelectTag={(t) => {
+                      setTag(t);
+                      handleClosePost();
+                    }}
+                    currentUser={currentUser}
+                    onRequireLogin={requestLogin}
+                    onHeadingsExtracted={setPostHeadings}
+                    onSelectPost={(p) => handleSelectPost(p, true, false)}
+                  />
+                </Suspense>
+              </div>
+            ) : (
+              <>
+                {activeNav === 'feed' && <FeedPage />}
+                {activeNav === 'discover' && <DiscoverPage onPostsLoaded={handleDiscoverPostsLoaded} />}
+              </>
             )}
-            {activeNav === 'shorts' && (
+            {activeNav === 'communities' && (visitedCommunityPages.explore || standalonePage === 'explore') && (
+              <div className={standalonePage === 'explore' ? '' : 'hidden'} aria-hidden={standalonePage !== 'explore'}>
+                <Suspense fallback={<RouteFallback />}>
+                  <ExploreCommunitiesPage
+                    embedded
+                    onClose={closeStandalonePage}
+                    onSwitchToManage={() => openStandalonePage('manage')}
+                    onSwitchToFeed={closeStandalonePage}
+                    joinedCommunities={joinedCommunities}
+                    onToggleJoinCommunity={toggleJoinCommunity}
+                    account={currentUser?.username || null}
+                    onSelectCommunity={openCommunity}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {activeNav === 'communities' && (visitedCommunityPages.manage || standalonePage === 'manage') && (
+              <div className={standalonePage === 'manage' ? '' : 'hidden'} aria-hidden={standalonePage !== 'manage'}>
+                <Suspense fallback={<RouteFallback />}>
+                  <ManageCommunitiesPage
+                    embedded
+                    onClose={closeStandalonePage}
+                    onSwitchToExplore={() => openStandalonePage('explore')}
+                    onSwitchToFeed={closeStandalonePage}
+                    joinedCommunities={joinedCommunities}
+                    onToggleJoinCommunity={toggleJoinCommunity}
+                    account={currentUser?.username || null}
+                    onSelectCommunity={openCommunity}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {activeNav === 'communities' && (
+              <div className={isEmbeddedCommunitiesPage || isCommunityPostOpen ? 'hidden' : ''} aria-hidden={isEmbeddedCommunitiesPage || isCommunityPostOpen}>
+                <DiscoverPage
+                  isCommunitiesFeed={true}
+                  onPostsLoaded={handleCommunityPostsLoaded}
+                />
+              </div>
+            )}
+            {isCommunityPostOpen && !isProfilePostOpen && (
+              <div className="min-w-0 animate-in fade-in duration-150">
+                <Suspense fallback={<RouteFallback />}>
+                  <PostReader
+                    post={selectedPost!}
+                    onClose={handleClosePost}
+                    onSelectAuthor={handleSelectAuthor}
+                    onSelectTag={setCommunitySubTopic}
+                    currentUser={currentUser}
+                    onRequireLogin={requestLogin}
+                    onHeadingsExtracted={setPostHeadings}
+                    onSelectPost={(post) => handleSelectPost(post, true, false)}
+                  />
+                </Suspense>
+              </div>
+            )}
+            {activeNav === 'shorts' && !isProfilePostOpen && !isHivePostOpenInShorts && (
               <Suspense fallback={<RouteFallback />}>
                 <ShortsPage
                   selectedTag={shortsFilter.selectedTag}
@@ -357,7 +465,7 @@ function NebulosaApp() {
           </section>
 
           {/* Right Column Contextual Widgets */}
-          <aside className="hidden xl:block space-y-6 sticky top-20 self-start">
+          <aside className={`${isProfilePostOpen ? 'hidden' : 'hidden xl:block space-y-6 sticky top-20 self-start'}`}>
             <RightRail
               discoverPosts={discoverPosts}
               communityPosts={communityPosts}
@@ -439,7 +547,7 @@ function NebulosaApp() {
         followingUsersList={followingUsersList}
         openFollowingManager={openFollowingManager}
         discoverPosts={discoverPosts}
-        disabled={Boolean(selectedPost || standalonePage || activeNav === 'shorts')}
+        disabled={Boolean(selectedPost || (standalonePage && !isEmbeddedCommunitiesPage) || activeNav === 'shorts')}
         joinedCommunities={joinedCommunities}
         onOpenCommunities={openCommunitiesModal}
         onOpenManageCommunities={openManageCommunitiesModal}
@@ -470,7 +578,7 @@ function NebulosaApp() {
         currentTag={tag}
         onSelectTag={(t) => setTag(t)}
         onOpenFilters={() => setShowContentFilterModal(true)}
-        hasStandalonePage={standalonePage !== null}
+        hasStandalonePage={Boolean(standalonePage && !isEmbeddedCommunitiesPage)}
       />
     </div>
   );

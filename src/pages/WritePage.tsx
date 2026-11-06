@@ -130,7 +130,7 @@ function buildCommentOptions(author: string, permlink: string, payout: PayoutOpt
 }
 
 const selectClass =
-  'w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-gray-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500';
+  'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-gray-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40';
 
 export const WritePage: React.FC<WritePageProps> = ({
   onClose,
@@ -278,6 +278,10 @@ export const WritePage: React.FC<WritePageProps> = ({
       onRequireLogin();
       return;
     }
+    if (currentUser.isDemo) {
+      setErrorMessage('Demo mode is read-only. Connect with Hive Keychain to publish.');
+      return;
+    }
     if (!title.trim()) {
       setErrorMessage('Please add a title before publishing.');
       return;
@@ -386,9 +390,9 @@ export const WritePage: React.FC<WritePageProps> = ({
   const languageLabel = languages.find((l) => l.code === language);
 
   return (
-    <div id="write-page" className="w-full max-w-[1600px] mx-auto pb-12 animate-in fade-in duration-150">
+    <div id="write-page" className="w-full max-w-full mx-auto pb-12 animate-in fade-in duration-150">
       {/* Sticky Header */}
-      <header className="sticky top-16 z-20 bg-[#f7f8fa]/90 dark:bg-[#0b0f17]/90 backdrop-blur-md py-3 mb-3 border-b border-gray-200/60 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+      <header className="sticky top-16 z-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md p-2.5 sm:px-4 sm:py-3 mb-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -404,7 +408,11 @@ export const WritePage: React.FC<WritePageProps> = ({
               Article Writer
             </h1>
             <p className="text-[11px] text-gray-500 dark:text-slate-400">
-              {currentUser ? `Publishing as @${currentUser.username}` : 'Draft Mode (connect Keychain to publish)'}
+              {currentUser?.isDemo
+                ? `Demo mode · read-only as @${currentUser.username}`
+                : currentUser
+                  ? `Publishing as @${currentUser.username}`
+                  : 'Draft Mode (connect Keychain to publish)'}
             </p>
           </div>
         </div>
@@ -439,7 +447,7 @@ export const WritePage: React.FC<WritePageProps> = ({
           <button
             type="button"
             onClick={() => setShowOptions((prev) => !prev)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold border transition cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
               showOptions
                 ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
                 : 'bg-white dark:bg-slate-800/80 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50'
@@ -454,7 +462,7 @@ export const WritePage: React.FC<WritePageProps> = ({
             type="button"
             onClick={handlePublish}
             disabled={isSubmitting || !title.trim() || !body.trim()}
-            className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-xs hover:shadow-md cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-sm hover:shadow-md cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             {isSubmitting ? 'Broadcasting...' : 'Publish'}
@@ -468,7 +476,7 @@ export const WritePage: React.FC<WritePageProps> = ({
           type="button"
           onClick={() => setShowOptions(true)}
           title="Change where this post is published"
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border font-semibold transition cursor-pointer ${
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-semibold transition cursor-pointer ${
             selectedCommunity
               ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
               : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300'
@@ -477,12 +485,12 @@ export const WritePage: React.FC<WritePageProps> = ({
           <Layers className="w-3.5 h-3.5" />
           <span>{communityLabel}</span>
         </button>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
           <Coins className="w-3.5 h-3.5 text-amber-500" />
           {PAYOUT_LABELS[payoutOption]}
         </span>
         {languageLabel && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
             <Globe className="w-3.5 h-3.5 text-indigo-500" />
             {languageLabel.flag} {languageLabel.name}
           </span>
@@ -522,7 +530,7 @@ export const WritePage: React.FC<WritePageProps> = ({
 
       {/* Publish Options */}
       {showOptions && (
-        <div className="mb-4 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-150 text-gray-900 dark:text-slate-100">
+        <div className="mb-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-150 text-gray-900 dark:text-slate-100">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-4">
             <div className="space-y-1.5">
               <label
@@ -621,7 +629,7 @@ export const WritePage: React.FC<WritePageProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center gap-2 flex-wrap">
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-gray-500 dark:text-slate-400 flex items-center gap-1 mr-1">
               <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Templates:
             </span>
@@ -641,10 +649,10 @@ export const WritePage: React.FC<WritePageProps> = ({
       )}
 
       {/* Editor + Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 items-start">
         {/* Editor */}
         <section
-          className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex-col gap-4 ${
+          className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex-col gap-4 ${
             mobilePane === 'preview' ? 'hidden lg:flex' : 'flex'
           }`}
         >
@@ -654,10 +662,10 @@ export const WritePage: React.FC<WritePageProps> = ({
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Article Title..."
             maxLength={255}
-            className="w-full text-2xl sm:text-3xl font-extrabold bg-transparent text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-slate-600 focus:outline-none tracking-tight border-b border-gray-100 dark:border-slate-800 pb-3"
+            className="w-full text-xl sm:text-2xl font-bold bg-transparent text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-slate-600 focus:outline-none tracking-tight border-b border-slate-100 dark:border-slate-800 pb-3"
           />
 
-          <div className="flex flex-wrap items-center gap-1 p-1.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 border border-gray-100 dark:border-slate-700/60">
+          <div className="flex flex-wrap items-center gap-1 p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60">
             <ToolButton label="Bold (⌘B)" onClick={() => insertAtCursor('**', '**', 'bold')}>
               <Bold className="w-4 h-4" />
             </ToolButton>
@@ -695,7 +703,7 @@ export const WritePage: React.FC<WritePageProps> = ({
             value={body}
             onChange={(event) => setBody(event.target.value)}
             placeholder="Write your article story in Markdown... Supports full formatting, code blocks, and embedded media."
-            className="w-full min-h-[460px] lg:min-h-[calc(100vh-26rem)] p-4 bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl text-sm sm:text-base leading-relaxed text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 border border-gray-100 dark:border-slate-800 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition font-sans"
+            className="w-full min-h-[460px] lg:min-h-[calc(100vh-26rem)] p-4 bg-slate-50/70 dark:bg-slate-950/40 rounded-xl text-sm sm:text-base leading-relaxed text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 border border-slate-200/70 dark:border-slate-800 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition font-sans"
           />
 
           {/* Tags */}
@@ -784,7 +792,7 @@ export const WritePage: React.FC<WritePageProps> = ({
 
         {/* Preview: fica fixa na tela enquanto você escreve */}
         <section
-          className={`bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none flex-col lg:sticky lg:top-36 lg:max-h-[calc(100vh-10rem)] overflow-hidden ${
+          className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm flex-col lg:sticky lg:top-36 lg:max-h-[calc(100vh-10rem)] overflow-hidden ${
             mobilePane === 'edit' ? 'hidden lg:flex' : 'flex'
           }`}
         >

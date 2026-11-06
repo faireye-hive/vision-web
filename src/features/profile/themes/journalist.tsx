@@ -376,9 +376,6 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
                           <MessageCircle className="w-3.5 h-3.5 text-blue-500" />
                           {leadStory.children || 0}
                         </span>
-                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20">
-                          ${Number(leadStory.pending_payout_value?.split(' ')[0] || leadStory.payout || 0).toFixed(2)}
-                        </span>
                       </div>
 
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform">
@@ -548,10 +545,6 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <span className="font-bold text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded border border-emerald-500/20 font-mono">
-                                ${Number(post.pending_payout_value?.split(' ')[0] || post.payout || 0).toFixed(2)}
-                              </span>
-
                               <button
                                 type="button"
                                 onClick={() => onSelectPost(post)}

@@ -20,6 +20,9 @@ export interface CacheStats {
 }
 
 const MAX_PERSISTED_CHARS = 100_000;
+// Route and cursor keys are highly variable. Keep cache lifetime from turning
+// into unbounded process lifetime when someone browses many feeds/profiles.
+const MAX_MEMORY_ENTRIES = 100;
 
 function isPostLike(value: unknown): boolean {
   return !!value && typeof value === 'object' && 'permlink' in value && 'body' in value;
@@ -128,7 +131,27 @@ class ApiCacheManager {
     if (window.sessionStorage) loadStorage(window.sessionStorage);
     if (window.localStorage) loadStorage(window.localStorage);
 
+    this.trimMemoryCache();
+
     this.stats.entries = this.memoryCache.size;
+  }
+
+  private trimMemoryCache() {
+    const now = Date.now();
+    for (const [key, entry] of this.memoryCache) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.memoryCache.delete(key);
+        this.removeStorage(key, entry.persistent);
+      }
+    }
+
+    while (this.memoryCache.size > MAX_MEMORY_ENTRIES) {
+      const oldestKey = this.memoryCache.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      const oldest = this.memoryCache.get(oldestKey);
+      this.memoryCache.delete(oldestKey);
+      this.removeStorage(oldestKey, oldest?.persistent);
+    }
   }
 
   /**
@@ -154,6 +177,9 @@ class ApiCacheManager {
 
     this.stats.hits++;
     this.stats.savedRequests++;
+    // Map insertion order doubles as a small LRU: recently used entries survive.
+    this.memoryCache.delete(key);
+    this.memoryCache.set(key, entry);
     this.notify();
     return entry.data as T;
   }
@@ -197,8 +223,10 @@ class ApiCacheManager {
       persistent
     };
 
+    this.memoryCache.delete(key);
     this.memoryCache.set(key, entry);
     this.setStorage(key, entry);
+    this.trimMemoryCache();
     this.notify();
   }
 
@@ -352,11 +380,13 @@ export async function fetchWithCache<T>(
   })();
 
   inflightFetches.set(cacheKey, promise);
-  promise.finally(() => {
+  const cleanup = () => {
     if (inflightFetches.get(cacheKey) === promise) {
       inflightFetches.delete(cacheKey);
     }
-  });
+  };
+  // Avoid creating an unobserved rejected Promise from `promise.finally()`.
+  void promise.then(cleanup, cleanup);
 
   return promise;
 }

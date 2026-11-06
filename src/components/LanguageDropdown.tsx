@@ -120,7 +120,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           title={`Language: ${currentOption.name}. Click to change language.`}
           className={`p-2 rounded-full transition cursor-pointer relative flex items-center justify-center ${
             selectedLanguage !== 'global'
-              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
               : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800'
           }`}
         >
@@ -130,7 +130,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
             <span className="text-sm leading-none">{currentOption.flag}</span>
           )}
           {selectedLanguage !== 'global' && (
-            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-mono px-1 py-0.2 bg-blue-600 text-white rounded-full uppercase font-bold leading-none">
+            <span className="absolute -top-0.5 -right-0.5 text-[8px] font-mono px-1 py-0.2 bg-slate-700 text-white rounded-full uppercase font-bold leading-none">
               {selectedLanguage}
             </span>
           )}
@@ -144,26 +144,26 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           title={`Language filter: currently ${currentOption.name}. Click to change language.`}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
             selectedLanguage !== 'global'
-              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shadow-xs'
+              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 shadow-xs'
               : isOpen
                 ? 'bg-gray-200/90 dark:bg-slate-700 text-gray-800 dark:text-slate-100 border-gray-300 dark:border-slate-600'
                 : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
           }`}
         >
           {selectedLanguage === 'global' ? (
-            <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <Globe className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
           ) : (
             <span className="text-xs leading-none">{currentOption.flag}</span>
           )}
           <span>{currentOption.name}</span>
           {selectedLanguage !== 'global' && (
-            <span className="text-[10px] font-mono px-1 py-0.2 bg-indigo-100/70 dark:bg-indigo-900/60 rounded text-indigo-800 dark:text-indigo-300 uppercase font-bold">
+            <span className="text-[10px] font-mono px-1 py-0.2 bg-slate-200 dark:bg-slate-700 rounded text-slate-700 dark:text-slate-200 uppercase font-bold">
               {selectedLanguage}
             </span>
           )}
           <ChevronDown
             className={`w-3 h-3 text-gray-400 dark:text-slate-500 transition-transform duration-150 ${
-              isOpen ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : ''
+              isOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
             }`}
           />
         </button>
@@ -184,7 +184,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search 20+ languages..."
-              className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 transition"
+              className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 focus:bg-white dark:focus:bg-slate-800 transition"
             />
             {searchQuery && (
               <button
@@ -207,12 +207,12 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                 onClick={() => handleSelect('global')}
                 className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer group ${
                   selectedLanguage === 'global'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold'
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                     : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className={`p-1 rounded-lg ${selectedLanguage === 'global' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
+                  <div className={`p-1 rounded-lg ${selectedLanguage === 'global' ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                     <Globe className="w-3.5 h-3.5" />
                   </div>
                   <div>
@@ -227,7 +227,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                 </div>
 
                 {selectedLanguage === 'global' && (
-                  <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0" />
                 )}
               </button>
             </div>
@@ -236,7 +236,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
             <span>Top 20 Popular (Combflow)</span>
-            <span className="text-[9px] font-normal text-indigo-500 dark:text-indigo-400 flex items-center gap-1">
+            <span className="text-[9px] font-normal text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5" />
               AI Indexed
             </span>
@@ -258,7 +258,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                     title={`Filter Hive posts published in ${lang.name} (${lang.formattedCount || ''} posts)`}
                     className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer group ${
                       isCurrent
-                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
                         : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                     }`}
                   >
@@ -284,7 +284,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                         </span>
                       )}
                       {isCurrent && (
-                        <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                        <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0" />
                       )}
                     </div>
                   </button>

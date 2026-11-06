@@ -39,8 +39,42 @@ export const POPULAR_TRANSLATION_LANGUAGES: TranslationTarget[] = [
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
 ];
 
-/** In-memory cache for translated strings */
+/** Bounded LRU cache: translated articles can otherwise retain large strings forever. */
 const translationCache = new Map<string, string>();
+const translationInFlight = new Map<string, Promise<string>>();
+const MAX_TRANSLATION_CACHE_CHARS = 2_000_000;
+const MAX_SINGLE_TRANSLATION_CACHE_CHARS = 250_000;
+let translationCacheChars = 0;
+
+function getCachedTranslation(key: string): string | undefined {
+  const value = translationCache.get(key);
+  if (value === undefined) return undefined;
+  translationCache.delete(key);
+  translationCache.set(key, value);
+  return value;
+}
+
+function setCachedTranslation(key: string, value: string): void {
+  const entrySize = key.length + value.length;
+  if (entrySize > MAX_SINGLE_TRANSLATION_CACHE_CHARS) return;
+
+  const existing = translationCache.get(key);
+  if (existing !== undefined) {
+    translationCacheChars -= key.length + existing.length;
+    translationCache.delete(key);
+  }
+
+  while (translationCacheChars + entrySize > MAX_TRANSLATION_CACHE_CHARS) {
+    const oldestKey = translationCache.keys().next().value as string | undefined;
+    if (oldestKey === undefined) break;
+    const oldestValue = translationCache.get(oldestKey)!;
+    translationCache.delete(oldestKey);
+    translationCacheChars -= oldestKey.length + oldestValue.length;
+  }
+
+  translationCache.set(key, value);
+  translationCacheChars += entrySize;
+}
 
 /** Helper to mask Markdown entities with unambiguous alphanumeric tokens */
 function maskMarkdown(
@@ -172,17 +206,25 @@ async function translateTextRaw(text: string, targetLang: string): Promise<strin
 export async function translateText(text: string, targetLang: string = 'pt'): Promise<string> {
   if (!text || !text.trim()) return text;
   const cacheKey = `${targetLang}:text:${text}`;
-  if (translationCache.has(cacheKey)) {
-    return translationCache.get(cacheKey)!;
+  const cached = getCachedTranslation(cacheKey);
+  if (cached !== undefined) return cached;
+  const pending = translationInFlight.get(cacheKey);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const placeholders: Array<{ id: string; raw: string }> = [];
+    const masked = maskMarkdown(text, placeholders);
+    const rawTranslated = await translateTextRaw(masked, targetLang);
+    const result = unmaskMarkdown(rawTranslated, placeholders);
+    setCachedTranslation(cacheKey, result);
+    return result;
+  })();
+  translationInFlight.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    if (translationInFlight.get(cacheKey) === request) translationInFlight.delete(cacheKey);
   }
-
-  const placeholders: Array<{ id: string; raw: string }> = [];
-  const masked = maskMarkdown(text, placeholders);
-  const rawTranslated = await translateTextRaw(masked, targetLang);
-  const result = unmaskMarkdown(rawTranslated, placeholders);
-
-  translationCache.set(cacheKey, result);
-  return result;
 }
 
 /**
@@ -196,11 +238,19 @@ export async function translateMarkdown(
 ): Promise<string> {
   if (!markdown || !markdown.trim()) return markdown;
   const cacheKey = `${targetLang}:md:${markdown}`;
-  if (translationCache.has(cacheKey)) {
+  const cached = getCachedTranslation(cacheKey);
+  if (cached !== undefined) {
     if (onProgress) onProgress(100);
-    return translationCache.get(cacheKey)!;
+    return cached;
+  }
+  const pending = translationInFlight.get(cacheKey);
+  if (pending) {
+    const result = await pending;
+    if (onProgress) onProgress(100);
+    return result;
   }
 
+  const request = (async () => {
   // Split markdown into logical blocks / paragraphs separated by \n\n
   const rawBlocks = markdown.split(/\n\s*\n/);
   const placeholders: Array<{ id: string; raw: string }> = [];
@@ -231,16 +281,23 @@ export async function translateMarkdown(
   let completedBatches = 0;
   const totalBatches = batches.length;
 
-  // Process batches with high parallelism
-  const translatedBatches = await Promise.all(
-    batches.map(async (batch) => {
+  // Bound concurrent provider calls to avoid a large burst for long articles.
+  const translatedBatches = new Array<string>(batches.length);
+  let nextBatchIndex = 0;
+  const workerCount = Math.min(3, batches.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const batchIndex = nextBatchIndex++;
+      if (batchIndex >= batches.length) return;
+      const batch = batches[batchIndex];
       // If the batch only has protected entities and no readable text, keep it as is
       const joined = batch.join(DELIMITER);
       const containsTranslatableText = /[a-zA-Z\u00C0-\u017F]{2,}/.test(joined);
       if (!containsTranslatableText) {
         completedBatches++;
         if (onProgress) onProgress(Math.round((completedBatches / totalBatches) * 100));
-        return batch.join('\n\n');
+        translatedBatches[batchIndex] = batch.join('\n\n');
+        continue;
       }
 
       try {
@@ -250,21 +307,28 @@ export async function translateMarkdown(
         if (onProgress) onProgress(Math.round((completedBatches / totalBatches) * 100));
 
         if (parts.length === batch.length) {
-          return parts.map((p) => p.trim()).join('\n\n');
+          translatedBatches[batchIndex] = parts.map((p) => p.trim()).join('\n\n');
+        } else {
+          translatedBatches[batchIndex] = rawTranslated;
         }
-        return rawTranslated;
       } catch (err) {
         console.error('Batch translation failed, returning original batch:', err);
         completedBatches++;
         if (onProgress) onProgress(Math.round((completedBatches / totalBatches) * 100));
-        return batch.join('\n\n');
+        translatedBatches[batchIndex] = batch.join('\n\n');
       }
-    })
-  );
+    }
+  }));
 
   const fullRawTranslated = translatedBatches.join('\n\n');
   const finalResult = unmaskMarkdown(fullRawTranslated, placeholders);
-
-  translationCache.set(cacheKey, finalResult);
+  setCachedTranslation(cacheKey, finalResult);
   return finalResult;
+  })();
+  translationInFlight.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    if (translationInFlight.get(cacheKey) === request) translationInFlight.delete(cacheKey);
+  }
 }

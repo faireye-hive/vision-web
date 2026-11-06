@@ -141,6 +141,7 @@ export const SearchPreviewPopover: React.FC<SearchPreviewPopoverProps> = ({
 
   return (
     <div
+      id="search-preview-popover"
       ref={popoverRef}
       role="dialog"
       aria-label="Live search preview"
@@ -149,7 +150,7 @@ export const SearchPreviewPopover: React.FC<SearchPreviewPopoverProps> = ({
         isMobile
           ? 'w-full mt-2 rounded-2xl'
           : 'absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] rounded-2xl'
-      } bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl border border-gray-100 dark:border-slate-800 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200 select-none`}
+      } bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-[120] max-h-[min(70vh,560px)] overflow-y-auto overscroll-contain text-xs animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200 select-none`}
     >
       {/* Quick Search Action when query is present */}
       {cleanQuery && (

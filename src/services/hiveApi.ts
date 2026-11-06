@@ -315,7 +315,8 @@ export const NON_POST_PERMLINKS = new Set([
 async function performHiveRpcCall<T = any>(
   method: string,
   params: any = {},
-  nodeUrl: string = activeNode
+  nodeUrl: string = activeNode,
+  timeoutMs: number = 8000
 ): Promise<T> {
   const payload = {
     jsonrpc: '2.0',
@@ -339,7 +340,7 @@ async function performHiveRpcCall<T = any>(
   for (let i = 0; i < maxAttempts; i++) {
     const currentNode = candidateNodes[i];
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(currentNode, {
@@ -352,13 +353,12 @@ async function performHiveRpcCall<T = any>(
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
       }
 
       const json = await res.json();
+      clearTimeout(timeoutId);
       if (json.error) {
         const errMsg = json.error.message || 'Hive RPC returned error';
         const isNotFound = /does not exist|not found|unknown account/i.test(errMsg);
@@ -403,13 +403,14 @@ const pendingRpcCalls = new Map<string, Promise<unknown>>();
 export async function hiveRpcCall<T = any>(
   method: string,
   params: any = {},
-  nodeUrl: string = activeNode
+  nodeUrl: string = activeNode,
+  timeoutMs: number = 8000
 ): Promise<T> {
   const key = `${nodeUrl}\n${method}\n${JSON.stringify(params ?? {})}`;
   const existing = pendingRpcCalls.get(key);
   if (existing) return existing as Promise<T>;
 
-  const promise = performHiveRpcCall<T>(method, params, nodeUrl);
+  const promise = performHiveRpcCall<T>(method, params, nodeUrl, timeoutMs);
   pendingRpcCalls.set(key, promise);
   promise.finally(() => {
     if (pendingRpcCalls.get(key) === promise) {
@@ -537,16 +538,18 @@ export async function getDiscussion(
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<Record<string, HivePost>>('bridge.get_discussion', {
-          author: cleanAuthor,
-          permlink: cleanPermlink
-        });
-        return result || {};
-      } catch (err) {
-        console.warn(`[getDiscussion] Error fetching discussion for ${cleanAuthor}/${cleanPermlink}:`, err);
-        return {};
+      const result = await hiveRpcCall<Record<string, HivePost>>(
+        'bridge.get_discussion',
+        { author: cleanAuthor, permlink: cleanPermlink },
+        getActiveNode(),
+        20000
+      );
+      // An empty map is a failed read, not a post with no replies. Caching it
+      // made the next visit look like the thread did not exist.
+      if (!result || Object.keys(result).length === 0) {
+        throw new Error(`Empty discussion for ${cleanAuthor}/${cleanPermlink}`);
       }
+      return result;
     },
     { ttl: CACHE_TTL.DISCUSSION, forceRefresh }
   );

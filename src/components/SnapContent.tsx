@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigation } from '../context/NavigationContext';
 import { HivePost, getPost, getPostSnippet, getHiveAvatarUrl } from '../services/hiveApi';
 import { markdownToSafeHtml } from '../utils/sanitize';
 import { extract3SpeakVideoIds, get3SpeakData, getCached3SpeakData } from '../utils/videoEmbeds';
 import {
   HivePostLink,
   collapseDuplicateHashtags,
-  extractHashtags,
   extractHivePostLinks,
   extractSnapImages,
   imageIdentity,
@@ -14,6 +15,111 @@ import {
   truncateSnapText,
 } from '../services/shortsApi';
 import { SafeSnapImage } from './SafeSnapImage';
+
+const TRUSTED_SNAP_LINK_HOSTS = [
+  'peakd.com',
+  'ecency.com',
+  'hive.blog',
+  '3speak.tv',
+  '3speak.com',
+  '3speak.online'
+];
+
+function isTrustedSnapLink(url: URL): boolean {
+  if (url.origin === window.location.origin) return true;
+  const host = url.hostname.toLowerCase();
+  return TRUSTED_SNAP_LINK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function linkifyHashtags(html: string): string {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  textNodes.forEach((textNode) => {
+    if (textNode.parentElement?.closest('a, button, code, pre')) return;
+    const value = textNode.nodeValue || '';
+    const matches = Array.from(value.matchAll(/(^|\s)#([a-zA-Z0-9_\u0080-\uFFFF]+)/g));
+    if (!matches.length) return;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    matches.forEach((match) => {
+      const start = match.index ?? 0;
+      const tagStart = start + match[1].length;
+      const tagEnd = tagStart + match[2].length + 1;
+      fragment.append(value.slice(cursor, tagStart));
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.snapTag = match[2];
+      button.title = `Filter Shorts by #${match[2]}`;
+      button.className = 'font-semibold text-blue-600 hover:underline dark:text-blue-400';
+      button.textContent = `#${match[2]}`;
+      fragment.append(button);
+      cursor = tagEnd;
+    });
+    fragment.append(value.slice(cursor));
+    textNode.replaceWith(fragment);
+  });
+
+  return template.innerHTML;
+}
+
+/** Turn plain HTTP(S) text into anchors using DOM APIs after sanitization. */
+function linkifyPlainUrls(html: string): string {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  textNodes.forEach((textNode) => {
+    if (textNode.parentElement?.closest('a, button, code, pre, .nebulosa-video-container, .nebulosa-lazy-video-facade')) return;
+    const value = textNode.nodeValue || '';
+    const matches = Array.from(value.matchAll(/https?:\/\/[^\s<>"']+/gi));
+    if (!matches.length) return;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of matches) {
+      const start = match.index ?? 0;
+      let rawUrl = match[0];
+      let trailing = '';
+      while (/[),.;!?\]}]$/.test(rawUrl)) {
+        trailing = rawUrl.slice(-1) + trailing;
+        rawUrl = rawUrl.slice(0, -1);
+      }
+
+      let parsed: URL;
+      try {
+        parsed = new URL(rawUrl);
+      } catch {
+        continue;
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+
+      fragment.append(document.createTextNode(value.slice(cursor, start)));
+      const anchor = document.createElement('a');
+      anchor.href = parsed.href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer nofollow';
+      anchor.className = 'text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all';
+      anchor.textContent = rawUrl;
+      fragment.append(anchor, document.createTextNode(trailing));
+      cursor = start + match[0].length;
+    }
+
+    if (cursor > 0) {
+      fragment.append(document.createTextNode(value.slice(cursor)));
+      textNode.replaceWith(fragment);
+    }
+  });
+
+  return template.innerHTML;
+}
 
 interface SnapContentProps {
   body: string;
@@ -28,7 +134,7 @@ interface SnapContentProps {
   enableTruncation?: boolean;
 }
 
-function ResnapCard({ link }: { link: HivePostLink }) {
+function ResnapCard({ link, onOpen }: { link: HivePostLink; onOpen: () => void }) {
   const [post, setPost] = useState<HivePost | null>(null);
 
   useEffect(() => {
@@ -45,16 +151,14 @@ function ResnapCard({ link }: { link: HivePostLink }) {
     };
   }, [link.author, link.permlink]);
 
-  const href = link.raw.startsWith('http') ? link.raw : `https://${link.raw}`;
   const title = post?.title?.trim() || `Post by @${link.author}`;
   const description = post ? getPostSnippet(post.body, 180) : 'Loading post from Hive…';
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-3 block rounded-2xl border border-slate-200 dark:border-slate-800 p-3 bg-white dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-700 transition"
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-3 block w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 p-3 bg-white dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-700 transition"
     >
       <div className="flex items-center gap-2 mb-1">
         <img
@@ -67,7 +171,7 @@ function ResnapCard({ link }: { link: HivePostLink }) {
       </div>
       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 line-clamp-2">{title}</p>
       <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-3 mt-1">{description}</p>
-    </a>
+    </button>
   );
 }
 
@@ -84,6 +188,8 @@ export function SnapContent({
   enableTruncation = true,
 }: SnapContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const navigate = useNavigate();
+  const { handleOpenNotificationPost } = useNavigation();
 
   // Pre-fetch 3Speak embed data and track loaded thumbnails reactively
   const [threeSpeakThumbnails, setThreeSpeakThumbnails] = useState<Record<string, string>>(() => {
@@ -122,7 +228,6 @@ export function SnapContent({
     () => extractHivePostLinks(body || '', { author, permlink }),
     [body, author, permlink]
   );
-  const hashtags = useMemo(() => extractHashtags(body || ''), [body]);
   const [failed, setFailed] = useState<Record<string, true>>({});
 
   const shownImages = images.filter((url) => !failed[imageIdentity(url)]);
@@ -144,6 +249,10 @@ export function SnapContent({
     const text = collapseDuplicateHashtags(stripResolvedSnapUrls(activeText || '', hidden));
     return markdownToSafeHtml(text, { jsonMetadata, threeSpeakThumbnails });
   }, [activeText, shownImages, hiveLinks, jsonMetadata, threeSpeakThumbnails]);
+  const displayHtml = useMemo(() => {
+    const linkedUrls = linkifyPlainUrls(safeHtml);
+    return onSelectTag ? linkifyHashtags(linkedUrls) : linkedUrls;
+  }, [safeHtml, onSelectTag]);
 
   return (
     <div>
@@ -151,13 +260,56 @@ export function SnapContent({
         <div
           onClick={(e) => {
             const target = e.target as HTMLElement;
+            const tagButton = target.closest<HTMLElement>('[data-snap-tag]');
+            if (tagButton) {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelectTag?.(tagButton.dataset.snapTag || '');
+              return;
+            }
             if (target.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container')) {
+              return;
+            }
+            const anchor = target.closest<HTMLAnchorElement>('a');
+            if (anchor) {
+              e.preventDefault();
+              e.stopPropagation();
+              const href = anchor.getAttribute('href');
+              if (!href) return;
+
+              let destination: URL;
+              try {
+                destination = new URL(href, window.location.href);
+              } catch {
+                return;
+              }
+
+              if (destination.protocol !== 'https:' && destination.protocol !== 'http:') return;
+
+              const hivePost = extractHivePostLinks(destination.href)[0];
+              if (hivePost) {
+                void handleOpenNotificationPost(hivePost.author, hivePost.permlink);
+                return;
+              }
+
+              if (!isTrustedSnapLink(destination)) {
+                const shouldContinue = window.confirm(
+                  `This link will take you outside Nebulosa.\n\nDestination: ${destination.hostname}\n${destination.href}\n\nContinue only if you trust this site.`
+                );
+                if (!shouldContinue) return;
+              }
+
+              if (destination.origin === window.location.origin) {
+                navigate(`${destination.pathname}${destination.search}${destination.hash}`);
+              } else {
+                window.open(destination.href, '_blank', 'noopener,noreferrer');
+              }
               return;
             }
             onOpenDetail?.();
           }}
           className={`${textClassName} ${onOpenDetail ? 'cursor-pointer' : ''}`}
-          dangerouslySetInnerHTML={{ __html: safeHtml }}
+          dangerouslySetInnerHTML={{ __html: displayHtml }}
         />
       )}
 
@@ -182,24 +334,12 @@ export function SnapContent({
       )}
 
       {hiveLinks.map((link) => (
-        <ResnapCard key={`${link.author}/${link.permlink}`} link={link} />
+        <ResnapCard
+          key={`${link.author}/${link.permlink}`}
+          link={link}
+          onOpen={() => void handleOpenNotificationPost(link.author, link.permlink)}
+        />
       ))}
-
-      {hashtags.length > 0 && onSelectTag && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {hashtags.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => onSelectTag(tag)}
-              className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 px-2.5 py-1 rounded-full transition cursor-pointer"
-              title={`Filter shorts by #${tag}`}
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      )}
 
       {shownImages.length > 0 && (
         <div className={`mt-3 ${shownImages.length === 1 ? '' : 'grid gap-2 grid-cols-2'}`}>

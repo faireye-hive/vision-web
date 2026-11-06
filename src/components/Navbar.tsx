@@ -115,6 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowSearchPopover(false);
+        setShowLoginModal(false);
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -324,11 +325,33 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  const handleDemoLogin = async () => {
+    if (!loginUsername.trim()) {
+      setLoginError('Enter a Hive username to browse in Demo mode.');
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError(null);
+    try {
+      const result = await KeychainService.loginDemo(loginUsername);
+      if (result.success && result.user) {
+        onLogin(result.user);
+        setShowLoginModal(false);
+      } else {
+        setLoginError(result.error || 'Could not start Demo mode.');
+      }
+    } catch (err: any) {
+      setLoginError(err?.message || 'Could not start Demo mode.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   return (
     <>
     <header 
       id="app-navbar" 
-      className="relative md:sticky md:top-0 z-40 bg-white/80 dark:bg-[#090d16]/85 backdrop-blur-xl border-b border-gray-200/70 dark:border-slate-800/80 shadow-[0_4px_30px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_35px_-4px_rgba(0,0,0,0.5)] transition-all duration-300"
+      className="relative md:sticky md:top-0 z-[100] bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors duration-200"
     >
       {/* Ambient top hairline gradient glow */}
       <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent pointer-events-none opacity-80" />
@@ -337,7 +360,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-14 sm:h-16 gap-3 sm:gap-4">
 
           {/* Left section: Nebulosa Logo, Nav links */}
-          <div className="flex items-center gap-3 md:gap-5">
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-5 min-w-0">
 
             {/* Nebulosa Circular Brand Logo */}
             <button
@@ -370,7 +393,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Primary Nav Links: Segmented Pill bar */}
-            <nav className="hidden md:flex items-center gap-1 p-1 bg-gray-100/70 dark:bg-slate-800/50 backdrop-blur-md rounded-full border border-gray-200/60 dark:border-slate-700/60 shadow-inner">
+            <nav className="hidden md:flex items-center gap-0.5 p-1 bg-slate-100/90 dark:bg-slate-800/70 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shrink-0">
               {[
                 { id: 'feed', label: 'Feed', icon: Rss, desc: 'Stories from accounts you follow' },
                 { id: 'discover', label: 'Discover', icon: Compass, desc: 'Trending, Hot & New feeds' },
@@ -378,6 +401,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 { id: 'communities', label: 'Communities', icon: Users, desc: 'Specialized Hive groups' }
               ].map(tab => {
                 const isActive = (tab.id === 'shorts' && (activeNav === 'shorts' || activeNav === 'waves')) || activeNav === tab.id;
+                const useNeutralActive = isActive && tab.id === 'shorts';
                 const Icon = tab.icon;
                 return (
                   <button
@@ -385,16 +409,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     id={`nav-${tab.id}-btn`}
                     onClick={() => { if (onNavChange) onNavChange(tab.id as any); }}
                     title={`${tab.label}: ${tab.desc}`}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                       isActive
-                        ? 'bg-white dark:bg-[#121829] text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200/70 dark:border-slate-700/70 font-extrabold'
+                        ? useNeutralActive
+                          ? 'bg-white dark:bg-[#121829] text-slate-800 dark:text-slate-100 shadow-sm border border-gray-200/70 dark:border-slate-700/70 font-extrabold'
+                          : 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-sm border border-blue-200/80 dark:border-blue-900/70 font-bold'
                         : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-400'}`} />
-                    <span>{tab.label}</span>
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? (useNeutralActive ? 'text-slate-600 dark:text-slate-300' : 'text-blue-600 dark:text-blue-400') : 'text-gray-400 dark:text-slate-400'}`} />
+                    <span className="hidden lg:inline">{tab.label}</span>
                     {isActive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 shadow-xs shadow-blue-500" />
+                      <span className={`w-1.5 h-1.5 rounded-full ${useNeutralActive ? 'bg-slate-500 dark:bg-slate-400' : 'bg-blue-600 dark:bg-blue-400 shadow-xs shadow-blue-500'}`} />
                     )}
                   </button>
                 );
@@ -403,14 +429,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Right section: Network Status, Theme Toggle, Stats, Search, Write, Notifications, User */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1 sm:gap-1.5">
 
             {/* Live RPC Node Latency Pill on Desktop */}
             <button
               id="rpc-nodes-status-badge"
               type="button"
               onClick={() => setShowNodeMenu(!showNodeMenu)}
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100/70 dark:bg-slate-800/60 border border-gray-200/60 dark:border-slate-700/60 hover:border-blue-400/60 dark:hover:border-blue-500/60 text-[11px] font-mono text-gray-600 dark:text-slate-300 transition-all cursor-pointer shadow-2xs group/node"
+              className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800 text-[11px] font-mono text-gray-600 dark:text-slate-300 transition cursor-pointer group/node"
               title="Hive RPC network status — Click to switch nodes"
             >
               <span className="relative flex h-2 w-2">
@@ -426,7 +452,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="theme-toggle-btn"
                 type="button"
                 onClick={onToggleTheme}
-                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 dark:text-slate-300 dark:hover:text-amber-400 dark:hover:bg-slate-800/80 rounded-full transition-all duration-200 cursor-pointer hidden sm:flex active:scale-95"
+                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer hidden lg:flex active:scale-95"
                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode (Night Mode)"}
                 aria-label="Toggle dark mode"
               >
@@ -442,7 +468,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="help-btn"
               onClick={onOpenStats}
-              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/80 rounded-full transition-all duration-200 hidden sm:flex active:scale-95"
+              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-xl transition hidden lg:flex active:scale-95"
               title="Hive Blockchain Nodes & RPC Settings (Add Custom Nodes)"
             >
               <HelpCircle className="w-4 h-4" />
@@ -477,7 +503,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Desktop Search Pill with Live Preview Popover */}
-            <div ref={desktopSearchRef} className="relative hidden sm:block sm:w-56 md:w-64 lg:w-72 transition-all duration-300 focus-within:sm:w-64 focus-within:md:w-72 focus-within:lg:w-80">
+            <div ref={desktopSearchRef} className={`relative hidden sm:block sm:w-40 md:w-44 lg:w-56 xl:w-72 transition-all duration-200 focus-within:sm:w-44 focus-within:md:w-52 focus-within:lg:w-64 focus-within:xl:w-80 ${showSearchPopover ? 'z-[70]' : 'z-0'}`}>
               <form onSubmit={handleSearchSubmit} className="relative flex items-center">
                 <div className="absolute left-2.5 w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-slate-400">
                   <Search className="w-3 h-3" />
@@ -551,11 +577,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="write-btn"
               onClick={() => onOpenWrite?.()}
               title="Write a new Hive post (Press N)"
-              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:via-indigo-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-1.5 rounded-full shadow-[0_4px_16px_rgba(37,99,235,0.25)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.35)] active:scale-95 transition-all duration-200 cursor-pointer relative overflow-hidden group/write"
+              className="hidden sm:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3 sm:px-3.5 py-2 rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer relative overflow-hidden group/write"
             >
               <div className="absolute inset-0 -translate-x-full group-hover/write:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
               <Edit3 className="w-3.5 h-3.5 group-hover/write:rotate-12 transition-transform duration-200" />
-              <span className="hidden sm:inline">Write</span>
+                  <span className="hidden lg:inline">Write</span>
             </button>
 
             {/* Quick Notifications Bell Button */}
@@ -584,11 +610,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="keychain-login-btn"
                 onClick={() => setShowLoginModal(true)}
-                title="Connect Hive Keychain wallet for keyless signing"
-                className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-500 via-rose-600 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-extrabold shadow-md shadow-rose-500/20 active:scale-95 transition-all duration-200 cursor-pointer group/login"
+                title="Connect with Hive Keychain"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer group/login"
               >
                 <Key className="w-3.5 h-3.5 group-hover/login:rotate-12 transition-transform duration-200" />
-                <span className="hidden md:inline">Keychain Login</span>
+                <span className="hidden md:inline">Log in</span>
               </button>
             ) : (
               <div className="relative hidden sm:block">
@@ -596,10 +622,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="user-avatar-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   title={`Signed in as @${currentUser.username}${unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount} unread notifications)` : ''}`}
-                  className={`flex items-center gap-2 p-1 pr-2.5 rounded-full border transition-all duration-200 focus:outline-none cursor-pointer active:scale-95 shadow-2xs group/userbtn ${
+                  className={`flex items-center gap-2 p-1 pr-2.5 rounded-xl border transition focus:outline-none cursor-pointer active:scale-[0.98] shadow-sm group/userbtn ${
                     unreadNotificationsCount > 0
                       ? 'border-rose-300 dark:border-rose-700 bg-rose-50/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 ring-2 ring-rose-400/30'
-                      : 'border-gray-200/80 dark:border-slate-700/80 bg-white/70 dark:bg-slate-800/70 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-sm'
                   }`}
                 >
                   <div className="relative">
@@ -622,7 +648,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                     )}
                   </div>
-                  <span className={`text-xs font-bold hidden sm:inline max-w-[100px] truncate ${
+                  <span className={`text-xs font-bold hidden lg:inline max-w-[100px] truncate ${
                     unreadNotificationsCount > 0 ? 'text-rose-700 dark:text-rose-300 font-extrabold' : 'text-gray-800 dark:text-slate-200'
                   }`}>
                     @{currentUser.username}
@@ -639,7 +665,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {showUserMenu && (
                   <div
                     id="user-menu-dropdown"
-                    className="absolute right-0 mt-2.5 w-80 bg-white/95 dark:bg-[#0c1222]/95 backdrop-blur-2xl border border-gray-100 dark:border-slate-800/90 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.2)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] p-2.5 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden ring-1 ring-black/5 dark:ring-white/5"
+                    className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2.5 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
                   >
                     {/* Top hairline gradient */}
                     <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 pointer-events-none" />
@@ -647,7 +673,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {/* User Header Profile Card */}
                     <div
                       onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
-                      className="group/header p-3 rounded-2xl bg-gradient-to-b from-gray-50/90 to-gray-100/40 dark:from-slate-800/60 dark:to-slate-900/40 border border-gray-100 dark:border-slate-800/70 cursor-pointer hover:border-blue-300 dark:hover:border-blue-500/40 hover:shadow-xs transition-all duration-200 mb-1.5"
+                      className="group/header p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-sm transition mb-1.5"
                       title="View your Hive profile"
                     >
                       <div className="flex items-center gap-3">
@@ -675,256 +701,157 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>Hive Keychain</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Menu Section Header */}
-                    <div className="px-2.5 py-1 flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 dark:text-slate-500">
-                        Navigation (A-Z)
-                      </span>
-                      <span className="text-[10px] font-semibold text-gray-400 dark:text-slate-500">
-                        Hive Account
-                      </span>
-                    </div>
-
-                    {/* Alphabetized Menu Items */}
-                    <div className="space-y-0.5 max-h-[360px] overflow-y-auto no-scrollbar py-0.5">
-                      {/* E - Explore Communities */}
-                      <button
-                        onClick={() => { onOpenCommunities(); setShowUserMenu(false); }}
-                        className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200/60 dark:border-purple-800/40 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                            <Compass className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
-                              Explore Communities
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              Discover creators & groups
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </button>
-
-                      {/* M - Manage Communities */}
-                      <button
-                        onClick={() => {
-                          if (onOpenManageCommunities) onOpenManageCommunities();
-                          else onOpenCommunities();
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                            <Layers className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                              Manage Communities
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              Subscriptions & roles
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </button>
-
-                      {/* M - Manage Following */}
-                      {onOpenManageFollowing && (
-                        <button
-                          onClick={() => { onOpenManageFollowing(); setShowUserMenu(false); }}
-                          className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                              <SlidersHorizontal className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
-                                Manage Following
-                              </p>
-                              <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                                Creators, mutelist & feed
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                        </button>
-                      )}
-
-                      {/* N - Notifications */}
-                      {onOpenNotifications && (
-                        <button
-                          onClick={() => { onOpenNotifications(); setShowUserMenu(false); }}
-                          className={`w-full text-left p-2 rounded-2xl flex items-center justify-between transition-all duration-150 group cursor-pointer ${
-                            unreadNotificationsCount > 0
-                              ? 'bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/50'
-                              : 'hover:bg-gray-50/90 dark:hover:bg-slate-800/80'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0 ${
-                              unreadNotificationsCount > 0
-                                ? 'bg-rose-500 text-white border-rose-600'
-                                : 'bg-rose-50 dark:bg-rose-950/50 border-rose-200/60 dark:border-rose-800/40 text-rose-600 dark:text-rose-400'
-                            }`}>
-                              <Bell className={`w-4 h-4 ${unreadNotificationsCount > 0 ? 'animate-bounce' : ''}`} />
-                            </div>
-                            <div className="min-w-0">
-                              <p className={`text-xs font-bold transition-colors truncate ${
-                                unreadNotificationsCount > 0
-                                  ? 'text-rose-700 dark:text-rose-300 font-extrabold'
-                                  : 'text-gray-800 dark:text-slate-200 group-hover:text-rose-600 dark:group-hover:text-rose-400'
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${currentUser.isDemo
+                              ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-500/20'
+                              : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500/20'
                               }`}>
-                                Notifications
-                              </p>
-                              <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                                Replies, mentions & votes
-                              </p>
-                            </div>
-                          </div>
-                          {unreadNotificationsCount > 0 ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs shrink-0 animate-pulse">
-                              {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount} new
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>{currentUser.isDemo ? 'Demo · read-only' : 'Hive Keychain'}</span>
                             </span>
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                          )}
-                        </button>
-                      )}
-
-                      {/* P - Profile */}
-                      <button
-                        onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
-                        className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-800/40 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                            <UserIcon className="w-4 h-4" />
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
-                              Profile
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              Your blog, posts & wallet
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </button>
-
-                      {/* R - RPC Nodes */}
-                      <button
-                        id="rpc-nodes-trigger"
-                        onClick={() => { setShowNodeMenu(!showNodeMenu); setShowUserMenu(false); }}
-                        className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/50 border border-teal-200/60 dark:border-teal-800/40 flex items-center justify-center text-teal-600 dark:text-teal-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                            <Wifi className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors truncate">
-                              RPC Nodes
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              Switch endpoint & cache
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-500/20 shrink-0">
-                          {nodePing ? `${nodePing}ms` : 'active'}
-                        </span>
-                      </button>
-
-                      {/* S - Stats & Analytics */}
-                      <button
-                        onClick={() => { onOpenStats(); setShowUserMenu(false); }}
-                        className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-800/40 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                            <Activity className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate">
-                              Stats & Analytics
-                            </p>
-                            <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                              Chain metrics & traffic
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </button>
-
-                      {/* T - Theme Mode */}
-                      {onToggleTheme && (
-                        <button
-                          onClick={() => { onToggleTheme(); setShowUserMenu(false); }}
-                          className="w-full text-left p-2 rounded-2xl flex items-center justify-between hover:bg-gray-50/90 dark:hover:bg-slate-800/80 transition-all duration-150 group cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-center text-slate-700 dark:text-amber-300 group-hover:scale-105 group-hover:shadow-xs transition-transform shrink-0">
-                              {isDark ? (
-                                <Sun className="w-4 h-4 text-amber-400" />
-                              ) : (
-                                <Moon className="w-4 h-4 text-slate-600" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
-                                Theme Mode
-                              </p>
-                              <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
-                                {isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-gray-200/70 dark:border-slate-700 shrink-0">
-                            {isDark ? 'Dark' : 'Light'}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Divider */}
-                    <hr className="border-gray-100 dark:border-slate-800/90 my-1.5" />
-
-                    {/* Disconnect Account */}
-                    <button
-                      onClick={() => { onLogout(); setShowUserMenu(false); }}
-                      className="w-full text-left p-2 rounded-2xl flex items-center justify-between text-rose-600 dark:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-950/30 transition-all duration-150 group/logout cursor-pointer border border-transparent hover:border-rose-200 dark:hover:border-rose-900/40"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover/logout:scale-105 transition-transform shrink-0">
-                          <LogOut className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-rose-600 dark:text-rose-400 truncate">
-                            Disconnect Account
-                          </p>
-                          <p className="text-[10px] text-rose-400/80 dark:text-rose-400/60 truncate">
-                            Sign out from this session
-                          </p>
                         </div>
                       </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-300 dark:text-rose-800 group-hover/logout:translate-x-0.5 transition-all shrink-0" />
-                    </button>
+                    </div>
+
+                    <div className="max-h-[min(72vh,560px)] space-y-3 overflow-y-auto no-scrollbar py-1">
+                      <section aria-label="Shortcuts">
+                        <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          Quick links
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { onOpenCommunities(); setShowUserMenu(false); }}
+                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
+                          >
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+                              <Compass className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Explore communities</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenManageCommunities) onOpenManageCommunities();
+                              else onOpenCommunities();
+                              setShowUserMenu(false);
+                            }}
+                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
+                          >
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+                              <Layers className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Manage communities</span>
+                          </button>
+                          {onOpenManageFollowing && (
+                            <button
+                              type="button"
+                              onClick={() => { onOpenManageFollowing(); setShowUserMenu(false); }}
+                              className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
+                            >
+                              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+                                <SlidersHorizontal className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Manage following</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
+                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
+                          >
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
+                              <UserIcon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Profile</span>
+                          </button>
+                        </div>
+                      </section>
+
+                      {onOpenNotifications && (
+                        <section aria-label="Notifications">
+                          <button
+                            type="button"
+                            onClick={() => { onOpenNotifications(); setShowUserMenu(false); }}
+                            className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-left transition ${unreadNotificationsCount > 0
+                              ? 'border-rose-200 bg-rose-50/80 dark:border-rose-900/60 dark:bg-rose-950/30'
+                              : 'border-slate-200/80 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <span className="flex min-w-0 items-center gap-2.5">
+                              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${unreadNotificationsCount > 0 ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                <Bell className="h-4 w-4" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className={`block text-xs font-semibold ${unreadNotificationsCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'}`}>Notifications</span>
+                                <span className="block truncate text-[10px] text-slate-500 dark:text-slate-400">Replies, mentions & votes</span>
+                              </span>
+                            </span>
+                            {unreadNotificationsCount > 0 ? (
+                              <span className="ml-2 shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                                {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount} new
+                              </span>
+                            ) : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                          </button>
+                        </section>
+                      )}
+
+                      <section aria-label="Network and preferences" className="border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                        <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          Network & preferences
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            id="rpc-nodes-trigger"
+                            type="button"
+                            onClick={() => { setShowNodeMenu(!showNodeMenu); setShowUserMenu(false); }}
+                            className="group flex min-h-10 items-center justify-between gap-1.5 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-emerald-200 hover:bg-emerald-50/50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-900 dark:hover:bg-emerald-950/20 transition"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><Wifi className="h-3.5 w-3.5" /></span>
+                              <span className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-200">RPC Nodes</span>
+                            </span>
+                            <span className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">{nodePing ? `${nodePing}ms` : 'active'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { onOpenStats(); setShowUserMenu(false); }}
+                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
+                          >
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"><Activity className="h-3.5 w-3.5" /></span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Chain stats</span>
+                          </button>
+                          {onToggleTheme && (
+                            <button
+                              type="button"
+                              onClick={() => { onToggleTheme(); setShowUserMenu(false); }}
+                              className="group col-span-2 flex min-h-10 items-center justify-between rounded-xl border border-slate-200/80 bg-white px-2 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 transition"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5" />}</span>
+                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Appearance</span>
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? 'Dark' : 'Light'} mode</span>
+                            </button>
+                          )}
+                        </div>
+                      </section>
+                    </div>
+
+                    <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => { onLogout(); setShowUserMenu(false); }}
+                        className="group/logout flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                      >
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"><LogOut className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold">Disconnect account</span>
+                          <span className="block text-[10px] text-rose-500/70 dark:text-rose-400/70">Sign out from this session</span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-rose-400 transition-transform group-hover/logout:translate-x-0.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1186,98 +1113,133 @@ export const Navbar: React.FC<NavbarProps> = ({
 
     </header>
     {showLoginModal && (
-      <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-        <div className="mt-8 sm:mt-0 my-auto bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 w-full max-w-md border border-gray-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 text-gray-900 dark:text-slate-100">
+      <div
+        className="fixed inset-0 z-[999] bg-slate-950/55 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setShowLoginModal(false);
+        }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="login-modal-title"
+          className="mt-4 sm:mt-0 my-auto bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 w-full max-w-md border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 text-gray-900 dark:text-slate-100"
+        >
 
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 text-rose-600 dark:text-rose-400">
-                <Key className="w-5 h-5" />
+              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/60 text-blue-600 dark:text-blue-300">
+                <Key className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-gray-900 dark:text-white">Connect Hive Keychain</h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">Secure keyless sign-in for Hive blockchain</p>
+                <h3 id="login-modal-title" className="font-bold text-base text-gray-900 dark:text-white">Sign in to Hive</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Connect with Keychain or browse in read-only mode.</p>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={() => setShowLoginModal(false)}
-              className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-xl"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 rounded-xl transition"
+              aria-label="Close login dialog"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Keychain Extension Detection Indicator */}
-          <div className={`p-3 rounded-2xl text-xs flex items-center gap-2.5 border ${keychainInstalled
-            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
-            : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300'
+          <div className={`p-3 rounded-xl text-xs flex items-start gap-2.5 border ${keychainInstalled
+            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
+            : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200/80 dark:border-amber-800/60 text-amber-800 dark:text-amber-300'
             }`}>
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+            <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <span>
               {keychainInstalled
-                ? 'Hive Keychain extension detected in browser.'
-                : 'Extension not detected. You can still login to test or install the extension.'}
+                ? 'Hive Keychain is ready in this browser.'
+                : 'Keychain was not detected. You can still browse in read-only Demo mode.'}
             </span>
           </div>
 
           {loginError && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs text-rose-700 dark:text-rose-300 font-medium">
+            <div role="alert" className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-medium">
               {loginError}
             </div>
           )}
 
-          <form onSubmit={handleKeychainLogin} className="space-y-4">
+          <form onSubmit={handleKeychainLogin} className="space-y-3.5">
             <div>
-              <label className="text-xs font-bold text-gray-700 dark:text-slate-300 block mb-1.5">
-                Hive Username
+              <label htmlFor="login-hive-username" className="text-xs font-semibold text-gray-700 dark:text-slate-300 block mb-1.5">
+                Hive account name
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm font-bold">@</span>
                 <input
+                  id="login-hive-username"
                   type="text"
+                  autoComplete="username"
+                  autoFocus
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ''))}
-                  placeholder="yourusername"
-                  className="w-full pl-8 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl text-sm font-medium text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-800"
+                  placeholder="your-account"
+                  className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white dark:focus:bg-slate-800"
                 />
               </div>
             </div>
 
-            {/* Quick test accounts */}
-            <div className="flex items-center gap-2 pt-1">
-              <span className="text-[11px] text-gray-400 dark:text-slate-500">Try demo:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-gray-500 dark:text-slate-400">Try a demo account</span>
               {['ecency', 'good-karma'].map(acc => (
                 <button
                   key={acc}
                   type="button"
                   onClick={() => setLoginUsername(acc)}
-                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 px-2 py-0.5 rounded-lg transition border border-blue-100 dark:border-blue-900/50"
+                  className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 px-2.5 py-1 rounded-lg transition border border-blue-200/70 dark:border-blue-900/60"
                 >
                   @{acc}
                 </button>
               ))}
             </div>
 
-            <div className="pt-2 flex items-center justify-between gap-3">
-              <a
-                href="https://hive-keychain.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline"
-              >
-                Get Keychain Extension
-              </a>
-
+            <div className="space-y-2">
               <button
                 type="submit"
                 disabled={loginLoading || !loginUsername.trim()}
-                className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition"
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-sm transition"
               >
+                <Key className="w-3.5 h-3.5" aria-hidden="true" />
                 {loginLoading ? 'Signing challenge...' : 'Login with Keychain'}
               </button>
+              {!keychainInstalled && (
+                <a
+                  href="https://hive-keychain.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-300 transition"
+                >
+                  Get Hive Keychain
+                </a>
+              )}
             </div>
           </form>
+
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-800 dark:text-slate-100">Browse without signing</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Demo mode is read-only and uses public Hive data.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">Read-only</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={loginLoading || !loginUsername.trim()}
+              className="w-full px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              {loginLoading ? 'Checking Hive account…' : 'Continue in Demo mode'}
+            </button>
+          </div>
 
         </div>
       </div>

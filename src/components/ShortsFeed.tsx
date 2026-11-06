@@ -21,7 +21,9 @@ import {
   Compass,
   Users,
   Reply,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Plus,
+  Flame
 } from 'lucide-react';
 import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
@@ -72,6 +74,42 @@ interface ShortsFeedProps {
   source?: ShortsSource;
   onSourceChange?: (source: ShortsSource) => void;
   isDetailOpen?: boolean;
+}
+
+function postCreatedTimestamp(created?: string): number {
+  if (!created) return 0;
+  const normalized = created.endsWith('Z') ? created : `${created}Z`;
+  const timestamp = new Date(normalized).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function snapKey(snap: HivePost): string {
+  return `${snap.author}/${snap.permlink}`.toLowerCase();
+}
+
+function mergeSnaps(existing: HivePost[], incoming: HivePost[]): HivePost[] {
+  const seen = new Set(existing.map(snapKey));
+  const merged = [...existing];
+  incoming.forEach((snap) => {
+    const key = snapKey(snap);
+    if (!snap.author || !snap.permlink || seen.has(key)) return;
+    seen.add(key);
+    merged.push(snap);
+  });
+  return merged;
+}
+
+function loadedContainerIndex(containers: PeakSnapsContainer[], snaps: HivePost[]): number {
+  const loaded = new Set(
+    snaps
+      .map((snap) => (snap.parent_permlink || '').toLowerCase())
+      .filter(Boolean)
+  );
+  let last = 0;
+  containers.forEach((container, index) => {
+    if (loaded.has(container.permlink.toLowerCase())) last = index;
+  });
+  return last;
 }
 
 export const ShortsFeed: React.FC<ShortsFeedProps> = ({
@@ -127,22 +165,35 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     location.pathname.startsWith('/shorts/@')
   );
 
-  // Progressive rendering window to prevent DOM lag/freezing ("travando")
-  const [displayLimit, setDisplayLimit] = useState<number>(20);
+  // Reveal snaps in pages and keep earlier cards mounted. A sliding window
+  // with guessed row heights left a blank gap and stopped the next page.
+  const SNAP_PAGE_SIZE = 12;
+  const [visibleCount, setVisibleCount] = useState(SNAP_PAGE_SIZE);
+  const containerLoadFailedRef = useRef(false);
+  const loadingMoreRef = useRef(false);
   const [sourceSnaps, setSourceSnaps] = useState<HivePost[] | null>(null);
+  const sourceSnapsRef = useRef<HivePost[] | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sourceHasMore, setSourceHasMore] = useState(false);
+  const [sourceNeedsManualPage, setSourceNeedsManualPage] = useState(false);
+  const sourceCursorRef = useRef<{ author: string; permlink: string } | null>(null);
+  const followingLimitRef = useRef(45);
 
-  // Reset display window when active filters change
+  // Reset the visible page when the active filter changes.
   useEffect(() => {
-    setDisplayLimit(20);
+    setVisibleCount(SNAP_PAGE_SIZE);
   }, [selectedTag, searchQuery, source]);
 
-  const loadSourceFeed = useCallback(async (forceRefresh = false) => {
-    if (source === 'all') {
+  const loadSourceFeed = useCallback(async (forceRefresh = false, append = false) => {
+    if (source === 'all' || source === 'hot') {
       setSourceSnaps(null);
+      sourceSnapsRef.current = null;
       setSourceError(null);
       setSourceLoading(false);
+      setSourceHasMore(false);
+      setSourceNeedsManualPage(false);
+      sourceCursorRef.current = null;
       return;
     }
 
@@ -150,12 +201,64 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     setSourceError(null);
 
     try {
-      const rows = source === 'following'
-        ? await loadFollowingSnaps(currentUser?.username || '')
-        : currentUser?.username
-          ? await loadRepliesToAccount(currentUser.username, 20, forceRefresh)
-          : [];
-      setSourceSnaps(rows);
+      if (!append) {
+        sourceCursorRef.current = null;
+        setSourceHasMore(false);
+        setSourceNeedsManualPage(false);
+        followingLimitRef.current = 45;
+      }
+
+      if (source === 'following') {
+        const limit = append ? followingLimitRef.current : 45;
+        const page = await loadFollowingSnaps(
+            currentUser?.username || '',
+            forceRefresh,
+            limit
+          );
+        followingLimitRef.current = page.nextLimit;
+        setSourceHasMore(page.hasMore);
+        const existing = append ? (sourceSnapsRef.current || []) : [];
+        const merged = [...existing];
+        const seen = new Set(merged.map((post) => `${post.author}/${post.permlink}`));
+        page.posts.forEach((post) => {
+          const key = `${post.author}/${post.permlink}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(post);
+          }
+        });
+        merged.sort((a, b) => postCreatedTimestamp(b.created) - postCreatedTimestamp(a.created));
+        sourceSnapsRef.current = merged;
+        setSourceSnaps(merged);
+        setSourceNeedsManualPage(page.hasMore && merged.length === existing.length);
+      } else if (currentUser?.username) {
+        const page = await loadRepliesToAccount(
+          currentUser.username,
+          20,
+          forceRefresh,
+          append ? sourceCursorRef.current : null
+        );
+        sourceCursorRef.current = page.nextCursor;
+        setSourceHasMore(page.hasMore);
+        const existing = append ? (sourceSnapsRef.current || []) : [];
+        const merged = [...existing];
+        const seen = new Set(merged.map((post) => `${post.author}/${post.permlink}`));
+        page.posts.forEach((post) => {
+          const key = `${post.author}/${post.permlink}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(post);
+          }
+        });
+        merged.sort((a, b) => postCreatedTimestamp(b.created) - postCreatedTimestamp(a.created));
+        sourceSnapsRef.current = merged;
+        setSourceSnaps(merged);
+        setSourceNeedsManualPage(page.hasMore && merged.length === existing.length);
+      } else {
+        sourceSnapsRef.current = [];
+        setSourceSnaps([]);
+        setSourceHasMore(false);
+      }
     } catch (err: any) {
       console.error('Failed to load source feed:', err);
       setSourceError('Could not load this list from Hive. Check your connection.');
@@ -167,6 +270,17 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   useEffect(() => {
     loadSourceFeed();
   }, [loadSourceFeed]);
+
+  useEffect(() => {
+    const openFilters = () => setIsFilterDrawerOpen(true);
+    const openComposer = () => setShowComposerModal(true);
+    window.addEventListener('nebulosa:open-shorts-filters', openFilters);
+    window.addEventListener('nebulosa:open-shorts-composer', openComposer);
+    return () => {
+      window.removeEventListener('nebulosa:open-shorts-filters', openFilters);
+      window.removeEventListener('nebulosa:open-shorts-composer', openComposer);
+    };
+  }, []);
 
   // Composer states
   const [composerText, setComposerText] = useState<string>('');
@@ -180,7 +294,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   // Mobile scroll-aware navbar visibility
   const [isNavbarVisible, setIsNavbarVisible] = useState<boolean>(true);
   const lastScrollYRef = useRef<number>(0);
-  const [showMobileComposerModal, setShowMobileComposerModal] = useState<boolean>(false);
+  const [showComposerModal, setShowComposerModal] = useState<boolean>(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState<boolean>(false);
   const [isTagsModalOpen, setIsTagsModalOpen] = useState<boolean>(false);
   const [localHashtags, setLocalHashtags] = useState<{ tag: string; count: number }[]>([]);
@@ -267,8 +381,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     if (!forceRefresh) {
       const cached = getCachedShortsFeed(selectedTag);
       if (cached && cached.snaps && cached.snaps.length > 0) {
-        setContainers(cached.containers || []);
+        containerLoadFailedRef.current = false;
+        const cachedContainers = cached.containers || [];
+        setContainers(cachedContainers);
         setSnaps(cached.snaps);
+        setCurrentContainerIndex(loadedContainerIndex(cachedContainers, cached.snaps));
         setDiscussionMap(cached.discussionMap || {});
         if (onDiscussionMapLoaded) {
           setTimeout(() => onDiscussionMapLoaded(cached.discussionMap || {}), 0);
@@ -280,6 +397,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
     setLoading(true);
     setError(null);
+    containerLoadFailedRef.current = false;
     try {
       const containerList = await getPeakSnapsContainers(10, undefined, undefined, forceRefresh);
       setContainers(containerList);
@@ -288,7 +406,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         const firstContainer = containerList[0];
         setCurrentContainerIndex(0);
 
-        const result = await getContainerSnaps(firstContainer.permlink, forceRefresh, currentUser?.username || '');
+        const result = await getContainerSnaps(
+          firstContainer.permlink,
+          forceRefresh,
+          currentUser?.username || '',
+          firstContainer.children
+        );
         setSnaps(result.snaps);
         setDiscussionMap(result.discussionMap);
         if (onDiscussionMapLoaded) {
@@ -314,6 +437,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     const handleResnapEvent = (e: any) => {
       const { text } = e.detail;
       setComposerText((prev) => (prev ? `${prev}\n${text}` : text));
+      setShowComposerModal(true);
       const el = document.getElementById('shorts-composer-textarea');
       if (el) {
         el.focus();
@@ -326,11 +450,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
   // Advance to next container post when reaching end of current snaps (up to 5 days horizon)
   const loadNextContainer = useCallback(async () => {
-    if (loadingMore || loading || containers.length === 0) return;
+    if (loadingMoreRef.current || loading || containers.length === 0) return;
 
     const nextIndex = currentContainerIndex + 1;
     if (nextIndex >= containers.length) {
-      // Fetch older containers if needed, while respecting 5-day horizon
+      loadingMoreRef.current = true;
+      containerLoadFailedRef.current = false;
       setLoadingMore(true);
       try {
         const lastContainer = containers[containers.length - 1];
@@ -339,56 +464,66 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           lastContainer.author,
           lastContainer.permlink
         );
-
-        if (moreContainers.length > 0) {
-          // Exclude starting duplicate
-          const newContainers = moreContainers.filter(
-            (c) => !containers.some((existing) => existing.permlink === c.permlink)
-          );
-          if (newContainers.length > 0) {
-            const updatedContainers = [...containers, ...newContainers];
-            setContainers(updatedContainers);
-            const targetContainer = newContainers[0];
-            const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
-            const updatedSnaps = [...snaps, ...result.snaps];
-            setSnaps(updatedSnaps);
-            setDiscussionMap((prev) => {
-              const newMap = { ...prev, ...result.discussionMap };
-              setCachedShortsFeed(updatedSnaps, updatedContainers, newMap, selectedTag);
-              return newMap;
-            });
-            if (onDiscussionMapLoaded) {
-              setTimeout(() => onDiscussionMapLoaded(result.discussionMap), 0);
-            }
-            setCurrentContainerIndex(nextIndex);
-          }
+        const newContainers = (moreContainers || []).filter(
+          (container) => !containers.some((existing) => existing.permlink === container.permlink)
+        );
+        if (newContainers.length === 0) {
+          containerLoadFailedRef.current = true;
+          return;
         }
+
+        const updatedContainers = [...containers, ...newContainers];
+        setContainers(updatedContainers);
+        const targetContainer = newContainers[0];
+        const result = await getContainerSnaps(
+          targetContainer.permlink,
+          false,
+          currentUser?.username || '',
+          targetContainer.children
+        );
+        const updatedSnaps = mergeSnaps(snaps, result.snaps);
+        setSnaps(updatedSnaps);
+        setDiscussionMap((prev) => {
+          const newMap = { ...prev, ...result.discussionMap };
+          setCachedShortsFeed(updatedSnaps, updatedContainers, newMap, selectedTag);
+          return newMap;
+        });
+        if (onDiscussionMapLoaded) {
+          setTimeout(() => onDiscussionMapLoaded(result.discussionMap), 0);
+        }
+        setCurrentContainerIndex(containers.length);
       } catch (err) {
+        containerLoadFailedRef.current = true;
         console.error('Error fetching more containers:', err);
       } finally {
+        loadingMoreRef.current = false;
         setLoadingMore(false);
       }
       return;
     }
 
-    // Check if target container is beyond 5-day cutoff
     const targetContainer = containers[nextIndex];
     if (targetContainer && targetContainer.created) {
       const createdTime = new Date(
         targetContainer.created.endsWith('Z') ? targetContainer.created : `${targetContainer.created}Z`
       ).getTime();
       if (!Number.isNaN(createdTime) && Date.now() - createdTime > MAX_CONTAINER_AGE_MS) {
-        // Beyond 5-day cutoff - avoid querying ancient containers
+        containerLoadFailedRef.current = true;
         return;
       }
     }
 
+    loadingMoreRef.current = true;
+    containerLoadFailedRef.current = false;
     setLoadingMore(true);
     try {
-      const result = await getContainerSnaps(targetContainer.permlink, false, currentUser?.username || '');
-
-      // Append next container's snaps to the feed
-      const updatedSnaps = [...snaps, ...result.snaps];
+      const result = await getContainerSnaps(
+        targetContainer.permlink,
+        false,
+        currentUser?.username || '',
+        targetContainer.children
+      );
+      const updatedSnaps = mergeSnaps(snaps, result.snaps);
       setSnaps(updatedSnaps);
       setDiscussionMap((prev) => {
         const newMap = { ...prev, ...result.discussionMap };
@@ -400,11 +535,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       }
       setCurrentContainerIndex(nextIndex);
     } catch (err) {
+      containerLoadFailedRef.current = true;
       console.error('Failed to load next container snaps:', err);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [loadingMore, loading, containers, currentContainerIndex, currentUser?.username, snaps, selectedTag, onDiscussionMapLoaded]);
+  }, [loading, containers, currentContainerIndex, currentUser?.username, snaps, selectedTag, onDiscussionMapLoaded]);
 
   // Extract hashtags from all snaps and report to parent (for LeftSidebar and Filter Drawer)
   const lastTagsRef = useRef<string>('');
@@ -492,11 +629,30 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     [filterEnabled, blockedWords, blockedAuthors]
   );
 
+  const directReplyCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    Object.values(discussionMap).forEach((post) => {
+      if (!post?.parent_author || !post.parent_permlink) return;
+      const key = `${post.parent_author.toLowerCase()}/${post.parent_permlink.toLowerCase()}`;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [discussionMap]);
+
+  const getSnapReplyCount = useCallback((snap: HivePost) => {
+    const key = `${snap.author.toLowerCase()}/${snap.permlink.toLowerCase()}`;
+    return Math.max(
+      Number(snap.children) || 0,
+      Array.isArray(snap.replies) ? snap.replies.length : 0,
+      directReplyCounts[key] || 0
+    );
+  }, [directReplyCounts]);
+
   // Filter snaps based on spam words, selected tag, and search query
   const { visibleSnaps, hiddenCount } = useMemo(() => {
     let hidden = 0;
     const list: HivePost[] = [];
-    const sourceList = source === 'all' ? snaps : (sourceSnaps || []);
+    const sourceList = source === 'all' || source === 'hot' ? snaps : (sourceSnaps || []);
 
     for (const snap of sourceList) {
       // 1. Spam filter check
@@ -547,8 +703,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       list.push(snap);
     }
 
+    if (source === 'hot') {
+      list.sort((a, b) => getSnapReplyCount(b) - getSnapReplyCount(a) || postCreatedTimestamp(b.created) - postCreatedTimestamp(a.created));
+    }
+
     return { visibleSnaps: list, hiddenCount: hidden };
-  }, [snaps, sourceSnaps, source, isSnapBlocked, selectedTag, searchQuery]);
+  }, [snaps, sourceSnaps, source, isSnapBlocked, selectedTag, searchQuery, getSnapReplyCount]);
 
   // Notify parent of hiddenCount for the Right Sidebar card badge
   const lastHiddenCountRef = useRef<number>(-1);
@@ -561,43 +721,40 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     }
   }, [hiddenCount, onHiddenCountChange]);
 
-  // Sliced snaps to display in DOM for lightweight rendering (prevents DOM thrashing and UI lag)
-  const displayedSnaps = useMemo(() => {
-    return visibleSnaps.slice(0, displayLimit);
-  }, [visibleSnaps, displayLimit]);
+  const displayedSnaps = useMemo(
+    () => visibleSnaps.slice(0, visibleCount),
+    [visibleSnaps, visibleCount]
+  );
+  const hasMoreToDisplay = visibleCount < visibleSnaps.length;
 
-  const hasMoreToDisplay = displayLimit < visibleSnaps.length;
-
-  const handleShowMoreDisplay = useCallback(() => {
-    setDisplayLimit((prev) => Math.min(prev + 20, visibleSnaps.length));
-  }, [visibleSnaps.length]);
-
-  // Infinite scroll observer: trigger progressive load or next container
+  // Keep asking for the next page while the sentinel is on screen. Recreating
+  // the observer after each page fills a tall viewport instead of stopping
+  // after the first batch.
   useEffect(() => {
+    const currentTarget = bottomObserverRef.current;
+    if (!currentTarget || visibleSnaps.length === 0) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !loading && !loadingMore && snaps.length > 0) {
-          if (hasMoreToDisplay) {
-            handleShowMoreDisplay();
-          } else {
-            loadNextContainer();
-          }
+        if (!entries[0]?.isIntersecting || loading || loadingMore || sourceLoading) return;
+        if (hasMoreToDisplay) {
+          setVisibleCount((prev) => prev + SNAP_PAGE_SIZE);
+          return;
+        }
+        if ((source === 'all' || source === 'hot') && !containerLoadFailedRef.current) {
+          loadNextContainer();
+          return;
+        }
+        if ((source === 'replies' || source === 'following') && sourceHasMore && !sourceNeedsManualPage) {
+          loadSourceFeed(false, true);
         }
       },
-      { threshold: 0.1, rootMargin: '250px' }
+      { threshold: 0, rootMargin: '700px' }
     );
 
-    const currentTarget = bottomObserverRef.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget);
-      }
-    };
-  }, [loadNextContainer, loading, loadingMore, snaps.length, hasMoreToDisplay, handleShowMoreDisplay]);
+    observer.observe(currentTarget);
+    return () => observer.disconnect();
+  }, [loadNextContainer, loadSourceFeed, loading, loadingMore, sourceLoading, visibleSnaps.length, hasMoreToDisplay, visibleCount, source, sourceHasMore, sourceNeedsManualPage]);
 
   // Publish snap to Hive
   const handlePostSnap = async (e?: React.FormEvent) => {
@@ -707,14 +864,20 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       id={id}
       onTouchStart={handleFeedTouchStart}
       onTouchEnd={handleFeedTouchEnd}
-      className="w-full max-w-[760px] mx-auto space-y-3 sm:space-y-4"
+      className="shorts-page w-full max-w-none mx-auto space-y-3"
     >
+      {postSuccessMessage && (
+        <div role="status" className="fixed right-5 top-20 z-[60] flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-xl dark:border-emerald-900/70 dark:bg-slate-900 dark:text-emerald-300">
+          <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          {postSuccessMessage}
+        </div>
+      )}
 
       {/* ================= STICKY SCROLL-AWARE SUB-NAVBAR ================= */}
       <nav
         id="shorts-mobile-subnav"
         aria-label="Shorts Feed Categories"
-        className={`sticky top-0 z-30 transition-all duration-300 ease-in-out ${
+        className={`sticky top-0 z-30 transition-all duration-300 ease-in-out lg:hidden ${
           isNavbarVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : '-translate-y-full opacity-0 pointer-events-none'
         }`}
       >
@@ -726,14 +889,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               if (onSelectTag) onSelectTag('');
               if (onSourceChange) onSourceChange('all');
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
-              source === 'all' && !selectedTag
+            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              source === 'all'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>All</span>
+            <span>Discover</span>
           </button>
 
           <button
@@ -747,14 +910,31 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               if (onSelectTag) onSelectTag('');
               if (onSourceChange) onSourceChange('following');
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
               source === 'following'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Feed</span>
+            <span>Following</span>
+          </button>
+
+          <button
+            type="button"
+            id="shorts-nav-hot-btn"
+            onClick={() => {
+              if (onSelectTag) onSelectTag('');
+              if (onSourceChange) onSourceChange('hot');
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+              source === 'hot'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5" />
+            <span>Hot</span>
           </button>
 
           <button
@@ -768,7 +948,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               if (onSelectTag) onSelectTag('');
               if (onSourceChange) onSourceChange('replies');
             }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
               source === 'replies'
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
@@ -783,7 +963,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             type="button"
             id="shorts-nav-filter-btn"
             onClick={() => setIsFilterDrawerOpen(true)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 min-h-[42px] px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
               isFilterDrawerOpen
                 ? 'bg-blue-600 text-white shadow-xs'
                 : (blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled))
@@ -793,7 +973,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             title="Open filter menu (Noise, spam hashtags & hidden authors)"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Filter</span>
+            <span>Filters</span>
             {(blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled)) && (
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             )}
@@ -802,27 +982,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
         {/* ================= MOBILE CLEAN TAGS CAROUSEL (WITH ANTI-NOISE FILTER) ================= */}
         {cleanTopTags.length > 0 && (
-          <div className="sm:hidden mt-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl py-1.5 px-2 border border-slate-200/70 dark:border-slate-800 shadow-2xs flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {/* All Tags Pill */}
-            <button
-              type="button"
-              onClick={() => {
-                if (onSelectTag) onSelectTag('');
-              }}
-              className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer ${
-                !selectedTag
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span>All</span>
-            </button>
-
+          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto rounded-xl border border-slate-200/70 bg-white/80 px-2 py-1.5 shadow-xs backdrop-blur-md scrollbar-none dark:border-slate-800 dark:bg-slate-900/80">
             {/* Open Full Tags Modal Button */}
             <button
               type="button"
               onClick={() => setIsTagsModalOpen(true)}
-              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-950/70 border border-blue-200/80 dark:border-blue-900/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition cursor-pointer"
+              className="flex-shrink-0 flex items-center gap-1.5 min-h-7 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50/90 dark:bg-blue-950/70 border border-blue-200/80 dark:border-blue-900/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition cursor-pointer"
               title="Browse all tags with anti-noise filter"
             >
               <Hash className="w-3 h-3 text-blue-500" />
@@ -830,7 +995,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             </button>
 
             {/* Clean, Non-Spam Tags */}
-            {cleanTopTags.map(({ tag, count, isFavorite }) => {
+            {cleanTopTags.map(({ tag, isFavorite }) => {
               const isSelected = selectedTag.toLowerCase().replace(/^#/, '') === tag.toLowerCase();
               return (
                 <button
@@ -839,14 +1004,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   onClick={() => {
                     if (onSelectTag) onSelectTag(isSelected ? '' : tag);
                   }}
-                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition cursor-pointer ${
+                  className={`flex-shrink-0 flex items-center gap-1.5 min-h-7 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 text-white shadow-2xs font-bold'
                       : isFavorite
                       ? 'bg-amber-50/90 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-900/60 hover:bg-amber-100'
                       : 'bg-slate-100/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:text-blue-600 dark:hover:text-blue-400'
                   }`}
-                  title={isFavorite ? `Pinned #${tag} (${count} snaps)` : `Filter by #${tag} (${count} snaps)`}
+                  title={isFavorite ? `Pinned topic #${tag}` : `Filter by #${tag}`}
                 >
                   {isFavorite ? (
                     <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
@@ -854,242 +1019,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                     <span className="opacity-70">#</span>
                   )}
                   <span>{tag}</span>
-                  <span className={`text-[9px] font-mono px-1 rounded ${isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-200/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                    {count}
-                  </span>
                 </button>
               );
             })}
 
-            {/* View All Tags / Open Modal button */}
-            <button
-              type="button"
-              onClick={() => setIsTagsModalOpen(true)}
-              className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition cursor-pointer"
-              title="Open full tags modal with noise search"
-            >
-              <span>More...</span>
-            </button>
           </div>
         )}
       </nav>
 
-      {/* ================= SHORTS COMPOSER (POST TO COMMUNITY - DESKTOP ONLY) ================= */}
-      <div className="hidden sm:block bg-white dark:bg-slate-900 rounded-[24px] p-5 sm:p-6 border border-slate-200/70 dark:border-slate-800 shadow-[0_6px_24px_rgba(15,23,42,0.04)] space-y-4">
-        {postSuccessMessage && (
-          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-850 text-emerald-800 dark:text-emerald-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-              <span>{postSuccessMessage}</span>
-            </div>
-            <button
-              onClick={() => setPostSuccessMessage(null)}
-              className="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {postErrorMessage && (
-          <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-850 text-rose-800 dark:text-rose-200 text-xs px-3.5 py-2.5 rounded-xl flex items-center justify-between animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-              <span>{postErrorMessage}</span>
-            </div>
-            <button
-              onClick={() => setPostErrorMessage(null)}
-              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 transition cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <img
-            src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : 'https://images.ecency.com/u/hive/avatar/small'}
-            alt={currentUser?.username || 'Guest'}
-            className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-slate-900 shadow-sm flex-shrink-0 bg-slate-100 dark:bg-slate-800"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-            }}
-          />
-          <div className="flex-1 min-w-0">
-            <textarea
-              id="shorts-composer-textarea"
-              value={composerText}
-              onChange={(e) => setComposerText(e.target.value)}
-              placeholder={
-                currentUser
-                  ? "What's happening? Share a snap with the Hive community..."
-                  : "Connect Keychain to post snaps directly to the Hive community..."
-              }
-              rows={3}
-              className="w-full text-[15px] text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 bg-slate-50/80 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 rounded-2xl p-4 border border-transparent dark:border-slate-700/60 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:outline-none transition resize-none leading-relaxed"
-            />
-          </div>
-        </div>
-
-        {/* Image Attachment Helper */}
-        {showImageInput && (
-          <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-2.5 flex items-center gap-2 animate-in fade-in">
-            <input
-              type="text"
-              value={imageUrlInput}
-              onChange={(e) => setImageUrlInput(e.target.value)}
-              placeholder="Paste direct image URL (https://...)"
-              className="flex-1 min-w-0 px-3 py-1.5 text-xs bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-lg border border-gray-200 dark:border-slate-700 focus:border-blue-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleInsertImage}
-              disabled={!imageUrlInput.trim()}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-40 transition cursor-pointer"
-            >
-              Insert
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowImageInput(false)}
-              className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 rounded-lg transition cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Tag helper drawer */}
-        {showTagHelper && (
-          <div className="bg-gray-50/80 dark:bg-slate-800/80 rounded-xl p-2.5 space-y-1.5 animate-in fade-in">
-            <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
-              <span>Click to add hashtag to snap:</span>
-              <button
-                type="button"
-                onClick={() => setShowTagHelper(false)}
-                className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {['hive', 'shorts', 'crypto', 'photography', 'leofinance', 'art', 'travel', 'nature'].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => handleInsertTag(t)}
-                  className="px-2 py-0.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-xs text-gray-700 dark:text-slate-300 transition cursor-pointer"
-                >
-                  #{t}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Composer Action Toolbar */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setShowImageInput(!showImageInput)}
-              className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showImageInput ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
-              }`}
-              title="Attach image via URL"
-            >
-              <Image className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span className="hidden sm:inline">Image</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowTagHelper(!showTagHelper)}
-              className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showTagHelper ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
-              }`}
-              title="Add #hashtag"
-            >
-              <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden sm:inline">Hashtags</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowSearch(!showSearch)}
-              className={`p-2 rounded-xl text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                showSearch || searchQuery ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-700 dark:hover:text-slate-200'
-              }`}
-              title="Search snaps"
-            >
-              <Search className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span className="hidden sm:inline">Search</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span
-              className={`text-[11px] font-mono ${
-                cleanCharCount > 300 ? 'text-rose-500 font-bold' : 'text-gray-400 dark:text-slate-500'
-              }`}
-              title="300 visible characters limit (links and images excluded)"
-            >
-              {cleanCharCount}/300
-            </span>
-
-            <button
-              type="button"
-              onClick={handlePostSnap}
-              disabled={!composerText.trim() || cleanCharCount > 300 || isPosting}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-500/15 cursor-pointer disabled:cursor-not-allowed"
-            >
-              {isPosting ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Posting...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Post Snap</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Optional Collapsible Search Bar */}
-        {(showSearch || searchQuery) && (
-          <div className="pt-2 border-t border-gray-100 dark:border-slate-800 relative animate-in fade-in">
-            <Search className="w-4 h-4 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search snaps by text, author, or #hashtag..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl bg-gray-50 dark:bg-slate-800 text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-850 focus:outline-none transition"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 font-bold"
-              >
-                &times;
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {source !== 'all' && (
+      {(source === 'following' || source === 'replies') && (
         <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 text-xs shadow-xs">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-800 dark:text-slate-100">
-              {source === 'following' ? 'Snaps from people you follow' : 'Replies to your snaps (last 3 days)'}
+              {source === 'following' ? 'Snaps from people you follow' : 'Replies to your latest Snaps'}
             </span>
             {source === 'replies' && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-mono font-semibold">
-                hive-124838
+                20 Snaps / page
               </span>
             )}
           </div>
@@ -1124,10 +1070,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= ACTIVE FILTER BANNER (Moved here) ================= */}
       {(selectedTag || (hiddenCount > 0 && filterEnabled)) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 shadow-sm text-xs animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 py-1 text-[11px] animate-in fade-in duration-150">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {selectedTag && (
-              <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-medium px-2.5 py-1 rounded-xl border border-blue-100 dark:border-blue-900/50">
+              <div className="flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/80 px-2 py-1 font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
                 <Hash className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>#{selectedTag}</span>
                 <button
@@ -1147,15 +1093,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               </div>
             )}
             {hiddenCount > 0 && filterEnabled && (
-              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 rounded-xl">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                <span>{hiddenCount} shorts hidden</span>
+              <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+                <ShieldAlert className="h-3 w-3" />
+                <span>{hiddenCount} hidden</span>
                 <button
                   type="button"
                   onClick={() => setIsFilterDrawerOpen(true)}
-                  className="text-blue-600 dark:text-blue-400 font-bold hover:underline ml-1 cursor-pointer"
+                  className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 transition hover:text-blue-600 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-blue-400"
                 >
-                  Edit Filter
+                  Manage
                 </button>
               </div>
             )}
@@ -1213,9 +1159,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <h3 className="font-bold text-gray-900 dark:text-white text-base">No snaps found</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 max-w-sm mx-auto">
             {source === 'following' && !currentUser
-              ? 'Sign in with Keychain to see snaps from people you follow.'
+              ? 'Connect a Hive account or use Demo mode to see Snaps from people you follow.'
               : source === 'following'
-                ? 'No recent snap comments from people you follow are in the feed cache yet.'
+                ? 'No recent Snaps from people you follow were found.'
                 : source === 'replies' && !currentUser
                   ? 'Sign in with Keychain to see replies to your snaps.'
                   : source === 'replies'
@@ -1226,7 +1172,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 ? `No snaps match "${searchQuery}". Try a different search term.`
                 : hiddenCount > 0
                   ? 'All snaps in this container were hidden by your spam word filter.'
-                  : 'No microblogging snaps found in the latest community container. Be the first to post a snap!'}
+              : 'No recent snaps found here. Try another topic or share the first snap.'}
           </p>
           {(selectedTag || searchQuery) && (
             <button
@@ -1243,65 +1189,66 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       )}
 
       {/* ================= SNAPS STREAM ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200/70 dark:border-slate-800 shadow-[0_4px_20px_rgba(15,23,42,0.035)] overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+      <div className="space-y-3 sm:space-y-4">
         {displayedSnaps.map((snap) => (
-          <ShortCard
-            key={`${snap.author}-${snap.permlink}`}
-            snap={snap}
-            discussionMap={discussionMap}
-            currentUser={currentUser}
-            onSelectAuthor={onSelectAuthor}
-            onSelectTag={onSelectTag}
-            onMuteAuthor={onAddAuthor}
-            isMuted={blockedAuthors.some((a) => a.toLowerCase() === snap.author.toLowerCase())}
-            onOpenDetail={(s) => {
-              onBeforeOpenDetail?.();
-              navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } });
-            }}
-            onRequireLogin={onRequireLogin}
-          />
+          <div key={`${snap.author}/${snap.permlink}`}>
+            <ShortCard
+              snap={snap}
+              discussionMap={discussionMap}
+              currentUser={currentUser}
+              onSelectAuthor={onSelectAuthor}
+              onSelectTag={onSelectTag}
+              onMuteAuthor={onAddAuthor}
+              isMuted={blockedAuthors.some((a) => a.toLowerCase() === snap.author.toLowerCase())}
+              onOpenDetail={(s) => {
+                onBeforeOpenDetail?.();
+                navigate(`/shorts/@${s.author}/${s.permlink}`, { state: { snap: s } });
+              }}
+              onRequireLogin={onRequireLogin}
+            />
+          </div>
         ))}
       </div>
 
-      {/* Progressive load more button (if more items available in loaded containers) */}
-      {hasMoreToDisplay && (
-        <div className="py-2 text-center">
+      {/* ================= BOTTOM INFINITE SCROLL OBSERVER & LOADER ================= */}
+      <div
+        ref={bottomObserverRef}
+        className={source === 'all' || source === 'hot' || sourceNeedsManualPage ? 'py-4 text-center' : 'h-1'}
+      >
+        {(source === 'following' || source === 'replies') && sourceNeedsManualPage && (
           <button
             type="button"
-            onClick={handleShowMoreDisplay}
-            className="px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-full transition shadow-sm hover:shadow-md cursor-pointer inline-flex items-center gap-1.5"
+            onClick={() => loadSourceFeed(false, true)}
+            disabled={sourceLoading}
+            className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-blue-400"
           >
-            <span>Show more shorts</span>
-            <span className="text-gray-400 dark:text-slate-500 font-normal">
-              ({visibleSnaps.length - displayLimit} remaining)
-            </span>
+            {sourceLoading
+              ? 'Loading more Snaps…'
+              : source === 'following' ? 'Load more from followed accounts' : 'Check older Snaps for replies'}
           </button>
-        </div>
-      )}
+        )}
 
-      {/* ================= BOTTOM INFINITE SCROLL OBSERVER & LOADER ================= */}
-      <div ref={bottomObserverRef} className="py-4 text-center">
-        {loadingMore && (
+        {(source === 'all' || source === 'hot') && loadingMore && (
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 py-3">
             <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-            <span>Loading snaps from previous container...</span>
+            <span>{source === 'hot' ? 'Loading more Snaps for Hot…' : 'Loading snaps from previous container...'}</span>
           </div>
         )}
 
-        {!loading && !loadingMore && snaps.length > 0 && currentContainerIndex + 1 < containers.length && !hasMoreToDisplay && (
+        {(source === 'all' || source === 'hot') && !loading && !loadingMore && snaps.length > 0 && currentContainerIndex + 1 < containers.length && !hasMoreToDisplay && (
           <button
             type="button"
             onClick={loadNextContainer}
             className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline px-4 py-2 cursor-pointer"
           >
-            Load older snaps from previous container &darr;
+            {source === 'hot' ? 'Load more Snaps to update Hot ranking ↓' : 'Load older snaps from previous container ↓'}
           </button>
         )}
 
-        {!loading && !loadingMore && snaps.length > 0 && currentContainerIndex + 1 >= containers.length && !hasMoreToDisplay && (
+        {(source === 'all' || source === 'hot') && !loading && !loadingMore && snaps.length > 0 && currentContainerIndex + 1 >= containers.length && !hasMoreToDisplay && (
           <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 py-4">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <span>You have caught up with all available community snaps.</span>
+            <span>You’re up to date.</span>
           </div>
         )}
       </div>
@@ -1312,24 +1259,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           type="button"
           id="shorts-fab-compose-btn"
           onClick={() => {
-            if (!currentUser && onRequireLogin) {
-              onRequireLogin();
-              return;
-            }
-            if (window.innerWidth < 640) {
-              setShowMobileComposerModal(true);
-            } else {
-              const el = document.getElementById('shorts-composer-textarea');
-              if (el) {
-                el.focus();
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }
+            setShowComposerModal(true);
           }}
-          className="fixed bottom-20 sm:bottom-6 right-5 sm:right-6 w-13 h-13 sm:w-14 sm:h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center transition-all active:scale-95 z-40 group cursor-pointer"
+          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-600/25 transition hover:scale-105 hover:bg-blue-700 active:scale-95 group cursor-pointer"
           title="Write a snap"
         >
-          <Send className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" />
+          <Plus className="h-6 w-6 transition-transform group-hover:rotate-90" />
         </button>
       )}
 
@@ -1339,7 +1274,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           type="button"
           id="shorts-mobile-floating-tags"
           onClick={() => setIsTagsModalOpen(true)}
-          className="sm:hidden fixed bottom-20 left-4 z-40 flex items-center gap-1.5 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-800 dark:text-slate-100 rounded-full shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs font-bold active:scale-95 transition cursor-pointer"
+          className="lg:hidden fixed bottom-6 left-5 z-40 flex h-10 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/95 px-3 text-xs font-semibold text-slate-800 shadow-lg backdrop-blur-md transition active:scale-95 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100"
           title="Browse Shorts tags"
         >
           <Hash className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -1360,9 +1295,9 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       )}
 
       {/* ================= MOBILE QUICK SNAP MODAL ================= */}
-      {!isViewingDetail && showMobileComposerModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 animate-in slide-in-from-bottom-6 duration-200">
+      {!isViewingDetail && showComposerModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-5">
+          <div role="dialog" aria-modal="true" aria-labelledby="shorts-compose-title" className="w-full space-y-4 rounded-t-3xl border border-slate-200 bg-white p-5 shadow-2xl animate-in slide-in-from-bottom-6 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:max-w-xl sm:rounded-3xl sm:animate-in sm:zoom-in-95">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <img
@@ -1371,13 +1306,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   className="w-8 h-8 rounded-full object-cover"
                 />
                 <div>
-                  <h4 className="text-xs font-bold text-gray-900 dark:text-white">New Snap</h4>
-                  <p className="text-[10px] text-gray-400 dark:text-slate-500">Post to Hive community</p>
+                  <h4 id="shorts-compose-title" className="text-sm font-bold text-gray-900 dark:text-white">Write a Short</h4>
+                  <p className="text-[11px] text-gray-400 dark:text-slate-500">Share a thought with Hive</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowMobileComposerModal(false)}
+                onClick={() => setShowComposerModal(false)}
+                aria-label="Close composer"
                 className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1385,13 +1321,38 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             </div>
 
             <textarea
+              id="shorts-composer-textarea"
               value={composerText}
               onChange={(e) => setComposerText(e.target.value)}
-              placeholder="What's happening? Share a snap..."
-              rows={4}
+              placeholder="What would you like to share?"
+              rows={5}
               autoFocus
-              className="w-full text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-transparent focus:border-blue-500 focus:outline-none resize-none leading-relaxed"
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-[15px] leading-relaxed text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:focus:bg-slate-800"
             />
+
+            {postErrorMessage && (
+              <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+                {postErrorMessage}
+              </div>
+            )}
+            {postSuccessMessage && (
+              <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                {postSuccessMessage}
+              </div>
+            )}
+
+            {showImageInput && (
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  placeholder="Cole a URL direta da imagem"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800"
+                />
+                <button type="button" onClick={handleInsertImage} disabled={!imageUrlInput.trim()} className="rounded-xl bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-40">Inserir</button>
+              </div>
+            )}
 
             {/* Quick Hashtag Chips */}
             <div className="flex flex-wrap gap-1">
@@ -1407,7 +1368,16 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               ))}
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowImageInput((show) => !show)}
+                className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-medium transition ${showImageInput ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+              >
+                <Image className="h-4 w-4" />
+                Imagem
+              </button>
+              <div className="flex items-center gap-3">
               <span
                 className={`text-[11px] font-mono ${cleanCharCount > 300 ? 'text-rose-500 font-bold' : 'text-gray-400'}`}
                 title="300 visible characters limit (links and images excluded)"
@@ -1418,7 +1388,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 type="button"
                 onClick={async () => {
                   const success = await handlePostSnap();
-                  if (success) setShowMobileComposerModal(false);
+                  if (success) setShowComposerModal(false);
                 }}
                 disabled={!composerText.trim() || cleanCharCount > 300 || isPosting}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:cursor-not-allowed"
@@ -1426,6 +1396,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 {isPosting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 <span>{isPosting ? 'Posting...' : 'Post Snap'}</span>
               </button>
+              </div>
             </div>
           </div>
         </div>

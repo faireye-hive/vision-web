@@ -60,6 +60,7 @@ import { VoteWeightDialog } from './VoteWeightDialog';
 import { useContentFilter } from '../context/ContentFilterContext';
 import { translateMarkdown, translateText, POPULAR_TRANSLATION_LANGUAGES } from '../services/translationService';
 import { PostTranslatorDropdown } from './PostTranslatorDropdown';
+import { ProfileReaderAppearance } from '../features/profile/profileStyleTypes';
 
 interface PostReaderProps {
   post: HivePost;
@@ -71,6 +72,7 @@ interface PostReaderProps {
   onHeadingsExtracted?: (headings: PostHeading[]) => void;
   onActiveHeadingChange?: (id: string) => void;
   onSelectPost?: (post: HivePost) => void;
+  profileAppearance?: ProfileReaderAppearance | null;
 }
 
 /**
@@ -153,7 +155,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
   onRequireLogin,
   onHeadingsExtracted,
   onActiveHeadingChange,
-  onSelectPost
+  onSelectPost,
+  profileAppearance
 }) => {
   const [discussion, setDiscussion] = useState<Record<string, HivePost>>({});
   const [loadingDiscussion, setLoadingDiscussion] = useState(true);
@@ -1046,17 +1049,27 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return Math.max(post.children || 0, discussionComments);
   }, [post.children, post.author, post.permlink, discussion]);
   const totalVotesCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (hasVoted ? 1 : 0);
-  const payoutString = post.payout ? `$${post.payout.toFixed(3)}` : (post.pending_payout_value || '$0.000');
 
   return (
     <article
       id="in-place-post-reader"
-      className="bg-white dark:bg-slate-900 rounded-none sm:rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border-0 sm:border border-gray-100/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative"
+      data-profile-theme={profileAppearance?.themeId}
+      className={`bg-white dark:bg-slate-900 ${profileAppearance ? 'rounded-3xl shadow-lg border' : 'rounded-none sm:rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-none border-0 sm:border'} border-gray-100/70 dark:border-slate-800 flex flex-col w-full animate-in fade-in duration-200 relative`}
+      style={profileAppearance ? {
+        backgroundColor: profileAppearance.cardBackgroundColor || undefined,
+        color: profileAppearance.textColor || undefined,
+        borderColor: profileAppearance.accentColor ? `${profileAppearance.accentColor}35` : undefined
+      } : undefined}
     >
       {/* Top Reading Progress Line */}
       <div
-        className="h-1 bg-gradient-to-r from-blue-500 to-indigo-600 sticky top-0 md:top-16 z-30 transition-all duration-150"
-        style={{ width: `${readingProgress}%` }}
+        className={`h-1 sticky top-0 md:top-16 z-30 transition-all duration-150 ${profileAppearance ? '' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}
+        style={{
+          width: `${readingProgress}%`,
+          background: profileAppearance?.accentColor
+            ? `linear-gradient(90deg, ${profileAppearance.accentColor}, ${profileAppearance.accentColor}88)`
+            : undefined
+        }}
       />
 
       {/* ================= FORUM QUOTE CONTAINER FOR REPLIED-TO COMMENT (MOBILE: PLACED ON TOP BEFORE USER PHOTO & COMMENT) ================= */}
@@ -1139,15 +1152,16 @@ export const PostReader: React.FC<PostReaderProps> = ({
       )}
 
       {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
-      <div className="flex items-center justify-between px-2.5 sm:px-6 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 md:top-16 z-20 border-b border-gray-100 dark:border-slate-800 gap-2 sm:gap-3">
+      <div className={`flex items-center justify-between px-2.5 sm:px-6 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky z-20 border-b border-gray-100 dark:border-slate-800 gap-2 sm:gap-3 ${profileAppearance ? 'top-0' : 'top-0 md:top-16'}`}>
 
         {/* Left: Back button (desktop only) + Author details */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             id="back-to-feed-btn"
             onClick={onClose}
-            className="hidden sm:flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0"
-            title="Back to Feed (Esc)"
+            className={`hidden sm:flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-full font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0 ${profileAppearance ? 'hover:opacity-80' : 'bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400'}`}
+            style={profileAppearance?.accentColor ? { backgroundColor: `${profileAppearance.accentColor}18`, color: profileAppearance.accentColor } : undefined}
+            title={profileAppearance ? 'Back to Profile (Esc)' : 'Back to Feed (Esc)'}
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Back</span>
@@ -1433,7 +1447,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <div
               className={`relative rounded-xl sm:rounded-[22px] overflow-hidden ${
                 isComment ? 'hidden sm:flex' : 'flex'
-              } flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 p-4 sm:p-6 min-h-[140px]`}
+                } flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 px-4 pb-5 pt-8 sm:px-6 sm:pb-6 sm:pt-9 min-h-[160px]`}
             >
               {/* Skeleton placeholder while cover image or data is loading to prevent layout shift */}
               {loadingCover && (
@@ -2032,8 +2046,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
         {/* Back and Comments buttons: desktop only, since on mobile we have top X and floating comment button */}
         <button
           onClick={onClose}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition cursor-pointer shadow-2xs"
-          title="Back to Feed (Esc)"
+          className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs ${profileAppearance ? 'hover:opacity-80' : 'bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300'}`}
+          style={profileAppearance?.accentColor ? { backgroundColor: `${profileAppearance.accentColor}18`, color: profileAppearance.accentColor } : undefined}
+          title={profileAppearance ? 'Back to Profile (Esc)' : 'Back to Feed (Esc)'}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back</span>
@@ -2317,10 +2332,6 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   }, [comment.author, comment.permlink, comment.replies, discussion, isAuthorMuted]);
 
   const totalVotes = Math.max(0, (comment.stats?.total_votes || comment.active_votes?.length || 0) + voteCountDelta);
-  const payout = comment.payout !== undefined && comment.payout > 0
-    ? comment.payout
-    : parseFloat(comment.pending_payout_value || '0');
-
   // Handle vote on comment via Keychain
   const handleVote = async () => {
     if (!currentUser) {
