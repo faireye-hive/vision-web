@@ -118,13 +118,13 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
         }`}
         className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
           activeSubtopic
-            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+            ? 'bg-slate-800 text-white border-slate-800 shadow-xs dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
             : isOpen
-              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 shadow-xs'
+              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 shadow-xs'
               : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
-        <Hash className={`w-3 h-3 ${activeSubtopic ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+        <Hash className={`w-3 h-3 ${activeSubtopic ? 'text-white dark:text-slate-900' : 'text-slate-500 dark:text-slate-400'}`} />
         <span className="truncate max-w-[80px] sm:max-w-[120px]">
           {activeSubtopic ? activeSubtopic.label : 'Subtopics'}
         </span>
@@ -167,7 +167,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter subtopics..."
-                className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
+                className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 transition"
               />
               {searchQuery && (
                 <button
@@ -189,12 +189,12 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
             onClick={() => handleSelect(category.tag)}
             className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer mb-1 ${
               isCategoryRoot
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                 : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <div className={`p-1 rounded-lg ${isCategoryRoot ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
+              <div className={`p-1 rounded-lg ${isCategoryRoot ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                 <Hash className="w-3.5 h-3.5" />
               </div>
               <div className="truncate">
@@ -206,7 +206,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                 </div>
               </div>
             </div>
-            {isCategoryRoot && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-1" />}
+            {isCategoryRoot && <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0 ml-1" />}
           </button>
 
           <div className="border-t border-gray-100 dark:border-slate-800 my-1" />
@@ -225,7 +225,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                   title={sub.description || sub.label}
                   className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer ${
                     isSelected
-                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                   }`}
                 >
@@ -235,7 +235,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                         {sub.label}
                       </span>
                     </div>
-                    <div className="text-[10px] text-blue-600/80 dark:text-blue-400/80 font-mono truncate">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
                       #{sub.tag}
                     </div>
                     {sub.description && (
@@ -245,7 +245,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                     )}
                   </div>
                   {isSelected && (
-                    <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 ml-1" />
+                    <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0 ml-1" />
                   )}
                 </button>
               );

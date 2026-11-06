@@ -9,6 +9,7 @@ interface CommunitiesTabNavProps {
   joinedCount?: number;
   onBack?: () => void;
   showBack?: boolean;
+  mobileOnly?: boolean;
 }
 
 export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
@@ -16,10 +17,11 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
   onSelectTab,
   joinedCount = 0,
   onBack,
-  showBack = false
+  showBack = false,
+  mobileOnly = false
 }) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className={`flex flex-wrap items-center justify-between gap-3 mb-4 ${mobileOnly ? 'lg:hidden' : ''}`}>
       {showBack && onBack ? (
         <button
           type="button"
@@ -31,7 +33,7 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
         </button>
       ) : (
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+          <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             <Layers className="w-4 h-4" />
           </div>
           <span className="font-bold text-sm sm:text-base text-gray-900 dark:text-white">
@@ -53,7 +55,7 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
           onClick={() => onSelectTab('feed')}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             currentTab === 'feed'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+              ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs'
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
@@ -68,7 +70,7 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
           onClick={() => onSelectTab('explore')}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             currentTab === 'explore'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+              ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs'
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
@@ -83,7 +85,7 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
           onClick={() => onSelectTab('manage')}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             currentTab === 'manage'
-              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+              ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs'
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
@@ -93,7 +95,7 @@ export const CommunitiesTabNav: React.FC<CommunitiesTabNavProps> = ({
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 currentTab === 'manage'
-                  ? 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300'
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
                   : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
               }`}
             >

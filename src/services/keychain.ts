@@ -2,6 +2,7 @@
  * Hive Keychain Browser Extension Service
  * Enables client-side, keyless authentication, voting, posting, and tipping on the Hive blockchain.
  */
+import { hiveRpcCall } from './hiveApi';
 
 // Hive Keychain global interface definition
 declare global {
@@ -76,6 +77,7 @@ export interface CurrentUser {
   hiveBalance?: string;
   hbdBalance?: string;
   hasKeychain: boolean;
+  isDemo?: boolean;
 }
 
 const STORAGE_KEY = 'hive_keychain_user';
@@ -97,6 +99,50 @@ export class KeychainService {
       return data ? JSON.parse(data) : null;
     } catch {
       return null;
+    }
+  }
+
+  private static isDemoSession(): boolean {
+    return this.getCurrentUser()?.isDemo === true;
+  }
+
+  private static demoReadOnlyResponse(): KeychainResponse {
+    return {
+      success: false,
+      error: 'Demo mode is read-only. Connect with Hive Keychain to publish, vote, follow, or transfer.'
+    };
+  }
+
+  /** Start a clearly marked, read-only session for an existing public Hive account. */
+  static async loginDemo(username: string): Promise<{ success: boolean; user?: CurrentUser; error?: string }> {
+    const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
+    if (!/^[a-z][a-z0-9.-]{2,15}$/.test(cleanUsername)) {
+      return { success: false, error: 'Enter a valid Hive account name (3–16 letters, numbers, dots, or hyphens).' };
+    }
+
+    try {
+      const accounts = await hiveRpcCall<any[]>('condenser_api.get_accounts', [[cleanUsername]]);
+      const account = Array.isArray(accounts) ? accounts[0] : null;
+      if (!account?.name) return { success: false, error: `Hive account @${cleanUsername} was not found.` };
+
+      let profile: Record<string, any> = {};
+      try {
+        const metadata = JSON.parse(account.posting_json_metadata || account.json_metadata || '{}');
+        profile = metadata.profile || {};
+      } catch {
+        profile = {};
+      }
+
+      const user: CurrentUser = {
+        username: cleanUsername,
+        avatar: profile.profile_image || `https://images.ecency.com/u/${cleanUsername}/avatar/medium`,
+        hasKeychain: false,
+        isDemo: true
+      };
+      this.saveCurrentUser(user);
+      return { success: true, user };
+    } catch {
+      return { success: false, error: 'Could not verify this account on Hive. Check your connection and try again.' };
     }
   }
 
@@ -123,16 +169,7 @@ export class KeychainService {
     const hasKeychain = this.isInstalled();
 
     if (!hasKeychain) {
-      // Allow fallback login (read-only/test mode) if extension is not installed
-      const user: CurrentUser = {
-        username: cleanUsername,
-        avatar: `https://images.ecency.com/u/${cleanUsername}/avatar/medium`,
-        hasKeychain: false,
-        reputation: 65,
-        votingPower: 100
-      };
-      this.saveCurrentUser(user);
-      return { success: true, user };
+      return { success: false, error: 'Hive Keychain was not detected. Use Demo mode for read-only browsing.' };
     }
 
     return new Promise((resolve) => {
@@ -179,6 +216,7 @@ export class KeychainService {
     permlink: string,
     weight: number = 10000 // 10000 = 100%
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     if (!this.isInstalled()) {
       return {
         success: true,
@@ -209,6 +247,7 @@ export class KeychainService {
     body: string,
     title: string = ''
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const permlink = `re-${parentAuthor.replace(/[^a-z0-9]/g, '')}-${Date.now()}`;
     const jsonMetadata = JSON.stringify({
       app: 'nebulosa-web/0.0.4',
@@ -243,6 +282,7 @@ export class KeychainService {
    * Reblog a post via custom_json
    */
   static async reblog(username: string, author: string, permlink: string): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const cleanUser = username.replace(/^@/, '').trim().toLowerCase();
     const cleanAuthor = author.replace(/^@/, '').trim().toLowerCase();
     const cleanPermlink = permlink.trim();
@@ -293,6 +333,7 @@ export class KeychainService {
     community: string,
     subscribe: boolean = true
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const json = JSON.stringify([
       subscribe ? 'subscribe' : 'unsubscribe',
       { community }
@@ -327,6 +368,7 @@ export class KeychainService {
     following: string,
     follow: boolean = true
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const json = JSON.stringify([
       'follow',
       {
@@ -369,6 +411,7 @@ export class KeychainService {
     following: string,
     mute: boolean = true
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const json = JSON.stringify([
       'follow',
       {
@@ -419,6 +462,7 @@ export class KeychainService {
       [key: string]: any;
     }
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
     const op = [
       'account_update2',
@@ -475,6 +519,7 @@ export class KeychainService {
     json: string,
     displayName: string = 'Broadcast Custom JSON'
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     if (!this.isInstalled()) {
       return {
         success: false,
@@ -506,6 +551,7 @@ export class KeychainService {
     memo: string,
     currency: 'HIVE' | 'HBD' = 'HIVE'
   ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
     if (!this.isInstalled()) {
       return {
         success: true,

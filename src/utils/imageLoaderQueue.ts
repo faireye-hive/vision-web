@@ -47,14 +47,13 @@ export function getEcencyProxyUrl(originalUrl: string): string {
 }
 
 /**
- * URL safe to put in an <img>. Already-proxied wsrv links pass through.
- * Anything else must be on the host whitelist and is rewritten through the proxy.
+ * URL safe to put in an <img>. Proxy URLs pass through only when their
+ * embedded source host is on the image whitelist.
  * Returns null when the origin is not allowed — the raw URL must not be loaded.
  */
 export function resolveProtectedImageUrl(rawUrl: string, width = 1200): string | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   const trimmed = rawUrl.trim();
   if (!isPlausibleImageUrl(trimmed)) return null;
-  if (/^https:\/\/wsrv\.nl\//i.test(trimmed)) return trimmed;
   return getSafeImageUrl(trimmed, { width });
 }

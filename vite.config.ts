@@ -13,7 +13,7 @@ function spaFallbackPlugin(): Plugin {
   return {
     name: 'spa-fallback-plugin',
     closeBundle() {
-      const distDir = path.resolve(__dirname, 'dist');
+      const distDir = path.resolve(import.meta.dirname, 'dist');
       const indexPath = path.join(distDir, 'index.html');
       const fallback404 = path.join(distDir, '404.html');
       if (fs.existsSync(indexPath)) {

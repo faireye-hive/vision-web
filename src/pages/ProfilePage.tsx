@@ -34,7 +34,8 @@ import {
   DEFAULT_PROFILE_STYLE,
   FONT_STACKS,
   BORDER_RADIUS_CLASSES,
-  ProfileSectionId
+  ProfileSectionId,
+  ProfileReaderAppearance
 } from '../features/profile/profileStyleTypes';
 import {
   loadProfileStyle,
@@ -53,7 +54,7 @@ import { ProfileCustomizerDrawer, ProfileMetadataForm } from '../features/profil
 interface ProfilePageProps {
   username: string;
   onClose: () => void;
-  onSelectPost: (post: HivePost) => void;
+  onSelectPost: (post: HivePost, readerAppearance?: ProfileReaderAppearance) => void;
   onOpenUser: (username: string) => void;
   onOpenCommunity?: (communityName: string) => void;
 }
@@ -952,7 +953,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   onVote={handleVote}
                   onReblog={handleReblog}
                   onOpenCustomizer={() => setIsCustomizerOpen(true)}
-                  onSelectPost={onSelectPost}
+                  onSelectPost={(post) => onSelectPost(post, {
+                    themeId: effectiveStyle.themeId,
+                    accentColor: effectiveStyle.accentColor,
+                    backgroundColor: effectiveStyle.backgroundColor,
+                    cardBackgroundColor: effectiveStyle.cardBackgroundColor,
+                    textColor: effectiveStyle.textColor,
+                    textSecondaryColor: effectiveStyle.textSecondaryColor
+                  })}
                   onOpenUser={onOpenUser}
                   onOpenCommunity={onOpenCommunity}
                   activeTab={activeTab}

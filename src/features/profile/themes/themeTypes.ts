@@ -1,6 +1,6 @@
 import React from 'react';
 import { HiveAccount, HivePost } from '../../../services/hiveApi';
-import { ProfileCustomStyle } from '../profileStyleTypes';
+import { ProfileCustomStyle, ProfileReaderAppearance } from '../profileStyleTypes';
 
 export interface ThemeProps {
   // Raw Data
@@ -29,7 +29,7 @@ export interface ThemeProps {
   onMuteToggle?: () => void;
   onCommentReply?: (post: HivePost, body: string) => Promise<boolean>;
   onOpenCustomizer: () => void;
-  onSelectPost: (post: HivePost) => void;
+  onSelectPost: (post: HivePost, readerAppearance?: ProfileReaderAppearance) => void;
   onOpenUser: (username: string) => void;
   onOpenCommunity?: (communityName: string) => void;
   onVote?: (post: HivePost, weight: number) => Promise<void>;

@@ -170,23 +170,19 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
 
   return (
     <div
-      className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 space-y-4"
-      style={{ padding: '5px', borderRadius: '15px', width: '250px', paddingTop: '20px', marginTop: '39px', marginBottom: '0px' }}
+      className="w-full bg-white dark:bg-slate-900 rounded-2xl p-2.5 shadow-sm border border-slate-200/80 dark:border-slate-800 space-y-2"
     >
       {/* Header */}
-      <div className="flex items-center justify-between pb-1">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
-            <Layers className="w-4 h-4" />
+          <div className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300">
+            <Layers className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <h3 className="font-bold text-sm text-gray-900 dark:text-white">Explore Categories</h3>
-            <p className="text-[11px] text-gray-400 dark:text-slate-500">Curated discovery topics</p>
-          </div>
+          <h3 className="font-bold text-sm text-gray-900 dark:text-white">Categories</h3>
         </div>
 
-        <span className="text-[11px] font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
-          {PREDEFINED_CATEGORIES.length} topics
+        <span className="text-[10px] font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+          {PREDEFINED_CATEGORIES.length}
         </span>
       </div>
 
@@ -198,7 +194,7 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Filter categories..."
-          className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
+          className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-300 dark:focus:border-blue-900 focus:bg-white dark:focus:bg-slate-800 transition"
         />
         {searchQuery && (
           <button
@@ -214,27 +210,27 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
       <button
         onClick={() => onSelectTag('')}
         title="Show all categories without filter"
-        className={`w-full flex items-center justify-between p-2.5 rounded-2xl text-xs transition cursor-pointer ${
+        className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
           !currentTag
-            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold shadow-xs'
+            ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200 font-bold'
             : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <div className={`p-1.5 rounded-xl ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
+          <div className={`p-1.5 rounded-xl ${!currentTag ? 'bg-blue-600 text-white dark:bg-blue-500' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
             <Compass className="w-3.5 h-3.5" />
           </div>
           <span className="font-semibold">All Categories</span>
         </div>
         {!currentTag && (
-          <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
+          <span className="text-[10px] bg-blue-600 text-white dark:bg-blue-500 px-2 py-0.5 rounded-full font-bold">
             active
           </span>
         )}
       </button>
 
       {/* Categories List */}
-      <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+      <div className="max-h-[min(68vh,620px)] overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
         {filteredCategories.length > 0 ? (
           filteredCategories.map((category) => {
             const Icon = category.icon;
@@ -246,36 +242,31 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
                 key={category.id}
                 onClick={() => onSelectTag(isSelected ? '' : category.tag)}
                 title={`${category.name}: ${category.description}`}
-                className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
+                className={`group flex items-center justify-between p-1.5 rounded-lg text-xs transition cursor-pointer ${
                   isSelected
-                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold'
+                    ? 'bg-blue-50 dark:bg-blue-950/35 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-inset ring-blue-100 dark:ring-blue-900/60'
                     : isFav
-                      ? 'bg-amber-50/40 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
+                      ? 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-gray-800 dark:text-slate-200'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`p-1.5 rounded-xl bg-gray-50 dark:bg-slate-800 group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors flex-shrink-0 ${category.color}`}>
-                    <Icon className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`p-1 rounded-lg ${category.badgeBg} dark:bg-slate-800 group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors flex-shrink-0`}>
+                    <Icon className={`w-3 h-3 ${category.color} dark:text-slate-300`} />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-gray-900 dark:text-slate-100 truncate">
-                        {category.name}
-                      </span>
-                      <span className="text-[10px] text-gray-400 dark:text-slate-500 font-normal">
-                        #{category.tag}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 dark:text-slate-500 font-normal truncate mt-0.5">
-                      {category.description}
-                    </p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-gray-900 dark:text-slate-100 truncate">
+                      {category.name}
+                    </span>
+                    <span className="text-[10px] text-gray-400 dark:text-slate-500 font-normal shrink-0">
+                      #{category.tag}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                   {isSelected && (
-                    <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                      <span className="text-[10px] bg-blue-600 text-white dark:bg-blue-500 px-1.5 py-0.5 rounded-full font-semibold">
                       active
                     </span>
                   )}
@@ -304,7 +295,7 @@ export const PredefinedCategoriesCard: React.FC<PredefinedCategoriesCardProps> =
       {currentTag && (
         <button
           onClick={() => onSelectTag('')}
-          className="w-full py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold text-center block cursor-pointer border-t border-gray-100 dark:border-slate-800 pt-3"
+          className="w-full py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:underline font-semibold text-center block cursor-pointer border-t border-slate-100 dark:border-slate-800 pt-3"
         >
           Clear category filter (#{currentTag})
         </button>

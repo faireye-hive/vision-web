@@ -301,7 +301,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {hashtags.map(({ tag, count }) => {
+                    {hashtags.map(({ tag }) => {
                       const formattedTag = `#${tag.toLowerCase()}`;
                       const isBlocked = blockedWords.some((w) => {
                         const cleanW = w.toLowerCase();
@@ -334,9 +334,6 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                             <Hash className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
                             <span className="font-semibold text-xs truncate group-hover:text-blue-600 transition">
                               #{tag}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                              {count} {count === 1 ? 'snap' : 'snaps'}
                             </span>
                           </button>
 

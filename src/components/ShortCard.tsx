@@ -17,7 +17,7 @@ import {
   Languages,
   Loader2
 } from 'lucide-react';
-import { HivePost, calculateReputation, getHiveAvatarUrl } from '../services/hiveApi';
+import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { markdownToSafeHtml } from '../utils/sanitize';
 import {
@@ -72,7 +72,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
 }) => {
   const [showSubcomments, setShowSubcomments] = useState(false);
   const [upvoted, setUpvoted] = useState(false);
-  const [voteCountDelta, setVoteCountDelta] = useState(0);
   const [voteLoading, setVoteLoading] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -138,7 +137,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   const [replying, setReplying] = useState(false);
   const [localReplies, setLocalReplies] = useState<HivePost[]>([]);
 
-  const rep = calculateReputation(snap.author_reputation);
   const avatarUrl = getHiveAvatarUrl(snap.author, 'small');
 
   // Format relative or concise time
@@ -166,7 +164,12 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     ...getSnapSubcomments(snap, discussionMap),
     ...localReplies
   ], [snap, discussionMap, localReplies]);
-  const replyCount = Math.max(snap.children || 0, subcomments.length);
+  const replyCount = useMemo(() => Math.max(
+    Number(snap.children) || 0,
+    Array.isArray(snap.replies) ? snap.replies.length : 0,
+    subcomments.length
+  ), [snap.children, snap.replies, subcomments.length]);
+  const replyLabel = replyCount === 1 ? 'reply' : 'replies';
 
   // Upvote snap
   const handleVote = () => {
@@ -278,50 +281,40 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     }
   };
 
-  const totalVotes = (snap.stats?.total_votes || snap.active_votes?.length || 0) + voteCountDelta;
-
   return (
     <article
       id={id || `snap-${snap.author}-${snap.permlink}`}
-      className="group bg-white dark:bg-slate-900 transition-colors duration-200 hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+      className="group rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_10px_rgba(15,23,42,0.025)] hover:shadow-[0_8px_24px_rgba(15,23,42,0.07)] hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200"
     >
-      <div className="p-4 sm:p-5 md:p-6 flex gap-3.5 sm:gap-4">
-        {/* Left: Author Avatar */}
-        <div className="flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => onSelectAuthor(snap.author)}
-            className="group relative cursor-pointer block"
-            title={`View @${snap.author}'s profile`}
-          >
-            <img
-              src={avatarUrl}
-              alt={snap.author}
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 shadow-sm group-hover:ring-4 group-hover:ring-blue-500/10 transition"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-              }}
-            />
-          </button>
-        </div>
-
-        {/* Right: Snap Body & Metadata */}
-        <div className="flex-1 min-w-0">
-          {/* Header Row: Author Name, Handle, Rep, Time */}
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+      <div className="p-3 sm:p-3.5">
+        {/* Compact author row; the Snap body below starts at the card margin. */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => onSelectAuthor(snap.author)}
+              className="group relative block flex-shrink-0 cursor-pointer"
+              title={`View @${snap.author}'s profile`}
+            >
+              <img
+                src={avatarUrl}
+                alt={snap.author}
+                className="h-8 w-8 rounded-full border border-white bg-slate-100 object-cover shadow-sm transition group-hover:ring-4 group-hover:ring-blue-500/10 dark:border-slate-900 dark:bg-slate-800"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
+                }}
+              />
+            </button>
+            <div className="flex min-w-0 items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => onSelectAuthor(snap.author)}
-                className="font-bold text-[14px] text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer"
+                className="font-bold text-sm text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer"
               >
                 @{snap.author}
               </button>
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
-                {rep}
-              </span>
               <span className="text-slate-300 dark:text-slate-600 select-none">&bull;</span>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {timeAgo}
               </span>
               {snap.parent_author && snap.parent_author.toLowerCase() !== 'peak.snaps' && (
@@ -330,9 +323,10 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                 </span>
               )}
             </div>
+          </div>
 
-            {/* 3-dots Options Menu */}
-            <div className="relative flex-shrink-0">
+          {/* 3-dots Options Menu */}
+          <div className="relative flex-shrink-0">
               <button
                 type="button"
                 onClick={(e) => {
@@ -419,8 +413,8 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                   </div>
                 </>
               )}
-            </div>
           </div>
+        </div>
 
           <SnapContent
             body={translatedBody || snap.body}
@@ -436,14 +430,15 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
           />
 
           {/* Action Bar (Twitter / Shorts Style) */}
-          <div className="flex items-center justify-between pt-3.5 mt-3 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-between gap-1 pt-2 mt-2 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             {/* Upvote Button */}
             <button
               type="button"
               onClick={handleVote}
               disabled={voteLoading}
-              title={upvoted ? 'Upvoted (Click to vote)' : 'Upvote Snap with Hive Keychain'}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-full transition cursor-pointer ${
+              title={upvoted ? 'Voted' : 'Vote on this Snap with Hive Keychain'}
+              aria-label={upvoted ? 'Voted' : 'Vote on this Snap'}
+              className={`flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
                 upvoted
                   ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 font-bold'
                   : 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/30'
@@ -454,7 +449,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                   upvoted ? 'fill-rose-600 dark:fill-rose-400 stroke-rose-600 dark:stroke-rose-400' : ''
                 }`}
               />
-              <span>{upvoted ? 'Upvoted' : 'Vote'}</span>
+              <span>{upvoted ? 'Voted' : 'Vote'}</span>
             </button>
 
             {/* Free Markdown-Preserving Translation Dropdown */}
@@ -476,16 +471,18 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                   setShowSubcomments(!showSubcomments);
                 }
               }}
-              title={onOpenDetail ? 'Open Short and view comments' : showSubcomments ? 'Hide replies' : 'View subcomments'}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-full transition cursor-pointer ${
-                showSubcomments || replyCount > 0
+              title={onOpenDetail ? `Open Snap and view ${replyCount} ${replyLabel}` : showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
+              aria-label={showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
+              className={`flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
+                showSubcomments
                   ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 font-medium'
                   : 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/30'
               }`}
             >
               <MessageCircle className="w-4 h-4" />
-              <span>{replyCount}</span>
-              {!onOpenDetail && replyCount > 0 && (
+              <span>Replies</span>
+              <span className="min-w-4 text-center text-[11px] tabular-nums text-slate-400 dark:text-slate-500">{replyCount}</span>
+              {!onOpenDetail && showSubcomments && (
                 showSubcomments ? (
                   <ChevronUp className="w-3 h-3 ml-0.5" />
                 ) : (
@@ -499,10 +496,10 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleResnap}
               title="Resnap with comment"
-              className="flex items-center gap-1.5 py-1.5 px-2.5 rounded-full hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+              className="flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
             >
               <Share2 className="w-4 h-4 -scale-x-100" />
-              <span>Quote</span>
+              <span>Resnap</span>
             </button>
 
             {/* Share Link */}
@@ -510,7 +507,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleCopyLink}
               title="Copy share link"
-              className="flex items-center gap-1.5 py-1.5 px-2.5 rounded-full hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               {copied ? (
                 <>
@@ -522,7 +519,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               )}
             </button>
           </div>
-        </div>
       </div>
 
       {/* ================= SUBCOMMENTS (REPLIES) SECTION ================= */}
@@ -531,7 +527,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
               <MessageCircle className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              Replies ({subcomments.length})
+              Replies
             </span>
             <button
               type="button"
@@ -548,7 +544,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               {subcomments.map((reply) => {
                 const replyAvatar = getHiveAvatarUrl(reply.author, 'small');
                 const replyKey = `${reply.author}/${reply.permlink}`;
-                const replyRep = calculateReputation(reply.author_reputation);
                 const isReplyTranslating = translatingReplyKey === replyKey;
                 const translatedReply = translatedReplies[replyKey];
                 const activeReplyBody = translatedReply || cleanSnapBody(reply.body) || reply.body;
@@ -578,7 +573,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                         >
                           @{reply.author}
                         </button>
-                        <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">({replyRep})</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -654,7 +648,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
         onClose={() => setVoteOpen(false)}
         onVoted={() => {
           setUpvoted(true);
-          setVoteCountDelta((prev) => prev + 1);
         }}
       />
 

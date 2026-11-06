@@ -141,34 +141,30 @@ export const ShortsPage: React.FC<ShortsPageProps> = ({
   }, [snapKey]);
 
   return (
-    <div className="relative">
-      {/* Detail View Overlay Page */}
+    <div className="relative min-w-0">
+      {/* Keep the feed mounted while its thread is open so its data and card state stay warm. */}
       {selectedPost && (
-        <div className="fixed inset-0 z-35 overflow-y-auto overscroll-contain bg-white dark:bg-slate-900 sm:bg-[var(--ambient-bg,#f7f8fa)]">
-          <div className="max-w-[1440px] mx-auto px-0 sm:px-6 pt-0 sm:pt-20 pb-36 sm:pb-12 min-h-screen">
-            <ShortDetailView
-              snap={selectedPost}
-              initialDiscussionMap={discussionMap}
-              onUpdateDiscussionMap={(newMap) => setDiscussionMap((prev) => ({ ...prev, ...newMap }))}
-              currentUser={currentUser}
-              onBack={handleClosePost}
-              onSelectAuthor={handleSelectAuthor}
-              onSelectTag={onSelectTag}
-              onMuteAuthor={onAddAuthor}
-              blockedAuthors={blockedAuthors}
-              onRequireLogin={() => {
-                window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
-              }}
-            />
-          </div>
-        </div>
+        <ShortDetailView
+          snap={selectedPost}
+          initialDiscussionMap={discussionMap}
+          onUpdateDiscussionMap={(newMap) => setDiscussionMap((prev) => ({ ...prev, ...newMap }))}
+          currentUser={currentUser}
+          onBack={handleClosePost}
+          onSelectAuthor={handleSelectAuthor}
+          onSelectTag={onSelectTag}
+          onMuteAuthor={onAddAuthor}
+          blockedAuthors={blockedAuthors}
+          onRequireLogin={() => {
+            window.dispatchEvent(new CustomEvent('nebulosa:open-login'));
+          }}
+        />
       )}
 
       <div
         ref={feedContainerRef}
         inert={selectedPost ? true : undefined}
         aria-hidden={selectedPost ? true : undefined}
-        className="space-y-4"
+        className={`space-y-4 ${selectedPost ? 'hidden' : ''}`}
       >
         <ShortsFeed
           currentUser={currentUser}

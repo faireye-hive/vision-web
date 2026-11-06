@@ -19,17 +19,20 @@ import {
   SlidersHorizontal,
   FolderOpen,
   MessageSquare,
-  Reply
+  PenLine,
+  Rss,
 } from 'lucide-react';
 import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions, hiveRpcCall } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
 import { PredefinedCategoriesCard } from './PredefinedCategoriesCard';
 import { getSmartAccountsActivity } from '../services/accountsCache';
-import { ShortsSource } from '../hooks/useShortsWordFilter';
 import { processShortsTags, getFavoriteTags } from '../utils/shortsNoiseFilter';
+import { ShortsSource } from '../hooks/useShortsWordFilter';
+import { useNavigation } from '../context/NavigationContext';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
+  communitiesSection?: 'feed' | 'explore' | 'manage';
   onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
   currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
   onSortChange: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
@@ -47,6 +50,8 @@ export interface LeftSidebarProps {
   onSelectShortTag?: (tag: string) => void;
   shortsSource?: ShortsSource;
   onShortsSourceChange?: (source: ShortsSource) => void;
+  onOpenShortsFilters?: () => void;
+  onOpenShortsComposer?: () => void;
 }
 
 const DEFAULT_FOLLOWING_LIST = [
@@ -90,6 +95,7 @@ const DEFAULT_TOPICS = [
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeNav,
+  communitiesSection = 'feed',
   onNavChange,
   currentSort,
   onSortChange,
@@ -106,9 +112,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   selectedShortTag = '',
   onSelectShortTag,
   shortsSource = 'all',
-  onShortsSourceChange
+  onShortsSourceChange,
+  onOpenShortsFilters,
+  onOpenShortsComposer,
 }) => {
+  const { openCommunitiesModal, closeStandalonePage } = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAllShortsTopics, setShowAllShortsTopics] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<string[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<string[]>(DEFAULT_TOPICS);
   const [allCommunities, setAllCommunities] = useState<{ name: string; title: string; subscribers: number }[]>(DEFAULT_COMMUNITIES);
@@ -330,6 +340,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     });
     return cleanTags;
   }, [shortsHashtags, searchQuery]);
+  const visibleShortsTags = showAllShortsTopics || searchQuery
+    ? rankedShortsTags
+    : rankedShortsTags.slice(0, 6);
 
   const getRelativeTime = (timeStr?: string) => {
     if (!timeStr) return null;
@@ -344,28 +357,92 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
   return (
-    <aside id="left-sidebar" className="space-y-4" style={{ marginTop: '-10px' }}>
+    <aside id="left-sidebar" className="space-y-3" style={{ marginTop: activeNav === 'shorts' ? 0 : '-10px' }}>
 
+      {activeNav === 'communities' && (
+        <nav
+          aria-label="Communities navigation"
+          className="space-y-1 rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+        >
+          <button
+            type="button"
+            aria-current={communitiesSection === 'feed' ? 'page' : undefined}
+            onClick={() => communitiesSection === 'feed' ? onNavChange?.('communities') : closeStandalonePage()}
+            className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'feed' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+          >
+            <Rss className="h-3.5 w-3.5" />
+            <span>Feed</span>
+          </button>
+          <button
+            type="button"
+            aria-current={communitiesSection === 'explore' ? 'page' : undefined}
+            onClick={openCommunitiesModal}
+            className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'explore' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+          >
+            <Compass className="h-3.5 w-3.5" />
+            <span>Explore</span>
+          </button>
+          <button
+            type="button"
+            aria-current={communitiesSection === 'manage' ? 'page' : undefined}
+            onClick={onOpenManageCommunities}
+            className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'manage' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            <span>Manage</span>
+          </button>
+        </nav>
+      )}
 
       {/* ================= CARD 2: CONTEXTUAL DISCOVERY ================= */}
       {activeNav === 'shorts' ? (
-        <div 
-          className="bg-white dark:bg-slate-900 p-5 text-gray-900 dark:text-slate-100 border-r border-slate-100 dark:border-slate-800 min-h-screen"
-          style={{ padding: '20px 10px 0px 10px', borderRadius: '15px', width: '250px', marginTop: '39px', marginBottom: '0px' }}
-        >
+        <div className="space-y-3 rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+          <div className="space-y-1" aria-label="Shorts feed navigation">
+            {([
+              ['all', Compass, 'Discover'],
+              ['hot', Flame, 'Hot'],
+              ['following', Users, 'Following'],
+              ['replies', MessageSquare, 'Replies'],
+            ] as const).map(([key, Icon, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-current={shortsSource === key ? 'page' : undefined}
+                onClick={() => onShortsSourceChange?.(key)}
+                className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${shortsSource === key ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{label}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={onOpenShortsFilters}
+              className="flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filters</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenShortsComposer}
+              className="mt-2 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900"
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              <span>Write a Snap</span>
+            </button>
+          </div>
+          <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+              <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                 <Hash className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">Shorts Hashtags</h3>
-                <p className="text-[10px] text-gray-400 dark:text-slate-500">Popular in snaps</p>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">Explore topics</h3>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Find Shorts by hashtag</p>
               </div>
             </div>
-            <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-              {rankedShortsTags.length} {rankedShortsTags.length === 1 ? 'tag' : 'tags'}
-            </span>
           </div>
 
           {/* Search Bar */}
@@ -376,68 +453,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search #hashtags..."
+              placeholder="Search topics..."
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-xl text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition"
             />
           </div>
 
-          {/* All Shorts / Reset Filter Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (onSelectShortTag) onSelectShortTag('');
-              if (onShortsSourceChange) onShortsSourceChange('all');
-            }}
-            title="Show all shorts without hashtag filter"
-            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1.5 text-left cursor-pointer ${
-              !selectedShortTag
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
-                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className={`p-1 rounded-lg ${!selectedShortTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
-                <Compass className="w-3 h-3" />
-              </div>
-              <span>All Shorts</span>
-            </div>
-            {!selectedShortTag && shortsSource === 'all' && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">active</span>}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onShortsSourceChange && onShortsSourceChange(shortsSource === 'following' ? 'all' : 'following')}
-            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
-              shortsSource === 'following'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
-                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Users className="w-3.5 h-3.5" />
-              <span>Snaps from following</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onShortsSourceChange && onShortsSourceChange(shortsSource === 'replies' ? 'all' : 'replies')}
-            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1.5 text-left cursor-pointer ${
-              shortsSource === 'replies'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
-                : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Reply className="w-3.5 h-3.5" />
-              <span>Replies to my snaps</span>
-            </div>
-          </button>
-
           {/* Hashtag List */}
-          <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1">
-            {rankedShortsTags.length > 0 ? (
-              rankedShortsTags.map((item) => {
+          <div className="max-h-[min(58vh,520px)] overflow-y-auto space-y-0.5 pr-1">
+            {visibleShortsTags.length > 0 ? (
+              visibleShortsTags.map((item) => {
                 const isSelected = selectedShortTag?.toLowerCase() === item.tag.toLowerCase();
                 return (
                   <button
@@ -445,9 +469,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     type="button"
                     onClick={() => onSelectShortTag && onSelectShortTag(isSelected ? '' : item.tag)}
                     title={`Filter snaps with #${item.tag}`}
-                    className={`w-full group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                    className={`w-full group flex items-center justify-between rounded-lg px-2 py-1.5 text-[11px] transition cursor-pointer text-left ${
                       isSelected
-                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                         : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                     }`}
                   >
@@ -455,27 +479,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       {item.isFavorite ? (
                         <Star className="w-3 h-3 fill-amber-400 text-amber-500 flex-shrink-0" />
                       ) : (
-                        <span className={`font-bold ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>
+                        <span className={`font-bold ${isSelected ? 'text-slate-600 dark:text-slate-300' : 'text-gray-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`}>
                           #
                         </span>
                       )}
                       <span className="truncate">{item.tag}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                        isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 group-hover:bg-gray-200 dark:group-hover:bg-slate-700'
-                      }`}>
-                        {item.count}
-                      </span>
-                      {isSelected && (
-                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                          ✓
-                        </span>
-                      )}
-                    </div>
+                    {isSelected && <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Selected</span>}
                   </button>
                 );
               })
@@ -485,23 +496,55 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </div>
             )}
           </div>
+          {!searchQuery && rankedShortsTags.length > 6 && (
+            <button
+              type="button"
+              onClick={() => setShowAllShortsTopics((show) => !show)}
+              aria-expanded={showAllShortsTopics}
+              className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              {showAllShortsTopics ? 'Show fewer topics' : 'Show all topics'}
+            </button>
+          )}
+          </div>
         </div>
       ) : activeNav === 'discover' ? (
-        <PredefinedCategoriesCard
-          currentTag={currentTag}
-          onSelectTag={onSelectTag}
-        />
+        <div className="space-y-1.5">
+          <nav
+            aria-label="Discover feed navigation"
+            className="space-y-0.5 rounded-2xl border border-slate-200/70 bg-white p-2 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+          >
+            {([
+              ['recommend', Compass, 'Recommended'],
+              ['created', Clock, 'Created'],
+              ['hot', Flame, 'Hot'],
+              ['trending', TrendingUp, 'Trending'],
+            ] as const).map(([sort, Icon, label]) => (
+              <button
+                key={sort}
+                type="button"
+                aria-current={currentSort === sort ? 'page' : undefined}
+                onClick={() => onSortChange(sort)}
+                className={`flex min-h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold transition ${currentSort === sort ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200/80 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/70' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${currentSort === sort ? 'text-blue-600 dark:text-blue-300' : ''}`} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          <PredefinedCategoriesCard
+            currentTag={currentTag}
+            onSelectTag={onSelectTag}
+          />
+        </div>
       ) : (
-        <div 
-          className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800 text-gray-900 dark:text-slate-100"
-          style={{ paddingTop: '20px', marginTop: '39px', marginBottom: '0px', borderRadius: '15px', width: '250px', paddingLeft: '10px', paddingRight: '10px', paddingBottom: '10px' }}
-        >
+        <div className="w-full rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
 
         {/* Dynamic Header */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             {activeTab === 'following' && <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
-            {activeTab === 'communities' && <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+            {activeTab === 'communities' && <Layers className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
             {activeTab === 'global' && <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
 
             <h3 className="font-bold text-sm text-gray-900 dark:text-white capitalize">
@@ -671,17 +714,17 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               title="Show posts from all communities"
               className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
                 !currentTag
-                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold ring-1 ring-inset ring-slate-200 dark:ring-slate-700'
                   : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
               }`}
             >
               <div className="flex items-center gap-2">
-                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
+                <div className={`p-1 rounded-lg ${!currentTag ? 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                   <FolderOpen className="w-3 h-3" />
                 </div>
                 <span>All Communities</span>
               </div>
-              {!currentTag && <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">active</span>}
+              {!currentTag && <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">active</span>}
             </button>
 
             <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1">
@@ -697,7 +740,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       title={`Filter posts by ${comm.title || comm.name}`}
                       className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
                         isSelected
-                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                           : isFav
                             ? 'bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-gray-800 dark:text-slate-200'
                             : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
@@ -717,7 +760,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {isSelected && (
-                          <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
+                          <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">
                             active
                           </span>
                         )}
@@ -827,29 +870,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         )}
 
       </div>
-      )}
-
-      {/* Manage Communities Button */}
-      {activeNav === 'communities' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-3 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/60 dark:border-slate-800">
-          <button
-            id="manage-communities-sidebar-btn"
-            onClick={onOpenManageCommunities}
-            title="Open community manager to discover and join communities"
-            className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-gray-50 dark:bg-slate-800/80 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30 text-emerald-900 dark:text-emerald-300 transition cursor-pointer group"
-          >
-            <div className="flex items-center gap-2.5 text-left">
-              <div className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-xs">
-                <Settings className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300">Manage Communities</p>
-                <p className="text-[10px] text-gray-400 dark:text-slate-500">Discover, join & organize</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-emerald-500 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
       )}
 
     </aside>

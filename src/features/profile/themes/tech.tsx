@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Terminal, 
   Cpu, 
-  Database, 
   Activity, 
   Code2, 
   Globe, 
@@ -153,10 +152,6 @@ const TechLayout: React.FC<ThemeProps> = (props) => {
                           <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500">
                             <MessageCircle className="w-3 h-3 text-indigo-500" />
                             <span>{post.children} Commits</span>
-                          </div>
-                          <div className="ml-auto flex items-center gap-1 text-[10px] font-black text-emerald-400">
-                            <Database className="w-3 h-3" />
-                            ${Number(post.pending_payout_value?.split(' ')[0] || 0).toFixed(2)}
                           </div>
                         </div>
                       </div>
