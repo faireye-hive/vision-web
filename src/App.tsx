@@ -26,6 +26,7 @@ import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
 import { useShortsWordFilter } from './hooks/useShortsWordFilter';
 import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
+import { I18nProvider } from './i18n/I18nContext';
 
 const ShortsPage = lazy(() => import('./pages/ShortsPage').then((m) => ({ default: m.ShortsPage })));
 const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default: m.WritePage })));
@@ -587,6 +588,7 @@ function NebulosaApp() {
 export function App() {
   return (
     <BrowserRouter>
+      <I18nProvider>
       <AuthProvider>
         <NavigationProvider>
           <NotificationsProvider>
@@ -598,6 +600,7 @@ export function App() {
           </NotificationsProvider>
         </NavigationProvider>
       </AuthProvider>
+      </I18nProvider>
     </BrowserRouter>
   );
 }

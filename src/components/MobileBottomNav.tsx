@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { HivePost } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
+import { useI18n } from '../i18n/I18nContext';
+import { UiLanguagePicker } from './UiLanguagePicker';
 
 export interface MobileBottomNavProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
@@ -93,6 +95,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenFilters,
   hasStandalonePage = false,
 }) => {
+  const { t } = useI18n();
   const [showMenu, setShowMenu] = useState(false);
   const [showDiscoverSortPopover, setShowDiscoverSortPopover] = useState(false);
 
@@ -162,10 +165,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </div>
                 <div>
                   <h4 className="font-bold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-                    Discover Feed Sort
+                    {t('mobile.discoverSort')}
                   </h4>
                   <p className="text-[10px] text-gray-400 dark:text-slate-500">
-                    Select feed ranking & sort
+                    {t('mobile.sortHint')}
                   </p>
                 </div>
               </div>
@@ -192,7 +195,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 }`}
               >
                 <Flame className={`w-4 h-4 mb-1 ${currentSort === 'hot' ? 'text-amber-300' : 'text-amber-500'}`} />
-                <span className="text-[11px]">Hot</span>
+                <span className="text-[11px]">{t('shorts.hot')}</span>
               </button>
 
               {/* Trending */}
@@ -206,7 +209,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 }`}
               >
                 <TrendingUp className={`w-4 h-4 mb-1 ${currentSort === 'trending' ? 'text-emerald-300' : 'text-emerald-500'}`} />
-                <span className="text-[11px]">Trending</span>
+                <span className="text-[11px]">{t('mobile.trending')}</span>
               </button>
 
               {/* Created */}
@@ -220,7 +223,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 }`}
               >
                 <Clock className={`w-4 h-4 mb-1 ${currentSort === 'created' ? 'text-purple-300' : 'text-purple-500'}`} />
-                <span className="text-[11px]">New</span>
+                <span className="text-[11px]">{t('mobile.new')}</span>
               </button>
 
               {/* Payout */}
@@ -234,7 +237,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 }`}
               >
                 <DollarSign className={`w-4 h-4 mb-1 ${currentSort === 'payout' ? 'text-emerald-300' : 'text-emerald-500'}`} />
-                <span className="text-[11px]">Payout</span>
+                <span className="text-[11px]">{t('mobile.payout')}</span>
               </button>
             </div>
 
@@ -243,7 +246,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold text-gray-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
                   <Hash className="w-3 h-3 text-blue-500" />
-                  <span>Popular Topics & Tags</span>
+                  <span>{t('mobile.popularTopics')}</span>
                 </span>
                 {currentTag && (
                   <button
@@ -251,26 +254,26 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     onClick={() => handleSelectTopicTag('all')}
                     className="text-[10px] font-semibold text-rose-500 hover:underline cursor-pointer"
                   >
-                    Clear Filter
+                    {t('mobile.clearFilter')}
                   </button>
                 )}
               </div>
 
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                {POPULAR_MOBILE_TAGS.map((t) => {
-                  const isSelected = (t === 'all' && !currentTag) || currentTag.toLowerCase() === t.toLowerCase();
+                {POPULAR_MOBILE_TAGS.map((tag) => {
+                  const isSelected = (tag === 'all' && !currentTag) || currentTag.toLowerCase() === tag.toLowerCase();
                   return (
                     <button
-                      key={t}
+                      key={tag}
                       type="button"
-                      onClick={() => handleSelectTopicTag(t)}
+                      onClick={() => handleSelectTopicTag(tag)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer border flex-shrink-0 ${
                         isSelected
                           ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                           : 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-blue-300'
                       }`}
                     >
-                      {t === 'all' ? 'All Topics' : `#${t}`}
+                      {tag === 'all' ? t('mobile.allTopics') : `#${tag}`}
                     </button>
                   );
                 })}
@@ -285,7 +288,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         id="mobile-bottom-bar"
         className="fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200/80 dark:border-slate-800 md:hidden shadow-[0_-2px_12px_rgba(0,0,0,0.06)]"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2px)' }}
-        aria-label="Mobile Navigation"
+        aria-label={t('mobile.navLabel')}
       >
         <div className="grid grid-cols-5 items-center justify-around h-14 max-w-md mx-auto px-1">
           {/* Tab 1: Feed */}
@@ -297,7 +300,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 font-bold'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
             }`}
-            title="Feed - Following posts"
+            title={t('nav.feedDesc')}
           >
             <div
               className={`p-1 rounded-xl transition ${
@@ -307,7 +310,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <Rss className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
-              Feed
+              {t('nav.feed')}
             </span>
           </button>
 
@@ -320,7 +323,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 font-bold'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
             }`}
-            title="Discover - Tap again to filter by Hot, Trending, or Tags"
+            title={t('nav.discoverDesc')}
           >
             <div
               className={`p-1 rounded-xl transition relative ${
@@ -333,10 +336,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               )}
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate flex items-center gap-0.5">
-              <span>Discover</span>
+              <span>{t('nav.discover')}</span>
               {isDiscoverActive && (
                 <span className="text-[8px] opacity-75 capitalize">
-                  ({currentSort === 'trending' ? 'Trend' : currentSort === 'created' ? 'New' : currentSort})
+                  ({currentSort === 'trending'
+                    ? t('mobile.trendShort')
+                    : currentSort === 'created'
+                      ? t('mobile.new')
+                      : currentSort === 'hot'
+                        ? t('shorts.hot')
+                        : currentSort === 'payout'
+                          ? t('mobile.payout')
+                          : currentSort === 'recommend'
+                            ? t('sidebar.recommended')
+                            : currentSort})
                 </span>
               )}
             </span>
@@ -351,7 +364,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 font-bold'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
             }`}
-            title="Shorts - Microblogging snaps"
+            title={t('nav.shortsDesc')}
           >
             <div
               className={`p-1 rounded-xl transition ${
@@ -361,7 +374,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <Zap className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
-              Shorts
+              {t('nav.shorts')}
             </span>
           </button>
 
@@ -374,7 +387,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 font-bold'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
             }`}
-            title="Communities - Groups & Topics"
+            title={t('nav.communitiesDesc')}
           >
             <div
               className={`p-1 rounded-xl transition ${
@@ -384,7 +397,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <Users className="w-5 h-5" />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
-              Groups
+              {t('nav.groups')}
             </span>
           </button>
 
@@ -400,7 +413,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 font-bold'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
             }`}
-            title="Menu - Shortcuts & options"
+            title={t('nav.menuDesc')}
           >
             <div
               className={`p-1 rounded-xl transition relative ${
@@ -413,7 +426,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               )}
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
-              Menu
+              {t('nav.menu')}
             </span>
           </button>
         </div>
@@ -451,7 +464,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         @{currentUser.username}
                       </h3>
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                        Hive Keychain Connected
+                        {t('mobile.keychainConnected')}
                       </p>
                     </div>
                   </>
@@ -462,10 +475,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">
-                        Menu & Shortcuts
+                        {t('mobile.menuTitle')}
                       </h3>
                       <p className="text-[11px] text-gray-400 dark:text-slate-500">
-                        App actions & settings
+                        {t('mobile.menuHint')}
                       </p>
                     </div>
                   </>
@@ -481,7 +494,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       onLogout();
                     }}
                     className="p-1.5 rounded-full text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                    title="Disconnect account"
+                    title={t('mobile.disconnect')}
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -490,7 +503,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   type="button"
                   onClick={() => setShowMenu(false)}
                   className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                  title="Close menu"
+                  title={t('mobile.close')}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -512,9 +525,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-emerald-600 text-white shadow-xs mb-1.5">
                     <Edit3 className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Publish</span>
+                  <span className="font-bold text-xs">{t('mobile.publish')}</span>
                   <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">
-                    New Post
+                    {t('mobile.newPost')}
                   </span>
                 </button>
               )}
@@ -537,9 +550,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-xs">Notifications</span>
+                  <span className="font-bold text-xs">{t('menu.notifications')}</span>
                   <span className="text-[10px] text-rose-600/80 dark:text-rose-400/80">
-                    {unreadNotificationsCount > 0 ? `${unreadNotificationsCount} new` : 'Alerts'}
+                    {unreadNotificationsCount > 0 ? t('menu.newCount', { count: unreadNotificationsCount }) : t('mobile.alerts')}
                   </span>
                 </button>
               )}
@@ -558,10 +571,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     <UserIcon className="w-4 h-4" />
                   </div>
                   <span className="font-bold text-xs truncate max-w-full">
-                    My Profile
+                    {t('mobile.myProfile')}
                   </span>
                   <span className="text-[10px] text-blue-600/80 dark:text-blue-400/80">
-                    View account
+                    {t('mobile.viewAccount')}
                   </span>
                 </button>
               ) : (
@@ -577,9 +590,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-rose-600 text-white shadow-xs mb-1.5">
                     <Key className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Keychain Login</span>
+                  <span className="font-bold text-xs">{t('mobile.keychainLogin')}</span>
                   <span className="text-[10px] text-rose-600/80 dark:text-rose-400/80">
-                    Sign in with Hive
+                    {t('mobile.signInHive')}
                   </span>
                 </button>
               )}
@@ -598,9 +611,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   </div>
-                  <span className="font-bold text-xs">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+                  <span className="font-bold text-xs">{isDark ? t('menu.lightMode') : t('menu.darkMode')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    {isDark ? 'Switch to Light' : 'Switch to Dark'}
+                    {isDark ? t('mobile.switchToLight') : t('mobile.switchToDark')}
                   </span>
                 </button>
               )}
@@ -618,9 +631,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-purple-600 text-white shadow-xs mb-1.5">
                     <Layers className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Communities</span>
+                  <span className="font-bold text-xs">{t('nav.communities')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    Explore Groups
+                    {t('mobile.exploreGroups')}
                   </span>
                 </button>
               )}
@@ -638,9 +651,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-amber-500 text-white shadow-xs mb-1.5">
                     <Activity className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Nodes & Stats</span>
+                  <span className="font-bold text-xs">{t('mobile.nodesStats')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    Blockchain RPC
+                    {t('mobile.blockchainRpc')}
                   </span>
                 </button>
               )}
@@ -658,9 +671,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-sky-600 text-white shadow-xs mb-1.5">
                     <Users className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Following</span>
+                  <span className="font-bold text-xs">{t('mobile.following')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    Manage Accounts
+                    {t('mobile.manageAccounts')}
                   </span>
                 </button>
               )}
@@ -678,9 +691,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-indigo-600 text-white shadow-xs mb-1.5">
                     <FolderOpen className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Subscriptions</span>
+                  <span className="font-bold text-xs">{t('mobile.subscriptions')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    My Communities
+                    {t('mobile.myCommunities')}
                   </span>
                 </button>
               )}
@@ -698,13 +711,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="p-2.5 rounded-full bg-slate-700 text-white shadow-xs mb-1.5">
                     <Filter className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs">Filters</span>
+                  <span className="font-bold text-xs">{t('mobile.filters')}</span>
                   <span className="text-[10px] text-gray-500 dark:text-slate-400">
-                    Words & Authors
+                    {t('mobile.wordsAuthors')}
                   </span>
                 </button>
               )}
             </div>
+            <UiLanguagePicker />
           </div>
         </div>
       )}

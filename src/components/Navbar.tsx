@@ -45,6 +45,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { useNavigation } from '../context/NavigationContext';
 import { LanguageDropdown } from './LanguageDropdown';
 import { SearchPreviewPopover } from './SearchPreviewPopover';
+import { UiLanguageButton, UiLanguagePicker } from './UiLanguagePicker';
+import { useI18n } from '../i18n/I18nContext';
 
 interface NavbarProps {
   currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
@@ -93,6 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { unreadCount: unreadNotificationsCount } = useNotifications();
   const { openCommunity } = useNavigation();
+  const { t } = useI18n();
   const [searchInput, setSearchInput] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [showSearchPopover, setShowSearchPopover] = useState(false);
@@ -371,7 +374,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 if (onNavChange) onNavChange('discover');
               }}
               className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
-              title="Home Page"
+              title={t('nav.home')}
             >
               <div className="relative">
                 <img
@@ -395,10 +398,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Primary Nav Links: Segmented Pill bar */}
             <nav className="hidden md:flex items-center gap-0.5 p-1 bg-slate-100/90 dark:bg-slate-800/70 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 shrink-0">
               {[
-                { id: 'feed', label: 'Feed', icon: Rss, desc: 'Stories from accounts you follow' },
-                { id: 'discover', label: 'Discover', icon: Compass, desc: 'Trending, Hot & New feeds' },
-                { id: 'shorts', label: 'Shorts', icon: Zap, desc: 'Microblogging & quick snaps' },
-                { id: 'communities', label: 'Communities', icon: Users, desc: 'Specialized Hive groups' }
+                { id: 'feed', label: t('nav.feed'), icon: Rss, desc: t('nav.feedDesc') },
+                { id: 'discover', label: t('nav.discover'), icon: Compass, desc: t('nav.discoverDesc') },
+                { id: 'shorts', label: t('nav.shorts'), icon: Zap, desc: t('nav.shortsDesc') },
+                { id: 'communities', label: t('nav.communities'), icon: Users, desc: t('nav.communitiesDesc') }
               ].map(tab => {
                 const isActive = (tab.id === 'shorts' && (activeNav === 'shorts' || activeNav === 'waves')) || activeNav === tab.id;
                 const useNeutralActive = isActive && tab.id === 'shorts';
@@ -453,8 +456,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={onToggleTheme}
                 className="p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer hidden lg:flex active:scale-95"
-                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode (Night Mode)"}
-                aria-label="Toggle dark mode"
+                title={isDark ? t('theme.light') : t('theme.dark')}
+                aria-label={t('theme.toggle')}
               >
                 {isDark ? (
                   <Sun className="w-4 h-4 text-amber-400 animate-in zoom-in-75 duration-200 hover:rotate-45 transition-transform" />
@@ -496,8 +499,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setShowSearchPopover(next);
               }}
               className="p-2 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-all duration-200 cursor-pointer sm:hidden active:scale-95"
-              title="Search Hive"
-              aria-label="Search"
+              title={t('nav.search')}
+              aria-label={t('nav.search')}
             >
               <Search className="w-4 h-4" />
             </button>
@@ -518,7 +521,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setSearchInput(e.target.value);
                     setShowSearchPopover(true);
                   }}
-                  placeholder="Search Hive, @user, #tag"
+                  placeholder={t('nav.searchPlaceholder')}
                   className="w-full pl-9 pr-14 py-1.5 text-xs bg-gray-50/90 dark:bg-slate-800/80 border border-gray-200/80 dark:border-slate-700/80 rounded-full text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-[#0c1222] transition-all duration-200 shadow-2xs"
                 />
                 {/* Cmd+K Keyboard Hint */}
@@ -576,12 +579,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="write-btn"
               onClick={() => onOpenWrite?.()}
-              title="Write a new Hive post (Press N)"
+              title={t('nav.writeTitle')}
               className="hidden sm:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3 sm:px-3.5 py-2 rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer relative overflow-hidden group/write"
             >
               <div className="absolute inset-0 -translate-x-full group-hover/write:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
               <Edit3 className="w-3.5 h-3.5 group-hover/write:rotate-12 transition-transform duration-200" />
-                  <span className="hidden lg:inline">Write</span>
+                  <span className="hidden lg:inline">{t('nav.write')}</span>
             </button>
 
             {/* Quick Notifications Bell Button */}
@@ -589,7 +592,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="notifications-btn"
                 onClick={onOpenNotifications}
-                title={unreadNotificationsCount > 0 ? `${unreadNotificationsCount} unread notifications` : 'View Notifications'}
+                title={unreadNotificationsCount > 0 ? t('nav.unread', { count: unreadNotificationsCount }) : t('nav.notifications')}
                 className={`hidden sm:flex relative p-2 rounded-full border transition-all duration-200 cursor-pointer items-center justify-center active:scale-95 group/bell ${
                   unreadNotificationsCount > 0
                     ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-700 ring-2 ring-rose-400/20 shadow-xs'
@@ -607,15 +610,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Keychain Login Button (Logged out) OR User Profile Avatar (Logged in) */}
             {!currentUser ? (
+              <>
               <button
                 id="keychain-login-btn"
                 onClick={() => setShowLoginModal(true)}
-                title="Connect with Hive Keychain"
+                title={t('nav.loginTitle')}
                 className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer group/login"
               >
                 <Key className="w-3.5 h-3.5 group-hover/login:rotate-12 transition-transform duration-200" />
-                <span className="hidden md:inline">Log in</span>
+                <span className="hidden md:inline">{t('nav.login')}</span>
               </button>
+              <UiLanguageButton />
+              </>
             ) : (
               <div className="relative hidden sm:block">
                 <button
@@ -674,7 +680,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div
                       onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
                       className="group/header p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-sm transition mb-1.5"
-                      title="View your Hive profile"
+                      title={t('menu.viewProfile')}
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
@@ -697,7 +703,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               @{currentUser.username}
                             </p>
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 opacity-0 group-hover/header:opacity-100 transition-opacity flex items-center">
-                              Profile <ChevronRight className="w-3 h-3 ml-0.5" />
+                              {t('menu.profile')} <ChevronRight className="w-3 h-3 ml-0.5" />
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 mt-1">
@@ -706,7 +712,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500/20'
                               }`}>
                               <ShieldCheck className="w-3 h-3" />
-                              <span>{currentUser.isDemo ? 'Demo · read-only' : 'Hive Keychain'}</span>
+                              <span>{currentUser.isDemo ? t('menu.demo') : t('menu.keychain')}</span>
                             </span>
                           </div>
                         </div>
@@ -716,7 +722,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="max-h-[min(72vh,560px)] space-y-3 overflow-y-auto no-scrollbar py-1">
                       <section aria-label="Shortcuts">
                         <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                          Quick links
+                          {t('menu.quickLinks')}
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
                           <button
@@ -727,7 +733,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
                               <Compass className="h-3.5 w-3.5" />
                             </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Explore communities</span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.exploreCommunities')}</span>
                           </button>
                           <button
                             type="button"
@@ -741,7 +747,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
                               <Layers className="h-3.5 w-3.5" />
                             </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Manage communities</span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.manageCommunities')}</span>
                           </button>
                           {onOpenManageFollowing && (
                             <button
@@ -752,7 +758,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
                                 <SlidersHorizontal className="h-3.5 w-3.5" />
                               </span>
-                              <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Manage following</span>
+                              <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.manageFollowing')}</span>
                             </button>
                           )}
                           <button
@@ -763,7 +769,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
                               <UserIcon className="h-3.5 w-3.5" />
                             </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Profile</span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.profile')}</span>
                           </button>
                         </div>
                       </section>
@@ -783,13 +789,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 <Bell className="h-4 w-4" />
                               </span>
                               <span className="min-w-0">
-                                <span className={`block text-xs font-semibold ${unreadNotificationsCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'}`}>Notifications</span>
-                                <span className="block truncate text-[10px] text-slate-500 dark:text-slate-400">Replies, mentions & votes</span>
+                                <span className={`block text-xs font-semibold ${unreadNotificationsCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'}`}>{t('menu.notifications')}</span>
+                                <span className="block truncate text-[10px] text-slate-500 dark:text-slate-400">{t('menu.notificationsHint')}</span>
                               </span>
                             </span>
                             {unreadNotificationsCount > 0 ? (
                               <span className="ml-2 shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                                {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount} new
+                                {t('menu.newCount', { count: unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount })}
                               </span>
                             ) : <ChevronRight className="h-4 w-4 text-slate-400" />}
                           </button>
@@ -798,7 +804,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       <section aria-label="Network and preferences" className="border-t border-slate-100 pt-2.5 dark:border-slate-800">
                         <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                          Network & preferences
+                          {t('menu.network')}
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
                           <button
@@ -809,9 +815,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           >
                             <span className="flex min-w-0 items-center gap-2">
                               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><Wifi className="h-3.5 w-3.5" /></span>
-                              <span className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-200">RPC Nodes</span>
+                              <span className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-200">{t('menu.rpcNodes')}</span>
                             </span>
-                            <span className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">{nodePing ? `${nodePing}ms` : 'active'}</span>
+                            <span className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">{nodePing ? `${nodePing}ms` : t('menu.active')}</span>
                           </button>
                           <button
                             type="button"
@@ -819,7 +825,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
                           >
                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"><Activity className="h-3.5 w-3.5" /></span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">Chain stats</span>
+                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.chainStats')}</span>
                           </button>
                           {onToggleTheme && (
                             <button
@@ -829,11 +835,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                             >
                               <span className="flex items-center gap-2">
                                 <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5" />}</span>
-                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Appearance</span>
+                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{t('menu.appearance')}</span>
                               </span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? 'Dark' : 'Light'} mode</span>
+                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? t('menu.darkMode') : t('menu.lightMode')}</span>
                             </button>
                           )}
+                        </div>
+                        <div className="mt-2">
+                          <UiLanguagePicker />
                         </div>
                       </section>
                     </div>
@@ -846,8 +855,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"><LogOut className="h-4 w-4" /></span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-semibold">Disconnect account</span>
-                          <span className="block text-[10px] text-rose-500/70 dark:text-rose-400/70">Sign out from this session</span>
+                          <span className="block text-xs font-semibold">{t('menu.disconnect')}</span>
+                          <span className="block text-[10px] text-rose-500/70 dark:text-rose-400/70">{t('menu.disconnectHint')}</span>
                         </span>
                         <ChevronRight className="h-4 w-4 text-rose-400 transition-transform group-hover/logout:translate-x-0.5" />
                       </button>
@@ -1133,8 +1142,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Key className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
-                <h3 id="login-modal-title" className="font-bold text-base text-gray-900 dark:text-white">Sign in to Hive</h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">Connect with Keychain or browse in read-only mode.</p>
+                <h3 id="login-modal-title" className="font-bold text-base text-gray-900 dark:text-white">{t('login.title')}</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">{t('login.subtitle')}</p>
               </div>
             </div>
 
@@ -1142,7 +1151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setShowLoginModal(false)}
               className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800 rounded-xl transition"
-              aria-label="Close login dialog"
+              aria-label={t('login.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1156,8 +1165,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ShieldCheck className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <span>
               {keychainInstalled
-                ? 'Hive Keychain is ready in this browser.'
-                : 'Keychain was not detected. You can still browse in read-only Demo mode.'}
+                ? t('login.keychainReady')
+                : t('login.keychainMissing')}
             </span>
           </div>
 
@@ -1170,7 +1179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <form onSubmit={handleKeychainLogin} className="space-y-3.5">
             <div>
               <label htmlFor="login-hive-username" className="text-xs font-semibold text-gray-700 dark:text-slate-300 block mb-1.5">
-                Hive account name
+                {t('login.account')}
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm font-bold">@</span>
@@ -1188,7 +1197,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] text-gray-500 dark:text-slate-400">Try a demo account</span>
+              <span className="text-[11px] text-gray-500 dark:text-slate-400">{t('login.tryDemo')}</span>
               {['ecency', 'good-karma'].map(acc => (
                 <button
                   key={acc}
@@ -1208,7 +1217,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-sm transition"
               >
                 <Key className="w-3.5 h-3.5" aria-hidden="true" />
-                {loginLoading ? 'Signing challenge...' : 'Login with Keychain'}
+                {loginLoading ? t('login.signing') : t('login.withKeychain')}
               </button>
               {!keychainInstalled && (
                 <a
@@ -1217,7 +1226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   rel="noopener noreferrer"
                   className="block text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-300 transition"
                 >
-                  Get Hive Keychain
+                  {t('login.getKeychain')}
                 </a>
               )}
             </div>
@@ -1226,10 +1235,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2.5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-gray-800 dark:text-slate-100">Browse without signing</p>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Demo mode is read-only and uses public Hive data.</p>
+                <p className="text-xs font-semibold text-gray-800 dark:text-slate-100">{t('login.browseWithout')}</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{t('login.demoHint')}</p>
               </div>
-              <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">Read-only</span>
+              <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{t('login.readOnly')}</span>
             </div>
             <button
               type="button"
@@ -1237,7 +1246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               disabled={loginLoading || !loginUsername.trim()}
               className="w-full px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {loginLoading ? 'Checking Hive account…' : 'Continue in Demo mode'}
+              {loginLoading ? t('login.checking') : t('login.demo')}
             </button>
           </div>
 

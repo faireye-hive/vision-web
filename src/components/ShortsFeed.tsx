@@ -29,6 +29,7 @@ import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { ShortCard } from './ShortCard';
 import { useNavigation } from '../context/NavigationContext';
+import { useI18n } from '../i18n/I18nContext';
 import {
   getPeakSnapsContainers,
   getContainerSnaps,
@@ -137,6 +138,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
   onSourceChange,
   isDetailOpen = false
 }) => {
+  const { t } = useI18n();
   const [containers, setContainers] = useState<PeakSnapsContainer[]>([]);
   const [currentContainerIndex, setCurrentContainerIndex] = useState<number>(0);
 
@@ -896,7 +898,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Discover</span>
+            <span>{t('shorts.discover')}</span>
           </button>
 
           <button
@@ -917,7 +919,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Following</span>
+            <span>{t('shorts.following')}</span>
           </button>
 
           <button
@@ -934,7 +936,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             }`}
           >
             <Flame className="w-3.5 h-3.5" />
-            <span>Hot</span>
+            <span>{t('shorts.hot')}</span>
           </button>
 
           <button
@@ -955,7 +957,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             }`}
           >
             <Reply className="w-3.5 h-3.5" />
-            <span>Replies</span>
+            <span>{t('shorts.replies')}</span>
           </button>
 
 
@@ -970,10 +972,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 ? 'text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60'
                 : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
             }`}
-            title="Open filter menu (Noise, spam hashtags & hidden authors)"
+            title={t('shorts.filtersTitle')}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Filters</span>
+            <span>{t('shorts.filters')}</span>
             {(blockedWords.length > 0 || blockedAuthors.length > 0 || (hiddenCount > 0 && filterEnabled)) && (
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             )}
@@ -991,7 +993,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               title="Browse all tags with anti-noise filter"
             >
               <Hash className="w-3 h-3 text-blue-500" />
-              <span>Topics</span>
+              <span>{t('shorts.topics')}</span>
             </button>
 
             {/* Clean, Non-Spam Tags */}
@@ -1031,11 +1033,11 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 rounded-2xl px-4 py-2.5 border border-slate-200/70 dark:border-slate-800 text-xs shadow-xs">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-800 dark:text-slate-100">
-              {source === 'following' ? 'Snaps from people you follow' : 'Replies to your latest Snaps'}
+              {source === 'following' ? t('shorts.fromFollowing') : t('shorts.repliesToMine')}
             </span>
             {source === 'replies' && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-mono font-semibold">
-                20 Snaps / page
+                {t('shorts.pageSize')}
               </span>
             )}
           </div>
@@ -1045,24 +1047,24 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               onClick={() => loadSourceFeed(true)}
               disabled={sourceLoading}
               className="text-xs text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition"
-              title="Refresh"
+              title={t('shorts.refresh')}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${sourceLoading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">{t('shorts.refresh')}</span>
             </button>
             <button
               type="button"
               onClick={() => onSourceChange?.('all')}
               className="text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline"
             >
-              Show all
+              {t('shorts.showAll')}
             </button>
           </div>
         </div>
       )}
 
       {sourceLoading && (
-        <p className="text-xs text-gray-500 dark:text-slate-400 px-1">Loading from Hive…</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 px-1">{t('shorts.loading')}</p>
       )}
       {sourceError && (
         <p className="text-xs text-rose-600 dark:text-rose-400 px-1">{sourceError}</p>
@@ -1079,7 +1081,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 <button
                   onClick={() => onSelectTag && onSelectTag('')}
                   className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-100 font-bold px-1"
-                  title="Clear hashtag filter"
+                  title={t('shorts.clearHashtag')}
                 >
                   &times;
                 </button>
@@ -1088,20 +1090,20 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   onClick={() => setIsTagsModalOpen(true)}
                   className="ml-1 text-[11px] text-blue-600 dark:text-blue-400 font-bold hover:underline pl-1 border-l border-blue-200 dark:border-blue-800"
                 >
-                  Change
+                  {t('shorts.change')}
                 </button>
               </div>
             )}
             {hiddenCount > 0 && filterEnabled && (
               <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
                 <ShieldAlert className="h-3 w-3" />
-                <span>{hiddenCount} hidden</span>
+                <span>{t('shorts.hiddenCount', { count: hiddenCount })}</span>
                 <button
                   type="button"
                   onClick={() => setIsFilterDrawerOpen(true)}
                   className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 transition hover:text-blue-600 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-blue-400"
                 >
-                  Manage
+                  {t('sidebar.manage')}
                 </button>
               </div>
             )}
@@ -1120,7 +1122,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               onClick={() => loadInitialFeed(true)}
               className="mt-2 text-rose-700 font-bold underline hover:text-rose-900"
             >
-              Retry
+              {t('shorts.retry')}
             </button>
           </div>
         </div>
@@ -1156,23 +1158,23 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
             <MessageCircle className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-gray-900 dark:text-white text-base">No snaps found</h3>
+          <h3 className="font-bold text-gray-900 dark:text-white text-base">{t('shorts.noSnaps')}</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 max-w-sm mx-auto">
             {source === 'following' && !currentUser
-              ? 'Connect a Hive account or use Demo mode to see Snaps from people you follow.'
+              ? t('shorts.connectFollowing')
               : source === 'following'
-                ? 'No recent Snaps from people you follow were found.'
+                ? t('shorts.noFollowing')
                 : source === 'replies' && !currentUser
-                  ? 'Sign in with Keychain to see replies to your snaps.'
+                  ? t('shorts.signInReplies')
                   : source === 'replies'
-                    ? 'No replies to your snaps yet.'
+                    ? t('shorts.noReplies')
                     : selectedTag
-              ? `No snaps found with hashtag #${selectedTag}. Try selecting another topic or clearing your filter.`
+              ? t('shorts.noSnapsTag', { tag: selectedTag })
               : searchQuery
-                ? `No snaps match "${searchQuery}". Try a different search term.`
+                ? t('shorts.noSnapsSearch', { query: searchQuery })
                 : hiddenCount > 0
-                  ? 'All snaps in this container were hidden by your spam word filter.'
-              : 'No recent snaps found here. Try another topic or share the first snap.'}
+                  ? t('shorts.allHidden')
+              : t('shorts.noRecent')}
           </p>
           {(selectedTag || searchQuery) && (
             <button
@@ -1182,7 +1184,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition cursor-pointer"
             >
-              Reset Filters
+              {t('shorts.resetFilters')}
             </button>
           )}
         </div>
@@ -1223,15 +1225,15 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-blue-400"
           >
             {sourceLoading
-              ? 'Loading more Snaps…'
-              : source === 'following' ? 'Load more from followed accounts' : 'Check older Snaps for replies'}
+              ? t('shorts.loadingMore')
+              : source === 'following' ? t('shorts.loadMoreFollowed') : t('shorts.checkOlderReplies')}
           </button>
         )}
 
         {(source === 'all' || source === 'hot') && loadingMore && (
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 py-3">
             <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-            <span>{source === 'hot' ? 'Loading more Snaps for Hot…' : 'Loading snaps from previous container...'}</span>
+            <span>{source === 'hot' ? t('shorts.loadingHot') : t('shorts.loadingOlder')}</span>
           </div>
         )}
 
@@ -1241,14 +1243,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             onClick={loadNextContainer}
             className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline px-4 py-2 cursor-pointer"
           >
-            {source === 'hot' ? 'Load more Snaps to update Hot ranking ↓' : 'Load older snaps from previous container ↓'}
+            {source === 'hot' ? t('shorts.loadMoreHot') : t('shorts.loadOlder')}
           </button>
         )}
 
         {(source === 'all' || source === 'hot') && !loading && !loadingMore && snaps.length > 0 && currentContainerIndex + 1 >= containers.length && !hasMoreToDisplay && (
           <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 py-4">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            <span>You’re up to date.</span>
+            <span>{t('shorts.upToDate')}</span>
           </div>
         )}
       </div>
@@ -1262,7 +1264,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             setShowComposerModal(true);
           }}
           className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-600/25 transition hover:scale-105 hover:bg-blue-700 active:scale-95 group cursor-pointer"
-          title="Write a snap"
+          title={t('shorts.writeSnapTitle')}
         >
           <Plus className="h-6 w-6 transition-transform group-hover:rotate-90" />
         </button>
@@ -1275,10 +1277,10 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
           id="shorts-mobile-floating-tags"
           onClick={() => setIsTagsModalOpen(true)}
           className="lg:hidden fixed bottom-6 left-5 z-40 flex h-10 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/95 px-3 text-xs font-semibold text-slate-800 shadow-lg backdrop-blur-md transition active:scale-95 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-100"
-          title="Browse Shorts tags"
+          title={t('shorts.browseTags')}
         >
           <Hash className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-          <span className="max-w-[110px] truncate">{selectedTag ? `#${selectedTag}` : 'Tags'}</span>
+          <span className="max-w-[110px] truncate">{selectedTag ? `#${selectedTag}` : t('shorts.tags')}</span>
           {selectedTag && (
             <span
               onClick={(e) => {
@@ -1286,7 +1288,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 if (onSelectTag) onSelectTag('');
               }}
               className="ml-0.5 text-slate-400 hover:text-rose-500 font-black p-0.5"
-              title="Clear tag"
+              title={t('shorts.clearTag')}
             >
               &times;
             </span>
@@ -1306,14 +1308,14 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                   className="w-8 h-8 rounded-full object-cover"
                 />
                 <div>
-                  <h4 id="shorts-compose-title" className="text-sm font-bold text-gray-900 dark:text-white">Write a Short</h4>
-                  <p className="text-[11px] text-gray-400 dark:text-slate-500">Share a thought with Hive</p>
+                  <h4 id="shorts-compose-title" className="text-sm font-bold text-gray-900 dark:text-white">{t('shorts.writeShort')}</h4>
+                  <p className="text-[11px] text-gray-400 dark:text-slate-500">{t('shorts.shareThought')}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowComposerModal(false)}
-                aria-label="Close composer"
+                aria-label={t('shorts.closeComposer')}
                 className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />

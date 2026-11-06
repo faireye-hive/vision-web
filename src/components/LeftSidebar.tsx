@@ -29,6 +29,7 @@ import { getSmartAccountsActivity } from '../services/accountsCache';
 import { processShortsTags, getFavoriteTags } from '../utils/shortsNoiseFilter';
 import { ShortsSource } from '../hooks/useShortsWordFilter';
 import { useNavigation } from '../context/NavigationContext';
+import { useI18n } from '../i18n/I18nContext';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
@@ -117,6 +118,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onOpenShortsComposer,
 }) => {
   const { openCommunitiesModal, closeStandalonePage } = useNavigation();
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllShortsTopics, setShowAllShortsTopics] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<string[]>([]);
@@ -371,7 +373,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'feed' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
           >
             <Rss className="h-3.5 w-3.5" />
-            <span>Feed</span>
+            <span>{t('sidebar.feed')}</span>
           </button>
           <button
             type="button"
@@ -380,7 +382,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'explore' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
           >
             <Compass className="h-3.5 w-3.5" />
-            <span>Explore</span>
+            <span>{t('sidebar.explore')}</span>
           </button>
           <button
             type="button"
@@ -389,7 +391,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'manage' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
           >
             <Settings className="h-3.5 w-3.5" />
-            <span>Manage</span>
+            <span>{t('sidebar.manage')}</span>
           </button>
         </nav>
       )}
@@ -399,10 +401,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <div className="space-y-3 rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
           <div className="space-y-1" aria-label="Shorts feed navigation">
             {([
-              ['all', Compass, 'Discover'],
-              ['hot', Flame, 'Hot'],
-              ['following', Users, 'Following'],
-              ['replies', MessageSquare, 'Replies'],
+              ['all', Compass, 'shorts.discover'],
+              ['hot', Flame, 'shorts.hot'],
+              ['following', Users, 'shorts.following'],
+              ['replies', MessageSquare, 'shorts.replies'],
             ] as const).map(([key, Icon, label]) => (
               <button
                 key={key}
@@ -412,7 +414,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${shortsSource === key ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </button>
             ))}
             <button
@@ -421,7 +423,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               className="flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>Filters</span>
+              <span>{t('shorts.filters')}</span>
             </button>
             <button
               type="button"
@@ -429,7 +431,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               className="mt-2 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900"
             >
               <PenLine className="h-3.5 w-3.5" />
-              <span>Write a Snap</span>
+              <span>{t('shorts.writeSnap')}</span>
             </button>
           </div>
           <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
@@ -439,8 +441,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <Hash className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">Explore topics</h3>
-                <p className="text-[10px] text-gray-400 dark:text-slate-500">Find Shorts by hashtag</p>
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">{t('sidebar.exploreTopics')}</h3>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">{t('sidebar.findShorts')}</p>
               </div>
             </div>
           </div>
@@ -453,7 +455,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search topics..."
+              placeholder={t('sidebar.searchTopics')}
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-xl text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition"
             />
           </div>
@@ -503,7 +505,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               aria-expanded={showAllShortsTopics}
               className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              {showAllShortsTopics ? 'Show fewer topics' : 'Show all topics'}
+              {showAllShortsTopics ? t('sidebar.showFewer') : t('sidebar.showAll')}
             </button>
           )}
           </div>
@@ -515,10 +517,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className="space-y-0.5 rounded-2xl border border-slate-200/70 bg-white p-2 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           >
             {([
-              ['recommend', Compass, 'Recommended'],
-              ['created', Clock, 'Created'],
-              ['hot', Flame, 'Hot'],
-              ['trending', TrendingUp, 'Trending'],
+              ['recommend', Compass, 'sidebar.recommended'],
+              ['created', Clock, 'sidebar.created'],
+              ['hot', Flame, 'shorts.hot'],
+              ['trending', TrendingUp, 'sidebar.trending'],
             ] as const).map(([sort, Icon, label]) => (
               <button
                 key={sort}
@@ -528,7 +530,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 className={`flex min-h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold transition ${currentSort === sort ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200/80 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/70' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
               >
                 <Icon className={`h-3.5 w-3.5 ${currentSort === sort ? 'text-blue-600 dark:text-blue-300' : ''}`} />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </button>
             ))}
           </nav>
@@ -548,16 +550,16 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             {activeTab === 'global' && <Hash className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
 
             <h3 className="font-bold text-sm text-gray-900 dark:text-white capitalize">
-              {activeTab === 'following' && 'Followed Creators'}
-              {activeTab === 'communities' && 'Communities'}
-              {activeTab === 'global' && 'Trending Topics'}
+              {activeTab === 'following' && t('sidebar.followedCreators')}
+              {activeTab === 'communities' && t('sidebar.communities')}
+              {activeTab === 'global' && t('sidebar.trendingTopics')}
             </h3>
           </div>
 
           <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-            {activeTab === 'following' && `${rankedFollowing.length} users`}
+            {activeTab === 'following' && t('sidebar.usersCount', { count: rankedFollowing.length })}
             {activeTab === 'communities' && `${rankedCommunities.length}`}
-            {activeTab === 'global' && `${rankedTopics.length} tags`}
+            {activeTab === 'global' && t('sidebar.tagsCount', { count: rankedTopics.length })}
           </span>
         </div>
 
@@ -690,7 +692,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               >
                 <div className="flex items-center gap-1.5">
                   <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Manage Followed Creators</span>
+                  <span>{t('sidebar.manageFollowed')}</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </button>
@@ -702,9 +704,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {activeTab === 'communities' && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1 py-1">
-              <span>Communities</span>
+              <span>{t('sidebar.communities')}</span>
               <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {t('sidebar.favorites')}
               </span>
             </div>
 
@@ -722,9 +724,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <div className={`p-1 rounded-lg ${!currentTag ? 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                   <FolderOpen className="w-3 h-3" />
                 </div>
-                <span>All Communities</span>
+                <span>{t('sidebar.allCommunities')}</span>
               </div>
-              {!currentTag && <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">active</span>}
+              {!currentTag && <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">{t('menu.active')}</span>}
             </button>
 
             <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1">
@@ -761,7 +763,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {isSelected && (
                           <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">
-                            active
+                            {t('menu.active')}
                           </span>
                         )}
                         <button
@@ -779,7 +781,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 })
               ) : (
                 <div className="p-4 text-center text-xs text-gray-400 dark:text-slate-500">
-                  No communities found.
+                  {t('sidebar.noCommunities')}
                 </div>
               )}
             </div>
@@ -790,9 +792,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {activeTab === 'global' && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[11px] font-semibold text-gray-400 dark:text-slate-500 px-1 py-1">
-              <span>Topics</span>
+              <span>{t('shorts.topics')}</span>
               <span className="flex items-center gap-1 text-[10px] text-amber-500 font-normal">
-                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Favorites
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {t('sidebar.favorites')}
               </span>
             </div>
 
@@ -810,9 +812,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <div className={`p-1 rounded-lg ${!currentTag ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'}`}>
                   <Compass className="w-3 h-3" />
                 </div>
-                <span>All Topics</span>
+                <span>{t('sidebar.allTopics')}</span>
               </div>
-              {!currentTag && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">active</span>}
+              {!currentTag && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">{t('menu.active')}</span>}
             </button>
 
             <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1">
@@ -844,7 +846,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {isSelected && (
                           <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full">
-                            active
+                            {t('menu.active')}
                           </span>
                         )}
                         <button
