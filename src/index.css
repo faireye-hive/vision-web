@@ -124,6 +124,167 @@ html {
   font-size: 0.875rem;
 }
 
+.article-body .nebulosa-markdown-table-scroll,
+.article-content .nebulosa-markdown-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  overscroll-behavior-inline: contain;
+}
+
+.article-body .nebulosa-markdown-table-scroll table,
+.article-content .nebulosa-markdown-table-scroll table {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+}
+
+.article-body .nebulosa-image-gallery,
+.article-content .nebulosa-image-gallery {
+  width: 100%;
+  max-width: 100%;
+  margin: 0.4rem 0;
+}
+
+/* Keep prose tight around standalone photos and their gallery groups. */
+.article-body p:has(+ .nebulosa-image-gallery),
+.article-body p:has(+ .nebulosa-centered-block),
+.article-body p:has(+ p:has(> img:only-child)),
+.article-body p:has(+ p:has(> a:has(> img:only-child))) {
+  margin-bottom: 0.3rem;
+}
+
+.article-body .nebulosa-image-gallery + p,
+.article-body .nebulosa-centered-block + p,
+.article-body p:has(> img:only-child) + p,
+.article-body p:has(> a:has(> img:only-child)) + p {
+  margin-top: 0;
+}
+
+.article-body .nebulosa-centered-block {
+  margin: 0.25rem 0 !important;
+}
+
+.article-body .nebulosa-centered-block p:has(img),
+.article-body p:has(> img:only-child),
+.article-body p:has(> a:has(> img:only-child)),
+.article-body p:has(.nebulosa-centered-block),
+.article-body p:has(center) {
+  margin: 0 !important;
+}
+
+.article-body .nebulosa-centered-block img,
+.article-body p:has(img) img {
+  margin: 0 auto !important;
+}
+
+.article-body :is(h1, h2, h3, h4, h5, h6, p):has(+ .nebulosa-centered-block) {
+  margin-bottom: 0.25rem;
+}
+
+/* Keep legacy center tags compact too, including posts with center attributes. */
+.article-body center {
+  display: block;
+  margin: 0.25rem 0 !important;
+  text-align: center;
+}
+
+.article-body center p:has(img) {
+  margin: 0 !important;
+}
+
+.article-body center img {
+  margin: 0 auto !important;
+}
+
+.nebulosa-gallery-track {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.25rem 0.25rem 0.65rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.article-body .nebulosa-gallery-track > img,
+.article-content .nebulosa-gallery-track > img {
+  flex: 0 0 100%;
+  width: 100% !important;
+  height: min(52vw, 25rem);
+  min-height: 14rem;
+  max-width: none !important;
+  max-height: 25rem !important;
+  margin: 0 !important;
+  object-fit: contain;
+  scroll-snap-align: start;
+  cursor: zoom-in;
+}
+
+.nebulosa-gallery-thumbnails {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.15rem 0.35rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.nebulosa-gallery-thumbnail {
+  flex: 0 0 3.75rem;
+  width: 3.75rem;
+  height: 2.75rem;
+  padding: 0.12rem;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  opacity: 0.72;
+  transition: border-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+  cursor: pointer;
+}
+
+.nebulosa-gallery-thumbnail[aria-pressed="true"] {
+  border: 2px solid #3b82f6;
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.nebulosa-gallery-thumbnail:hover { opacity: 1; }
+
+.nebulosa-gallery-thumbnail img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0.32rem !important;
+  object-fit: cover;
+}
+
+@media (max-width: 640px) {
+  .article-body .nebulosa-gallery-track > img,
+  .article-content .nebulosa-gallery-track > img {
+    flex-basis: 100%;
+    width: 100% !important;
+    height: 68vw;
+    min-height: 12rem;
+    max-height: 22rem !important;
+  }
+
+  .nebulosa-gallery-thumbnails { justify-content: flex-start; }
+}
+
 .article-body th,
 .article-content th {
   background-color: #f1f5f9;
@@ -267,6 +428,15 @@ html.dark #sanitized-post-body pre code {
   line-height: 1.75;
 }
 
+.comment-body p {
+  margin: 0 0 0.45rem !important;
+  line-height: 1.55;
+}
+
+.comment-body p:last-child {
+  margin-bottom: 0 !important;
+}
+
 .article-body img {
   display: block;
   margin-left: auto;
@@ -277,10 +447,22 @@ html.dark #sanitized-post-body pre code {
   height: auto;
   object-fit: contain;
   border-radius: 1rem;
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.55rem;
+  margin-bottom: 0.55rem;
   cursor: zoom-in;
   transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* Avoid doubled vertical gaps when an image sits inside its own paragraph. */
+.article-body p:has(> img:only-child),
+.article-body p:has(> a:has(> img:only-child)) {
+  margin: 0.3rem 0;
+}
+
+.article-body p > img:only-child,
+.article-body p > a > img:only-child {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .article-body img:hover {
