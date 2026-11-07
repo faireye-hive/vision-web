@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { transformVideoEmbedsInMarkdown } from './videoEmbeds';
+import { buildVideoFacadeHtml, transformVideoEmbedsInMarkdown } from './videoEmbeds';
 
 export const ALLOWED_IMAGE_DOMAINS = [
   'hive.blog',
@@ -103,8 +103,15 @@ function buildProxiedImageUrl(originalUrl: string): string {
 
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank');
-    node.setAttribute('rel', 'noopener noreferrer nofollow');
+    const href = node.getAttribute('href') || '';
+    const isInternalHiveRoute = href.startsWith('/post/@') || href.startsWith('/profile/@');
+    if (isInternalHiveRoute) {
+      node.removeAttribute('target');
+      node.removeAttribute('rel');
+    } else {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer nofollow');
+    }
   }
 
   if (node.tagName === 'IMG') {
@@ -125,10 +132,6 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       const finalSrc = IMAGE_PROXY_ENABLED && !isValidatedProxy && !is3SpeakPoster ? buildProxiedImageUrl(src) : src;
       node.setAttribute('src', finalSrc);
       node.setAttribute('data-original-src', src); // guarda o original, útil pra debug/"abrir original"
-      node.classList.add(
-        'rounded-2xl', 'max-h-[600px]', 'w-auto', 'max-w-full', 'my-4',
-        'mx-auto', 'block', 'shadow-xs', 'border', 'border-gray-100', 'dark:border-slate-800'
-      );
     }
   }
 });
@@ -142,16 +145,11 @@ const ALLOWED_TAGS = [
   'table', 'thead', 'tbody', 'tr', 'th', 'td',
   'img', 'figure', 'figcaption',
   'a', 'span', 'div', 'center',
-  'button', 'svg', 'path'
 ];
 
 const ALLOWED_ATTR = [
   'href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel',
-  'width', 'height', 'align', 'loading', 'style', 'data-align',
-  'data-blocked-src', 'data-original-src',
-  'data-video-platform', 'data-video-id', 'data-video-embed', 'data-original-url',
-  'data-video-poster',
-  'role', 'tabindex', 'aria-label', 'viewBox', 'd'
+  'width', 'height', 'align', 'loading', 'data-video-placeholder'
 ];
 
 export interface PostHeading {
@@ -160,14 +158,25 @@ export interface PostHeading {
   level: number;
 }
 
-export function sanitizeHtml(dirtyHtml: string): string {
-  if (!dirtyHtml) return '';
+const CONTENT_CLASSES = new Set([
+  'article-content', 'nebulosa-centered-block', 'nebulosa-markdown-table-scroll',
+  'text-left', 'text-center', 'text-right', 'text-justify', 'my-2', 'pull-left', 'pull-right'
+]);
+
+function sanitizeMarkup(dirtyHtml: string, generatedVideo = false): string {
   return DOMPurify.sanitize(dirtyHtml, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|hive):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-    ADD_ATTR: ['target', 'rel']
+    ALLOWED_TAGS: generatedVideo ? [...ALLOWED_TAGS, 'svg', 'path'] : ALLOWED_TAGS,
+    ALLOWED_ATTR: generatedVideo
+      ? [...ALLOWED_ATTR, 'data-video-platform', 'data-video-id', 'data-video-poster', 'role', 'tabindex', 'aria-label', 'viewBox', 'd']
+      : ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: false,
+    ALLOW_ARIA_ATTR: false,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
   });
+}
+
+export function sanitizeHtml(dirtyHtml: string): string {
+  return sanitizeMarkup(dirtyHtml);
 }
 
 function escapeHtmlEntities(str: string): string {
@@ -192,9 +201,202 @@ function restoreRawTags(text: string, store: string[]): string {
   return result;
 }
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function toInternalHivePath(href: string): string | null {
+  const shorthand = href.trim().match(/^\/?@([a-z0-9.-]+)(?:\/([a-z0-9._-]+))?\/?$/i);
+  if (shorthand) {
+    const author = encodeURIComponent(shorthand[1].toLowerCase());
+    return shorthand[2]
+      ? `/post/@${author}/${encodeURIComponent(shorthand[2])}`
+      : `/profile/@${author}`;
+  }
+
+  let candidate = href.trim();
+  if (/^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    const hiveFrontends = new Set(['hive.blog', 'peakd.com', 'ecency.com', 'inleo.io', 'leofinance.io', '3speak.tv']);
+    if (!hiveFrontends.has(host)) return null;
+
+    const postPath = url.pathname.match(/(?:^|\/)@([a-z0-9.-]+)\/([a-z0-9._-]+)\/?$/i);
+    if (!postPath) return null;
+    return `/post/@${encodeURIComponent(postPath[1].toLowerCase())}/${encodeURIComponent(postPath[2])}`;
+  } catch {
+    return null;
+  }
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
+  return row.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+}
+
+function convertMarkdownTables(text: string, tableStore: string[]): string {
+  const lines = text.split(/\r?\n/);
+  const output: string[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    const headerLine = lines[index];
+    const separatorLine = lines[index + 1] || '';
+    const headers = headerLine.includes('|') ? splitMarkdownTableRow(headerLine) : [];
+    const separators = separatorLine.includes('|') ? splitMarkdownTableRow(separatorLine) : [];
+    const isSeparator = headers.length > 0 && separators.length === headers.length && separators.every((cell) => /^:?-+:?$/.test(cell));
+
+    if (!isSeparator) {
+      output.push(headerLine);
+      index += 1;
+      continue;
+    }
+
+    const rows: string[][] = [];
+    index += 2;
+    while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+      rows.push(splitMarkdownTableRow(lines[index]));
+      index += 1;
+    }
+
+    const headHtml = headers.map((cell) => `<th>${escapeHtmlEntities(cell)}</th>`).join('');
+    const bodyHtml = rows.map((row) => {
+      const cells = headers.map((_header, cellIndex) => `<td>${escapeHtmlEntities(row[cellIndex] || '')}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    const tableHtml = `<div class="nebulosa-markdown-table-scroll"><table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
+    const tableIndex = tableStore.push(tableHtml) - 1;
+    output.push(`\u0000TABLE${tableIndex}\u0000`);
+  }
+
+  return output.join('\n');
+}
+
 export interface MarkdownSanitizeOptions {
   threeSpeakThumbnails?: Record<string, string>;
   jsonMetadata?: any;
+}
+
+function groupAdjacentImages(root: DocumentFragment): void {
+  const contentBlocks = root.querySelectorAll('.article-content');
+
+  contentBlocks.forEach((content) => {
+    const collectImages = (node: Node, images: HTMLImageElement[]): boolean => {
+      if (node.nodeType === Node.TEXT_NODE) return !node.textContent?.trim();
+      if (!(node instanceof HTMLElement)) return false;
+      if (node.tagName === 'IMG') {
+        if (node.style.display === 'none' || !node.getAttribute('src') || node.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container')) return false;
+        images.push(node as HTMLImageElement);
+        return true;
+      }
+      if (node.tagName === 'BR') return true;
+      if (!['P', 'FIGURE', 'DIV', 'CENTER'].includes(node.tagName)) return false;
+      if (node.matches('.nebulosa-lazy-video-facade, .nebulosa-video-container')) return false;
+      return Array.from(node.childNodes).every((child) => collectImages(child, images));
+    };
+
+    const children = Array.from(content.childNodes);
+    for (let index = 0; index < children.length;) {
+      const first = children[index];
+      const firstImages: HTMLImageElement[] = [];
+      if (!collectImages(first, firstImages) || firstImages.length === 0) {
+        index += 1;
+        continue;
+      }
+
+      const blocks: Node[] = [first];
+      const images = [...firstImages];
+      let cursor = index + 1;
+
+      while (cursor < children.length) {
+        const next = children[cursor];
+        if (next.nodeType === Node.TEXT_NODE && !next.textContent?.trim()) {
+          blocks.push(next);
+          cursor += 1;
+          continue;
+        }
+
+        const nextImages: HTMLImageElement[] = [];
+        if (!collectImages(next, nextImages) || nextImages.length === 0) break;
+        blocks.push(next);
+        images.push(...nextImages);
+        cursor += 1;
+      }
+
+      if (images.length > 1) {
+        const gallery = document.createElement('div');
+        gallery.className = 'nebulosa-image-gallery';
+        gallery.setAttribute('role', 'region');
+        gallery.setAttribute('aria-label', 'Consecutive post images');
+        const track = document.createElement('div');
+        track.className = 'nebulosa-gallery-track';
+        track.setAttribute('tabindex', '0');
+        track.setAttribute('aria-label', 'Swipe or scroll through images');
+        const thumbnails = document.createElement('div');
+        thumbnails.className = 'nebulosa-gallery-thumbnails';
+        thumbnails.setAttribute('role', 'group');
+        thumbnails.setAttribute('aria-label', 'Choose an image');
+        content.insertBefore(gallery, first);
+        images.forEach((image, imageIndex) => {
+          track.appendChild(image);
+
+          const thumbnail = document.createElement('button');
+          thumbnail.type = 'button';
+          thumbnail.className = 'nebulosa-gallery-thumbnail';
+          thumbnail.setAttribute('data-gallery-select', String(imageIndex));
+          thumbnail.setAttribute('aria-label', `Show image ${imageIndex + 1} of ${images.length}`);
+          thumbnail.setAttribute('aria-pressed', String(imageIndex === 0));
+          thumbnail.title = `Image ${imageIndex + 1}`;
+
+          const thumbnailImage = document.createElement('img');
+          const originalSrc = image.getAttribute('data-original-src') || image.getAttribute('src');
+          thumbnailImage.src = getSafeImageUrl(originalSrc, { width: 112 }) || image.getAttribute('src') || '';
+          thumbnailImage.alt = '';
+          thumbnailImage.loading = 'lazy';
+          thumbnailImage.decoding = 'async';
+          thumbnail.appendChild(thumbnailImage);
+          thumbnails.appendChild(thumbnail);
+        });
+        gallery.append(track, thumbnails);
+        blocks.forEach((block) => block.parentNode?.removeChild(block));
+        index = cursor;
+      } else {
+        index += 1;
+      }
+    }
+  });
+}
+
+/** Remove blank paragraphs and line breaks the markdown wrapper can create
+ * around legacy centered images. The HTML is already sanitized at this point. */
+function compactCenteredImageSpacing(root: DocumentFragment): void {
+  root.querySelectorAll<HTMLElement>('.nebulosa-centered-block, center').forEach((block) => {
+    if (!block.querySelector('img')) return;
+
+    // A line break inside a centered image block only adds vertical whitespace.
+    block.querySelectorAll('br').forEach((lineBreak) => lineBreak.remove());
+
+    const previous = block.previousElementSibling;
+    if (previous?.tagName === 'BR') previous.remove();
+    const next = block.nextElementSibling;
+    if (next?.tagName === 'BR') next.remove();
+  });
+
+  root.querySelectorAll<HTMLParagraphElement>('.article-content p').forEach((paragraph) => {
+    const hasVisibleText = Boolean(paragraph.textContent?.trim());
+    const hasContent = paragraph.querySelector('img, iframe, video, table, ul, ol, blockquote, hr, pre, svg');
+    if (!hasVisibleText && !hasContent) paragraph.remove();
+  });
 }
 
 export function markdownToSafeHtmlWithHeadings(
@@ -210,13 +412,21 @@ export function markdownToSafeHtmlWithHeadings(
   let text = markdown.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
   text = text
-    .replace(/<center>/gi, '<div class="text-center my-4">')
+    .replace(/<center\b[^>]*>/gi, '<div class="text-center nebulosa-centered-block">')
     .replace(/<\/center>/gi, '</div>')
     .replace(/<div\s+align=["']?justify["']?>/gi, '<div class="text-justify my-2">')
     .replace(/<div\s+class=["']?text-justify["']?>/gi, '<div class="text-justify my-2">');
 
   // Convert YouTube, 3Speak, and BitChute links/iframes to click-to-load video facades
-  text = transformVideoEmbedsInMarkdown(text, options);
+  // Keep app-generated player markup separate from the author's HTML.
+  const videoFacades = new Map<string, string>();
+  let videoPlaceholderPrefix: string | undefined;
+  text = transformVideoEmbedsInMarkdown(text, options, (info) => {
+    videoPlaceholderPrefix ??= crypto.getRandomValues(new Uint32Array(4)).join('-');
+    const key = `${videoPlaceholderPrefix}-${videoFacades.size}`;
+    videoFacades.set(key, buildVideoFacadeHtml(info));
+    return `<div data-video-placeholder="${key}"></div>`;
+  });
 
   // Protege tags HTML já existentes no post (raw <img>, <div>, <sub>, <iframe> etc.)
   text = protectRawTags(text, tagStore);
@@ -240,6 +450,9 @@ export function markdownToSafeHtmlWithHeadings(
 
   // Protege pontuação escapada com "\" (ex: \_, \*, \[) para não disparar
   // negrito/itálico/listas indevidamente — restaura o caractere puro no final
+  // Accept escaped-parenthesis links too, as commonly pasted into Hive posts.
+  text = text.replace(/(\[[^\]\n]+\])\\\(([^)\s]+)\\?\)/g, '$1($2)');
+
   const escapedChars: string[] = [];
   text = text.replace(/\\([\\`*_{}\[\]()#+\-.!>~])/g, (_m, ch) => {
     const idx = escapedChars.length;
@@ -260,15 +473,27 @@ export function markdownToSafeHtmlWithHeadings(
     '$1<img src="$2" alt="Hive Image" />'
   );
 
-  // Links de texto Markdown [texto](url)
-  text = text.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+  // Markdown links: web URLs, bare domains and Hive @author/permlink routes.
+  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label: string, rawHref: string) => {
+    const internalPath = toInternalHivePath(rawHref);
+    let href = internalPath || rawHref;
+    if (!internalPath && /^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(href)) {
+      href = `https://${href}`;
+    }
+    if (!internalPath && !/^https?:\/\//i.test(href)) return label;
+    const safeHref = escapeHtmlAttribute(href);
+    return internalPath
+      ? `<a href="${safeHref}">${label}</a>`
+      : `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  });
 
   // 2ª passada: protege as tags <img>/<a> recém-geradas acima, antes do
   // negrito/itálico rodar (evita quebrar URLs com underscore, ex: vin_ales.jpg)
   text = protectRawTags(text, tagStore);
+
+  // Markdown tables, including optional edge pipes and compact separators like |-|.
+  const tableBlocks: string[] = [];
+  text = convertMarkdownTables(text, tableBlocks);
 
   // Linhas separadoras — aceita marcadores espaçados: "---", "***", "* * *"
   text = text.replace(/^[ \t]*(?:[-*_][ \t]*){3,}$/gim, '<hr />');
@@ -317,20 +542,6 @@ export function markdownToSafeHtmlWithHeadings(
     }
   );
 
-  // Tabelas em Markdown
-  text = text.replace(
-    /^\|(.+)\|\r?\n\|( *[-:]+[-| :]*)\|\r?\n((?:\|.*\|\r?\n?)*)/gim,
-    (match, headerRow, dividerRow, bodyRows) => {
-      const headers = headerRow.split('|').map((h: string) => h.trim()).filter((h: string) => h !== '');
-      const rows = bodyRows.trim().split('\n').map((row: string) =>
-        row.split('|').map(cell => cell.trim()).filter(cell => cell !== '')
-      );
-      const thead = `<thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join('')}</tr></thead>`;
-      const tbody = `<tbody>${rows.map((r: string[]) => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
-      return `<div class="overflow-x-auto my-6"><table>${thead}${tbody}</table></div>`;
-    }
-  );
-
   // Títulos de Markdown (h1-h6)
   text = text
     .replace(/^###### (.*$)/gim, '<h6>$1</h6>')
@@ -374,6 +585,9 @@ export function markdownToSafeHtmlWithHeadings(
   escapedChars.forEach((ch, i) => {
     html = html.split(`\u0000ESC${i}\u0000`).join(ch);
   });
+  tableBlocks.forEach((tableHtml, i) => {
+    html = html.split(`\u0000TABLE${i}\u0000`).join(tableHtml);
+  });
 
   const safeHtml = sanitizeHtml(html);
   // Some Hive posts contain an embedded player plus a separate “Watch on
@@ -381,6 +595,34 @@ export function markdownToSafeHtmlWithHeadings(
   // facade, so remove the CTA card after sanitization as a final dedupe pass.
   const template = document.createElement('template');
   template.innerHTML = safeHtml;
+  for (const node of template.content.querySelectorAll('[class], [id]')) {
+    const classes = [...node.classList].filter((name) =>
+      CONTENT_CLASSES.has(name) || (node.tagName === 'CODE' && /^language-[a-z0-9]+$/i.test(name))
+    );
+    if (classes.length) node.setAttribute('class', classes.join(' '));
+    else node.removeAttribute('class');
+
+    if (!/^H[1-6]$/.test(node.tagName) || !/^post-heading-\d+$/.test(node.id)) {
+      node.removeAttribute('id');
+    }
+  }
+  for (const image of template.content.querySelectorAll('img')) {
+    if (image.hasAttribute('src')) {
+      image.classList.add('rounded-2xl', 'max-h-[600px]', 'w-auto', 'max-w-full', 'my-4',
+        'mx-auto', 'block', 'shadow-xs', 'border', 'border-gray-100', 'dark:border-slate-800');
+    } else if (image.hasAttribute('data-blocked-src')) {
+      image.classList.add('nebulosa-blocked-image');
+    }
+  }
+  for (const placeholder of template.content.querySelectorAll('[data-video-placeholder]')) {
+    const facadeHtml = videoFacades.get(placeholder.getAttribute('data-video-placeholder') || '');
+    placeholder.removeAttribute('data-video-placeholder');
+    if (!facadeHtml || placeholder.tagName !== 'DIV') continue;
+    const facade = document.createElement('template');
+    facade.innerHTML = sanitizeMarkup(facadeHtml, true);
+    placeholder.replaceWith(facade.content);
+  }
+  compactCenteredImageSpacing(template.content);
   let found3SpeakPlayer = false;
   template.content.querySelectorAll<HTMLElement>('.nebulosa-lazy-video-facade[data-video-platform="3speak"]').forEach((facade) => {
     const label = (facade.textContent || '').normalize('NFKD').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
@@ -391,6 +633,7 @@ export function markdownToSafeHtmlWithHeadings(
     }
     found3SpeakPlayer = true;
   });
+  groupAdjacentImages(template.content);
   return { html: template.innerHTML, headings };
 }
 

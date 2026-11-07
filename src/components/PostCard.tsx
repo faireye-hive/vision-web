@@ -18,6 +18,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ArrowRight,
   BookOpen,
   Send,
   Image as ImageIcon
@@ -168,8 +169,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   }, [isComment, post.parent_author, post.parent_permlink, post.category]);
 
   const parentTopic = useMemo(() => {
-    if (!post.parent_permlink) return '';
-    const clean = String(post.parent_permlink)
+    const clean = String(post.parent_permlink || '')
       .replace(/[-_]/g, ' ')
       .replace(/^re\s+/i, '')
       .replace(/^[0-9a-f]{8,}\s+/i, '')
@@ -297,6 +297,28 @@ const PostCardComponent: React.FC<PostCardProps> = ({
       ? post.title
       : `Comment on: "${String(post.parent_permlink || 'discussion').replace(/[-_]/g, ' ')}"`)
     : post.title;
+
+  const openParentPost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!post.parent_author || !post.parent_permlink) return;
+    onSelectPost({
+      post_id: 0,
+      author: post.parent_author,
+      permlink: post.parent_permlink,
+      category: post.category || '',
+      title: parentTopic,
+      body: '',
+      json_metadata: {},
+      created: '',
+      depth: Math.max(0, (post.depth || 1) - 1),
+      children: 0,
+      net_rshares: 0,
+      is_paidout: false,
+      payout: 0,
+      pending_payout_value: '0.000 HBD',
+      author_reputation: 0
+    });
+  };
 
   // Format relative time like Nebulosa: 19m, 44m, 1h, 2d
   const formatTime = (dateString: string) => {
@@ -482,140 +504,49 @@ const PostCardComponent: React.FC<PostCardProps> = ({
       </div>
     )}
 
-    {/* Comment Activity Context Banner */}
+    {/* Compact parent context; the card header below already identifies this comment's author. */}
     {isComment && (
       <div
         id={`${uid}-comment-banner`}
-        className="discover_post_comment_banner flex items-center gap-2 mb-2 px-3 py-1.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-sm sm:text-xs text-blue-900 dark:text-blue-300 w-full overflow-hidden"
+        className="discover_post_comment_banner mb-2 flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300"
       >
-        <MessageSquare
-          id={`${uid}-comment-banner-icon`}
-          className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0 self-start mt-0.5"
-        />
-
-        {/* MOBILE VIEW: Do not duplicate post author name. Show what is being commented on (up to 2 lines) or PeakD Snap / Ecency Wave info */}
-        <div id={`${uid}-comment-banner-content-mobile`} className="discover_post_comment_banner_mobile flex-1 min-w-0 sm:hidden">
-          {isPeakSnap ? (
-            <div className="flex items-center justify-between gap-2">
-              <div className="truncate text-sm text-amber-900 dark:text-amber-200 font-medium">
-                {post.parent_author?.toLowerCase() === 'peak.snaps' ? (
-                  <span className="font-bold text-amber-950 dark:text-amber-100">PeakD Snap (Microblog)</span>
-                ) : (
-                  <span>
-                    Snap reply to{' '}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (post.parent_author) onSelectAuthor(post.parent_author);
-                      }}
-                      className="font-bold underline cursor-pointer text-amber-950 dark:text-amber-100"
-                    >
-                      @{post.parent_author}
-                    </button>
-                  </span>
-                )}
-              </div>
-              <span
-                id={`${uid}-comment-banner-badge-snap`}
-                className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 flex-shrink-0"
+        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1">
+          <span className="font-medium text-slate-500 dark:text-slate-400">
+            {isPeakSnap ? 'Snap reply' : isEcencyWave ? 'Wave reply' : 'Replying to'}
+          </span>
+          {post.parent_author && !['peak.snaps', 'ecency.waves', 'ecency.stats'].includes(post.parent_author.toLowerCase()) && (
+            <>
+              <span className="mx-1 text-slate-400">·</span>
+              <button
+                id={`${uid}-comment-banner-parent-author-btn`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectAuthor(post.parent_author!);
+                }}
+                className="font-semibold text-slate-700 hover:text-blue-700 hover:underline dark:text-slate-200 dark:hover:text-blue-300"
               >
-                Snap
-              </span>
-            </div>
-          ) : isEcencyWave ? (
-            <div className="flex items-center justify-between gap-2">
-              <div className="truncate text-sm text-cyan-900 dark:text-cyan-200 font-medium">
-                {post.parent_author?.toLowerCase() === 'ecency.waves' || post.parent_author?.toLowerCase() === 'ecency.stats' ? (
-                  <span className="font-bold text-cyan-950 dark:text-cyan-100">Ecency Wave (Microblog)</span>
-                ) : (
-                  <span>
-                    Wave reply to{' '}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (post.parent_author) onSelectAuthor(post.parent_author);
-                      }}
-                      className="font-bold underline cursor-pointer text-cyan-950 dark:text-cyan-100"
-                    >
-                      @{post.parent_author}
-                    </button>
-                  </span>
-                )}
-              </div>
-              <span
-                id={`${uid}-comment-banner-badge-wave`}
-                className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300 flex-shrink-0"
+                @{post.parent_author}
+              </button>
+            </>
+          )}
+          {parentTopic && post.parent_author && post.parent_permlink && (
+            <>
+              <span className="mx-1 text-slate-400">·</span>
+              <button
+                id={`${uid}-comment-banner-parent-title-btn`}
+                type="button"
+                onClick={openParentPost}
+                className="group/parent-title inline-flex min-w-0 max-w-[45%] items-center gap-1 rounded-md px-1.5 py-0.5 -mx-1 font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-px hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-700/70 dark:hover:text-white dark:focus-visible:ring-slate-600"
+                title={`Open parent: ${parentTopic}`}
               >
-                Wave
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-start justify-between gap-2">
-              <div className="line-clamp-2 text-sm sm:text-xs text-blue-900 dark:text-blue-200 leading-snug">
-                <span className="text-blue-700 dark:text-blue-400 font-medium">Replying to </span>
-                {post.parent_author && (
-                  <button
-                    id={`${uid}-comment-banner-parent-author-btn-mobile`}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectAuthor(post.parent_author!);
-                    }}
-                    className="font-bold text-blue-950 dark:text-blue-100 hover:underline cursor-pointer"
-                  >
-                    @{post.parent_author}
-                  </button>
-                )}
-                {parentTopic && (
-                  <span id={`${uid}-comment-banner-parent-topic-mobile`} className="text-blue-800 dark:text-blue-300 font-medium">
-                    : <span className="italic">"{parentTopic}"</span>
-                  </span>
-                )}
-              </div>
-              <span
-                id={`${uid}-comment-banner-badge-mobile`}
-                className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex-shrink-0 self-start mt-0.5"
-              >
-                Comment
-              </span>
-            </div>
+                <span className="truncate">{parentTopic}</span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-slate-400 opacity-60 transition-all duration-200 group-hover/parent-title:translate-x-0.5 group-hover/parent-title:text-slate-600 group-hover/parent-title:opacity-100 dark:group-hover/parent-title:text-slate-200" />
+              </button>
+            </>
           )}
         </div>
-
-        {/* DESKTOP VIEW: Preserved exactly as before */}
-        <div id={`${uid}-comment-banner-content`} className="discover_post_comment_banner_desktop truncate flex-1 min-w-0 hidden sm:block">
-          <span id={`${uid}-comment-banner-author`} className="font-semibold text-blue-950 dark:text-blue-200">@{post.author}</span>
-          <span id={`${uid}-comment-banner-label`} className="text-blue-700 dark:text-blue-400 ml-1">commented on</span>
-          {post.parent_author && (
-            <button
-              id={`${uid}-comment-banner-parent-author-btn`}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectAuthor(post.parent_author!);
-              }}
-              className="font-semibold text-blue-900 dark:text-blue-300 hover:text-blue-950 dark:hover:text-blue-200 hover:underline mx-1 cursor-pointer truncate"
-            >
-              @{post.parent_author}
-            </button>
-          )}
-          {post.parent_permlink && (
-            <span
-              id={`${uid}-comment-banner-parent-permlink`}
-              className="text-blue-700/80 dark:text-blue-400/80 text-[11px] truncate hidden sm:inline"
-            >
-              • <span id={`${uid}-comment-banner-parent-permlink-text`} className="italic font-normal">"{String(post.parent_permlink).replace(/[-_]/g, ' ')}"</span>
-            </span>
-          )}
-        </div>
-        <span
-          id={`${uid}-comment-banner-badge`}
-          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 flex-shrink-0 hidden sm:inline-block"
-        >
-          Comment
-        </span>
       </div>
     )}
 
@@ -750,23 +681,23 @@ const PostCardComponent: React.FC<PostCardProps> = ({
           </button>
         </div>
 
-        {/* Título e Snippet: For comments on mobile, hide redundant title and show multiple lines for the comment/snap/wave */}
+        {/* Replies are identified by their author and parent context; show the reply body, not its repeated RE: title. */}
         <div id={`${uid}-body`} className="discover_post_body flex-1 pt-1.5 sm:pt-2">
-          <h2
-            id={`${uid}-title`}
-            className={`discover_post_title text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug ${
-              isComment ? 'hidden sm:block' : 'block'
-            }`}
-            style={{
-              display: isComment ? undefined : '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {displayTitle}
-          </h2>
+          {!isComment && (
+            <h2
+              id={`${uid}-title`}
+              className="discover_post_title text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {displayTitle}
+            </h2>
+          )}
           <p
             id={`${uid}-snippet`}
             className={`discover_post_snippet leading-relaxed ${

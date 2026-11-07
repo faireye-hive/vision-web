@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sun, Moon, Palette, X, Check, UploadCloud, User, Image, Globe, MapPin, FileText, Save } from 'lucide-react';
 import { getInitialTheme, applyTheme, ThemeMode } from '../../../utils/theme';
 import { PROFILE_THEMES, ProfileTheme } from '../themes';
@@ -37,6 +37,8 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
   saveMessage
 }) => {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getInitialTheme());
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [activeTab, setActiveTab] = useState<'themes' | 'profile'>('themes');
   
   const [profileForm, setProfileForm] = useState<ProfileMetadataForm>({
@@ -59,7 +61,21 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
         location: initialProfile.location || ''
       });
     }
-  }, [initialProfile]);
+  }, [initialProfile?.name, initialProfile?.about, initialProfile?.profile_image,
+    initialProfile?.cover_image, initialProfile?.website, initialProfile?.location]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCurrentTheme(getInitialTheme());
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [isOpen]);
 
   const handleToggleTheme = () => {
     const next: ThemeMode = currentTheme === 'dark' ? 'light' : 'dark';
@@ -89,10 +105,23 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-[100] overflow-hidden flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
+      className="fixed inset-0 z-[120] overflow-hidden flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-studio-title"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+          if (event.key !== 'Tab') return;
+          const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]') || []);
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }}
         className="w-full max-w-lg bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 h-full flex flex-col shadow-2xl text-gray-900 dark:text-slate-100 animate-in slide-in-from-right duration-300 ease-out"
         onClick={(e) => e.stopPropagation()}
       >
@@ -106,8 +135,8 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
               <Palette className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">Profile Studio</h2>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Customize & Blockchain</p>
+              <h2 id="profile-studio-title" className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Profile Studio</h2>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Your profile, your style</p>
             </div>
           </div>
 
@@ -127,6 +156,8 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
 
             <button
               type="button"
+              ref={closeRef}
+              aria-label="Close profile studio"
               onClick={onClose}
               className="p-2 rounded-2xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
@@ -172,56 +203,39 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
                   Choose Your Identity
                 </h3>
                 <p className="text-xs font-medium text-gray-500 dark:text-slate-400">
-                  Select a theme. Your choice is instantly cached and can be broadcast to the Hive blockchain.
+                  Preview a template on your profile, then save a local draft or publish when you are ready.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-3" aria-label="Profile templates">
                 {PROFILE_THEMES.map((theme) => {
                   const isSelected = style.themeId === theme.id;
+                  const colors = currentTheme === 'dark' ? theme.dark : theme.light;
+                  const editorial = ['author-essayist', 'journalist-news'].includes(theme.id);
+                  const gallery = ['artist-showcase', 'photographer-folio', 'anime-gaming-fan'].includes(theme.id);
                   return (
-                    <div
+                    <button
                       key={theme.id}
-                      className={`group relative p-5 rounded-[24px] border-2 transition-all duration-300 cursor-pointer ${
-                        isSelected
-                          ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-500/5 shadow-xl shadow-blue-500/10 scale-[1.01]'
-                          : 'border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 bg-white dark:bg-slate-900/50'
-                      }`}
+                      type="button"
+                      aria-pressed={isSelected}
                       onClick={() => applyThemeToProfile(theme)}
+                      className={`group min-w-0 overflow-hidden rounded-2xl border text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${isSelected ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/40 dark:bg-blue-950/30' : 'border-slate-200 bg-white hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500'}`}
                     >
-                      {isSelected && (
-                        <div className="absolute top-4 right-4 animate-in zoom-in duration-200">
-                          <div className="bg-blue-500 text-white rounded-full p-1.5 shadow-lg shadow-blue-500/40">
-                            <Check className="w-3 h-3 stroke-[3]" />
-                          </div>
+                      {/* Lightweight illustrations of each template's structure. */}
+                      <div aria-hidden="true" className="relative h-24 overflow-hidden border-b border-inherit p-3" style={{ backgroundColor: colors.backgroundColor || '#f8fafc' }}>
+                        <div className={`h-6 ${editorial ? 'border-y-2' : 'rounded-md'}`} style={{ backgroundColor: editorial ? 'transparent' : theme.previewColor, borderColor: theme.previewColor, opacity: 0.75 }} />
+                        <div className="relative -mt-2 ml-2 h-5 w-5 rounded-full border-2" style={{ borderColor: colors.cardBackgroundColor || '#fff', backgroundColor: theme.previewColor }} />
+                        <div className={`mt-2 grid gap-1.5 ${gallery ? 'grid-cols-3' : 'grid-cols-[1fr_2fr]'}`}>
+                          {[0, 1, ...(gallery ? [2] : [])].map(i => <div key={i} className="h-7 rounded p-1.5" style={{ backgroundColor: colors.cardBackgroundColor || '#fff' }}><div className="h-1 w-3/4 rounded opacity-40" style={{ backgroundColor: colors.textColor || '#334155' }} /><div className="mt-1 h-1 w-1/2 rounded opacity-20" style={{ backgroundColor: colors.textColor || '#334155' }} /></div>)}
                         </div>
-                      )}
-
-                      <div className="flex items-start gap-4">
-                        <div
-                          className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl shadow-xl shrink-0"
-                          style={{ 
-                            backgroundColor: theme.previewColor,
-                            boxShadow: `0 8px 20px -4px ${theme.previewColor}44`
-                          }}
-                        >
-                          {theme.badge.split(' ')[0] || '✨'}
-                        </div>
-                        <div className="flex-1 pt-0.5">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-md">
-                              {theme.badge.split(' ').slice(1).join(' ') || 'Theme'}
-                            </span>
-                          </div>
-                          <h4 className="text-base font-black text-gray-900 dark:text-white tracking-tight leading-none mb-1">
-                            {theme.name}
-                          </h4>
-                          <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                            {theme.description}
-                          </p>
-                        </div>
+                        {isSelected && <span className="absolute right-2 top-2 rounded-full bg-blue-600 p-1 text-white"><Check className="h-3 w-3" /></span>}
                       </div>
-                    </div>
+                      <div className="p-3">
+                        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{isSelected ? 'Selected' : theme.badge.split(' ').slice(1).join(' ') || 'Template'}</span>
+                        <span className="block text-sm font-bold leading-snug text-slate-900 dark:text-white">{theme.name.replace(' (Default)', '')}</span>
+                        <span className="mt-1.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">{theme.description}</span>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
@@ -340,7 +354,7 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
                 className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-200 py-3.5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
                 <Save className="w-4 h-4" />
-                <span>Save to Cache</span>
+                <span>Save draft</span>
               </button>
             )}
 
@@ -365,7 +379,7 @@ export const ProfileCustomizerDrawer: React.FC<ProfileCustomizerDrawerProps> = (
           </div>
 
           <p className="text-[10px] text-gray-400 dark:text-slate-500 text-center font-bold">
-            Drafts stay in local cache immediately; publishing broadcasts on-chain via Hive Keychain.
+            Save draft keeps your theme on this device. Publish updates your public Hive profile.
           </p>
           
           {saveMessage && (

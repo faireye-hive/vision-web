@@ -182,6 +182,14 @@ export function extract3SpeakThumbnailFromHive(jsonMetadata: any, body?: string)
   return null;
 }
 
+function decodeUrlPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 /**
  * Extract filename / basename of an image across arbitrary CDNs (e.g. 1791673300329-dd90449b9e5cf932.webp)
  */
@@ -192,13 +200,13 @@ export function extractImageBasename(url: string): string {
   // If wsrv.nl proxy, unwrap
   if (clean.includes('wsrv.nl/?url=') || clean.includes('wsrv.nl?url=')) {
     const match = clean.match(/[?&]url=([^&]+)/);
-    if (match && match[1]) clean = decodeURIComponent(match[1]);
+    if (match && match[1]) clean = decodeUrlPart(match[1]);
   }
 
   // If hive proxy /0x0/ or /640x360/ or /p/, unwrap if followed by http
   const httpMatch = clean.match(/https?:\/\/[^/]+\/(?:0x0|640x360|1280x720|p)\/(https?:\/\/.+)/i);
   if (httpMatch && httpMatch[1]) {
-    clean = decodeURIComponent(httpMatch[1]);
+    clean = decodeUrlPart(httpMatch[1]);
   }
 
   // Strip query string and hash
@@ -208,7 +216,7 @@ export function extractImageBasename(url: string): string {
   const parts = clean.split('/');
   const lastSegment = parts[parts.length - 1] || '';
 
-  return decodeURIComponent(lastSegment).toLowerCase();
+  return decodeUrlPart(lastSegment).toLowerCase();
 }
 
 /**
@@ -260,7 +268,7 @@ function normalizeImageUrl(url: string): string {
   // Strip wsrv.nl proxy
   if (s.includes('wsrv.nl/?url=') || s.includes('wsrv.nl?url=')) {
     const match = s.match(/[?&]url=([^&]+)/);
-    if (match && match[1]) s = decodeURIComponent(match[1]);
+    if (match && match[1]) s = decodeUrlPart(match[1]);
   }
 
   // Strip hive image proxies
@@ -345,16 +353,24 @@ export function is3SpeakThumbnail(
 }
 
 // Regex patterns for detecting video URLs
-const YOUTUBE_URL_REGEX = /(?:https?:)?\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i;
-const THREESPEAK_URL_REGEX = /(?:https?:)?\/\/(?:play\.)?3speak\.(?:tv|online)\/(?:embed\?v=|watch\?v=|shorts\?v=|embed\/|watch\/|shorts\/)([a-z0-9.-]+\/[a-z0-9_-]+)/i;
-const BITCHUTE_URL_REGEX = /(?:https?:)?\/\/(?:www\.)?bitchute\.com\/(?:video|embed)\/([a-zA-Z0-9_-]+)/i;
+const YOUTUBE_URL_REGEX = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?=[/?&#]|$)/i;
+const THREESPEAK_URL_REGEX = /^https?:\/\/(?:play\.)?3speak\.(?:tv|online)\/(?:embed\?v=|watch\?v=|shorts\?v=|embed\/|watch\/|shorts\/)([a-z0-9.-]+\/[a-z0-9_-]+)/i;
+const BITCHUTE_URL_REGEX = /^https?:\/\/(?:www\.)?bitchute\.com\/(?:video|embed)\/([a-zA-Z0-9_-]+)/i;
 
 /**
  * Detect if a URL is a supported video URL and parse its metadata
  */
 export function parseVideoUrl(url: string, jsonMetadata?: any): VideoInfo | null {
   if (!url || typeof url !== 'string') return null;
-  const clean = url.trim();
+  const input = url.trim();
+  let destination: URL;
+  try {
+    destination = new URL(input.startsWith('//') ? `https:${input}` : input);
+  } catch {
+    return null;
+  }
+  if (!['https:', 'http:'].includes(destination.protocol) || destination.username || destination.password || destination.port) return null;
+  const clean = `${destination.origin}${destination.pathname}${destination.search}`;
 
   // 1. YouTube
   const ytMatch = clean.match(YOUTUBE_URL_REGEX);
@@ -452,9 +468,7 @@ export function buildVideoFacadeHtml(info: VideoInfo): string {
   <div
     class="nebulosa-lazy-video-facade group relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-md cursor-pointer select-none transition-shadow duration-200"
     data-video-platform="${info.platform}"
-    data-video-id="${info.id}"
-    data-video-embed="${encodeURIComponent(info.embedUrl)}"
-    data-original-url="${encodeURIComponent(info.originalUrl)}"
+    data-video-id="${escapeHtml(info.id)}"
     tabindex="0"
     role="button"
     aria-label="Play ${platformName} video"
@@ -496,7 +510,8 @@ export function transformVideoEmbedsInMarkdown(
   options?: {
     threeSpeakThumbnails?: Record<string, string>;
     jsonMetadata?: any;
-  }
+  },
+  renderFacade: (info: VideoInfo) => string = buildVideoFacadeHtml
 ): string {
   if (!markdown || typeof markdown !== 'string') return '';
 
@@ -514,7 +529,7 @@ export function transformVideoEmbedsInMarkdown(
     if (info.platform === '3speak' && rendered3SpeakVideo && titleKey.startsWith('watch on')) return '';
     renderedVideos.add(key);
     if (info.platform === '3speak') rendered3SpeakVideo = true;
-    return buildVideoFacadeHtml(info);
+    return renderFacade(info);
   };
 
   // Seed options with thumbnail from Hive jsonMetadata if available
@@ -671,37 +686,19 @@ export function transformVideoEmbedsInMarkdown(
 export function activateLazyVideoFacade(facade: HTMLElement) {
   if (facade.querySelector('iframe') || facade.querySelector('video')) return;
 
-  const platform = (facade.getAttribute('data-video-platform') as VideoPlatform) || 'youtube';
-  const embedUrlRaw = facade.getAttribute('data-video-embed');
-  const originalUrlRaw = facade.getAttribute('data-original-url');
+  const platform = facade.getAttribute('data-video-platform');
   const videoId = facade.getAttribute('data-video-id') || '';
 
-  let embedUrl = '';
-  if (embedUrlRaw) {
-    try {
-      embedUrl = decodeURIComponent(embedUrlRaw);
-    } catch {
-      embedUrl = embedUrlRaw;
-    }
-  }
-
-  let originalUrl = '';
-  if (originalUrlRaw) {
-    try {
-      originalUrl = decodeURIComponent(originalUrlRaw);
-    } catch {
-      originalUrl = originalUrlRaw;
-    }
-  }
-
-  if (!embedUrl) {
-    if (platform === 'youtube') {
-      embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
-    } else if (platform === '3speak') {
-      embedUrl = `https://play.3speak.tv/embed?v=${encodeURIComponent(videoId)}`;
-    } else if (platform === 'bitchute') {
-      embedUrl = `https://www.bitchute.com/embed/${videoId}/`;
-    }
+  // The DOM is not a source of trusted URLs. Build destinations from validated IDs.
+  let embedUrl: string;
+  if (platform === 'youtube' && /^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+  } else if (platform === 'bitchute' && /^[A-Za-z0-9_-]+$/.test(videoId)) {
+    embedUrl = `https://www.bitchute.com/embed/${videoId}/`;
+  } else if (platform === '3speak' && /^[a-z0-9.-]+\/[a-z0-9_-]+$/i.test(videoId)) {
+    embedUrl = `https://play.3speak.tv/embed?v=${encodeURIComponent(videoId)}`;
+  } else {
+    return;
   }
 
   // 1. Dedicated HLS video player for 3Speak (NO iframe, using videoUrl manifest .m3u8 and fallbacks)
@@ -842,7 +839,7 @@ export function activateLazyVideoFacade(facade: HTMLElement) {
                 <button type="button" class="retry-btn px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
                   Retry stream
                 </button>
-                <a href="${originalUrl || `https://3speak.tv/watch?v=${videoId}`}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer">
+                <a href="https://3speak.tv/watch?v=${encodeURIComponent(videoId)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer">
                   Open on 3Speak
                 </a>
               </div>
@@ -865,7 +862,7 @@ export function activateLazyVideoFacade(facade: HTMLElement) {
               <button type="button" class="retry-btn px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-sm cursor-pointer">
                 Retry
               </button>
-              <a href="${originalUrl || `https://3speak.tv/watch?v=${videoId}`}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer">
+              <a href="https://3speak.tv/watch?v=${encodeURIComponent(videoId)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer">
                 Open on 3Speak
               </a>
             </div>
@@ -891,9 +888,9 @@ export function activateLazyVideoFacade(facade: HTMLElement) {
     const iframe = document.createElement('iframe');
     iframe.src = srcUrl;
     iframe.className = 'w-full h-full border-0 rounded-2xl shadow-lg relative z-10';
-    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    iframe.allow = 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture';
     iframe.allowFullscreen = true;
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-presentation');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
     iframe.title = `${platform} video player`;
 
     iframe.onload = () => {
@@ -914,6 +911,7 @@ export function activateLazyVideoFacade(facade: HTMLElement) {
 if (typeof window !== 'undefined') {
   window.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
+    if (target?.closest?.('a, button')) return;
     const facade = target?.closest?.('.nebulosa-lazy-video-facade') as HTMLElement | null;
     if (!facade || facade.querySelector('iframe') || facade.querySelector('video')) return;
     e.preventDefault();
@@ -924,6 +922,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const target = e.target as HTMLElement;
+    if (target?.closest?.('a, button')) return;
     const facade = target?.closest?.('.nebulosa-lazy-video-facade') as HTMLElement | null;
     if (!facade || facade.querySelector('iframe') || facade.querySelector('video')) return;
     e.preventDefault();

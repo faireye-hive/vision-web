@@ -7,7 +7,6 @@ import {
   Heart,
   MessageSquare,
   Clock,
-  Calendar,
   Share2,
   ExternalLink,
   Check,
@@ -25,7 +24,6 @@ import {
   Loader2,
   CornerDownRight,
   UserPlus,
-  UserCheck,
   VolumeX,
   Quote,
   Plus,
@@ -38,11 +36,9 @@ import {
 import {
   HivePost,
   getDiscussion,
-  calculateReputation,
   getHiveAvatarUrl,
   getPost,
   getPostSnippet,
-  getAccount,
   getAccountPosts,
   getSimilarPosts,
   getPostThumbnail
@@ -61,6 +57,15 @@ import { useContentFilter } from '../context/ContentFilterContext';
 import { translateMarkdown, translateText, POPULAR_TRANSLATION_LANGUAGES } from '../services/translationService';
 import { PostTranslatorDropdown } from './PostTranslatorDropdown';
 import { ProfileReaderAppearance } from '../features/profile/profileStyleTypes';
+import { useNavigation } from '../context/NavigationContext';
+
+const TRUSTED_HIVE_LINK_HOSTS = ['peakd.com', 'ecency.com', 'hive.blog', '3speak.tv', '3speak.com', '3speak.online'];
+
+function isTrustedHiveLink(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  return url.protocol === 'https:' && !url.port && !url.username && !url.password &&
+    (TRUSTED_HIVE_LINK_HOSTS.some((domain) => host === domain || host === `www.${domain}`) || host === 'play.3speak.tv');
+}
 
 interface PostReaderProps {
   post: HivePost;
@@ -115,6 +120,13 @@ function formatPostDate(dateStr?: string): { relative: string; full: string } {
   }
 }
 
+function getCommentTimestamp(created?: string): number {
+  if (!created) return 0;
+  const normalized = created.endsWith('Z') ? created : `${created}Z`;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 /**
  * Extract all tags assigned to the post from category and json_metadata
  */
@@ -158,10 +170,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
   onSelectPost,
   profileAppearance
 }) => {
+  const { handleOpenNotificationPost, openAuthorProfile } = useNavigation();
   const [discussion, setDiscussion] = useState<Record<string, HivePost>>({});
   const [loadingDiscussion, setLoadingDiscussion] = useState(true);
   const [copied, setCopied] = useState(false);
   const [showVoters, setShowVoters] = useState(false);
+  const [pendingExternalLink, setPendingExternalLink] = useState<string | null>(null);
 
   // Floating back/top navigation & reading progress
   const [scrolledDown, setScrolledDown] = useState(false);
@@ -176,6 +190,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [newCommentBody, setNewCommentBody] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentSuccess, setCommentSuccess] = useState(false);
+  const [commentSort, setCommentSort] = useState<'newest' | 'oldest'>('newest');
+
+  useEffect(() => {
+    setCommentSort('newest');
+  }, [post.author, post.permlink]);
 
   const [showTipModal, setShowTipModal] = useState(false);
   const [tipAmount, setTipAmount] = useState('1.000');
@@ -185,8 +204,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [tipNotice, setTipNotice] = useState<string | null>(null);
 
   // Author cover background
-  const [authorCoverImage, setAuthorCoverImage] = useState<string | null>(null);
-  const [loadingCover, setLoadingCover] = useState(true);
 
   // Related Stories / Fallback to Author's Latest Posts
   const [relatedStories, setRelatedStories] = useState<HivePost[]>([]);
@@ -211,9 +228,70 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
+  const handleContentLink = useCallback((event: React.MouseEvent<HTMLDivElement>): boolean => {
+    if (!(event.target instanceof Element)) return false;
+    const anchor = event.target.closest<HTMLAnchorElement>('a[href]');
+    if (!anchor || !event.currentTarget.contains(anchor)) return false;
+
+    const href = anchor.getAttribute('href') || '';
+    const internalPost = href.match(/^\/post\/@([a-z0-9.-]+)\/([a-z0-9._-]+)\/?$/i);
+    const internalProfile = href.match(/^\/profile\/@?([a-z0-9.-]+)\/?$/i);
+    if (event.button === 0 && internalPost) {
+      event.preventDefault();
+      void handleOpenNotificationPost(internalPost[1], internalPost[2]);
+      return true;
+    }
+    if (event.button === 0 && internalProfile) {
+      event.preventDefault();
+      openAuthorProfile(internalProfile[1]);
+      return true;
+    }
+
+    let destination: URL;
+    try {
+      destination = new URL(href, window.location.href);
+    } catch {
+      event.preventDefault();
+      return true;
+    }
+
+    if (destination.protocol === 'mailto:') return true;
+    if (destination.protocol !== 'https:' && destination.protocol !== 'http:') {
+      event.preventDefault();
+      return true;
+    }
+    if (destination.origin === window.location.origin || isTrustedHiveLink(destination)) return true;
+
+    event.preventDefault();
+    event.stopPropagation();
+    setPendingExternalLink(destination.href);
+    return true;
+  }, [handleOpenNotificationPost, openAuthorProfile]);
+
+  const handleContentAuxClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button === 1) handleContentLink(event);
+  };
+
   // Handle image clicks inside article body to open the gallery
   const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    const thumbnailButton = target.closest('[data-gallery-select]') as HTMLButtonElement | null;
+    if (thumbnailButton && bodyContainerRef.current?.contains(thumbnailButton)) {
+      const gallery = thumbnailButton.closest('.nebulosa-image-gallery');
+      const track = gallery?.querySelector('.nebulosa-gallery-track');
+      const imageIndex = Number(thumbnailButton.dataset.gallerySelect);
+      const image = track?.querySelectorAll(':scope > img')[imageIndex];
+      if (image) {
+        (track as HTMLElement).scrollTo({ left: imageIndex * (track as HTMLElement).clientWidth, behavior: 'smooth' });
+        gallery?.querySelectorAll('[data-gallery-select]').forEach((button) => {
+          button.setAttribute('aria-pressed', String(button === thumbnailButton));
+        });
+      }
+      return;
+    }
+
+    if (handleContentLink(e)) return;
+
     // If target is inside a video player facade or video, let the video play without opening image lightbox
     if (target.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container, video, iframe')) {
       return;
@@ -222,12 +300,29 @@ export const PostReader: React.FC<PostReaderProps> = ({
       // If the image was hidden (duplicate video thumbnail), do not open lightbox
       if (target.style.display === 'none') return;
 
+      const imageTrack = target.closest('.nebulosa-gallery-track');
+      if (imageTrack) {
+        const imageIndex = Array.from(imageTrack.querySelectorAll(':scope > img')).indexOf(target);
+        imageTrack.closest('.nebulosa-image-gallery')?.querySelectorAll('[data-gallery-select]').forEach((button, index) => {
+          button.setAttribute('aria-pressed', String(index === imageIndex));
+        });
+      }
+
       const container = bodyContainerRef.current;
       if (!container) return;
+      // Gallery thumbnails are only navigation controls. Exclude their preview
+      // images so the lightbox contains each article image once, in document order.
+      const seenImageSources = new Set<string>();
       const allImgs = Array.from(container.querySelectorAll('img'))
-        .filter((img) => img.style.display !== 'none' && !img.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container'))
+        .filter((img) => img.style.display !== 'none'
+          && !img.closest('.nebulosa-gallery-thumbnails')
+          && !img.closest('.nebulosa-lazy-video-facade, .nebulosa-video-container'))
         .map((img) => img.src)
-        .filter((src) => src && !src.includes('avatar') && !src.startsWith('data:image/svg'));
+        .filter((src) => {
+          if (!src || src.includes('avatar') || src.startsWith('data:image/svg') || seenImageSources.has(src)) return false;
+          seenImageSources.add(src);
+          return true;
+        });
 
       const clickedSrc = target.src;
       const idx = allImgs.indexOf(clickedSrc);
@@ -236,6 +331,26 @@ export const PostReader: React.FC<PostReaderProps> = ({
         setGalleryIndex(idx !== -1 ? idx : 0);
       }
     }
+  }, [handleContentLink]);
+
+  useEffect(() => {
+    const container = bodyContainerRef.current;
+    if (!container) return;
+
+    const syncGalleryThumbnail = (event: Event) => {
+      const track = event.target;
+      if (!(track instanceof HTMLElement) || !track.matches('.nebulosa-gallery-track')) return;
+      const gallery = track.closest('.nebulosa-image-gallery');
+      const imageCount = track.querySelectorAll(':scope > img').length;
+      if (!gallery || imageCount < 2 || track.clientWidth === 0) return;
+      const activeIndex = Math.min(imageCount - 1, Math.round(track.scrollLeft / track.clientWidth));
+      gallery.querySelectorAll('[data-gallery-select]').forEach((button, index) => {
+        button.setAttribute('aria-pressed', String(index === activeIndex));
+      });
+    };
+
+    container.addEventListener('scroll', syncGalleryThumbnail, true);
+    return () => container.removeEventListener('scroll', syncGalleryThumbnail, true);
   }, []);
 
   // Keyboard navigation for image gallery
@@ -286,43 +401,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
   }, [galleryIndex, galleryImages.length]);
-
-  // Fetch author profile background cover image
-  useEffect(() => {
-    let active = true;
-    setLoadingCover(true);
-    getAccount(post.author)
-      .then((acc) => {
-        if (!active || !acc) {
-          if (active) setLoadingCover(false);
-          return;
-        }
-        let cover = '';
-        if (acc.posting_json_metadata) {
-          try {
-            const parsed = JSON.parse(acc.posting_json_metadata);
-            cover = parsed?.profile?.cover_image || '';
-          } catch {}
-        }
-        if (!cover && acc.json_metadata) {
-          try {
-            const parsed = JSON.parse(acc.json_metadata);
-            cover = parsed?.profile?.cover_image || '';
-          } catch {}
-        }
-        if (active) {
-          setAuthorCoverImage(cover || null);
-          if (!cover) setLoadingCover(false);
-        }
-      })
-      .catch(() => {
-        if (active) setLoadingCover(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [post.author]);
 
   // Fetch similar stories with fallback to author's recent posts (sort: 'posts', NOT 'blog'!)
   useEffect(() => {
@@ -490,12 +568,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCloseRef.current();
+        if (pendingExternalLink) setPendingExternalLink(null);
+        else onCloseRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [pendingExternalLink]);
 
   // Full post resolution (guarantees complete body if opened from truncated sources like Similar Stories)
   const [fullPost, setFullPost] = useState<HivePost | null>(null);
@@ -769,13 +848,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
   }, [isComment, post.parent_author, post.parent_permlink, post.category]);
 
   const isMicroblog = isPeakSnap || isEcencyWave;
+  const isContainerParent = ['peak.snaps', 'ecency.waves', 'ecency.stats'].includes(
+    (post.parent_author || '').toLowerCase()
+  );
 
   const [parentPost, setParentPost] = useState<HivePost | null>(null);
   const [loadingParent, setLoadingParent] = useState<boolean>(false);
 
-  // Fetch parent post/comment context if this is a comment
+  // Load the actual parent comment when it belongs to a person. Container
+  // accounts are metadata roots; showing their body would obscure the reply.
   useEffect(() => {
-    if (isComment && post.parent_author && post.parent_permlink) {
+    if (isComment && !isContainerParent && post.parent_author && post.parent_permlink) {
       let isMounted = true;
       setLoadingParent(true);
       getPost(post.parent_author, post.parent_permlink)
@@ -795,7 +878,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       setParentPost(null);
       setLoadingParent(false);
     }
-  }, [isComment, post.parent_author, post.parent_permlink]);
+  }, [isComment, isContainerParent, post.parent_author, post.parent_permlink]);
 
   const { isFollowing, setFollowingUsersList } = useAuth();
   const { config: contentFilterConfig, addFilterAuthor, removeFilterAuthor } = useContentFilter();
@@ -845,7 +928,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
   };
 
   // State for expanding long parent comments in quote container
-  const [expandedParentComment, setExpandedParentComment] = useState(false);
 
   // Keychain Reblog state and handler
   const [isReblogging, setIsReblogging] = useState(false);
@@ -926,7 +1008,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   };
 
-  const rep = calculateReputation(post.author_reputation);
   const avatarUrl = getHiveAvatarUrl(post.author, 'medium');
   const postDate = formatPostDate(post.created);
   const postTags = extractPostTags(post);
@@ -1025,7 +1106,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   };
 
-  const getComments = (): HivePost[] => {
+  const comments = useMemo((): HivePost[] => {
     const key = `${post.author}/${post.permlink}`;
     const root = discussion[key] || post;
     let list: HivePost[] = [];
@@ -1040,9 +1121,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
     const mutedSet = new Set((contentFilterConfig.authors || []).map(a => a.toLowerCase().trim()));
     return list.filter(p => !mutedSet.has(p.author.toLowerCase().trim()));
-  };
+  }, [discussion, post, contentFilterConfig.authors]);
 
-  const comments = getComments();
+  const sortedComments = useMemo(() => [...comments].sort((a, b) => {
+    const difference = getCommentTimestamp(a.created) - getCommentTimestamp(b.created);
+    return commentSort === 'newest' ? -difference : difference;
+  }), [comments, commentSort]);
   const totalCommentsCount = useMemo(() => {
     const key = `${post.author}/${post.permlink}`;
     const discussionComments = Object.keys(discussion).filter(k => k !== key).length;
@@ -1072,412 +1156,24 @@ export const PostReader: React.FC<PostReaderProps> = ({
         }}
       />
 
-      {/* ================= FORUM QUOTE CONTAINER FOR REPLIED-TO COMMENT (MOBILE: PLACED ON TOP BEFORE USER PHOTO & COMMENT) ================= */}
-      {isComment && !isMicroblog && (
-        <div className="sm:hidden px-2.5 pt-2.5 pb-1 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800/80">
-          <div
-            onClick={() => {
-              if (parentPost && onSelectPost) {
-                onSelectPost(parentPost);
-              }
-            }}
-            className="rounded-2xl bg-gradient-to-b from-blue-50/90 via-indigo-50/40 to-blue-50/30 dark:from-slate-800/90 dark:via-slate-850 dark:to-slate-900 border border-blue-200/80 dark:border-blue-900/50 p-3 shadow-2xs hover:shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer group active:scale-[0.99] space-y-2"
-            title="Tap anywhere to open parent discussion"
-          >
-            {/* Reblog-style highlighted Reply banner with parent avatar */}
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-blue-100/80 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-950 dark:text-blue-200 w-full overflow-hidden shadow-2xs">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <img
-                  src={getHiveAvatarUrl(post.parent_author || '', 'small')}
-                  alt={post.parent_author || ''}
-                  className="w-5 h-5 rounded-full object-cover ring-1 ring-blue-400/60 bg-gray-100 dark:bg-slate-700 flex-shrink-0 shadow-2xs"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                  }}
-                />
-                <div className="truncate flex items-center gap-1 min-w-0">
-                  <span className="text-blue-700 dark:text-blue-400 font-medium">Replying to</span>
-                  <span className="font-bold text-blue-950 dark:text-blue-100 truncate">@{post.parent_author}</span>
-                  {parentPost?.created && (
-                    <span className="text-blue-600/70 dark:text-blue-400/70 text-[11px] truncate">
-                      • {formatPostDate(parentPost.created).relative}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-200/90 dark:bg-blue-900/80 text-blue-900 dark:text-blue-100 flex-shrink-0 shadow-2xs">
-                Reply
-              </span>
-            </div>
-
-            {/* Inner box with distinct border showing the replied-to comment text */}
-            <div className="bg-white/95 dark:bg-slate-900/90 rounded-xl p-3 border border-blue-150/90 dark:border-slate-800 shadow-2xs space-y-1.5">
-              {parentPost?.title && !parentPost.title.startsWith('Re: ') && (
-                <div className="font-bold text-xs text-gray-900 dark:text-slate-100 line-clamp-1 pb-1 border-b border-gray-100 dark:border-slate-800/80">
-                  {parentPost.title}
-                </div>
-              )}
-
-              {parentPost ? (
-                <div className="text-xs sm:text-sm text-gray-800 dark:text-slate-200 leading-relaxed">
-                  <p className={expandedParentComment ? '' : 'line-clamp-4'}>
-                    {getPostSnippet(parentPost.body, expandedParentComment ? 3000 : 320)}
-                  </p>
-                  {(parentPost.body?.length || 0) > 320 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedParentComment(!expandedParentComment);
-                      }}
-                      className="inline-flex items-center gap-1 mt-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer"
-                    >
-                      <span>{expandedParentComment ? 'Show Less' : 'More...'}</span>
-                    </button>
-                  )}
-                </div>
-              ) : loadingParent ? (
-                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 animate-pulse py-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Loading replied comment from Hive...</span>
-                </div>
-              ) : post.parent_permlink ? (
-                <p className="text-xs text-gray-500 dark:text-slate-400 italic">
-                  Replying to discussion thread: "{String(post.parent_permlink).replace(/[-_]/g, ' ')}"
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= UNIFIED TOP BREADCRUMB & AUTHOR HEADER BAR ================= */}
-      <div className={`flex items-center justify-between px-2.5 sm:px-6 py-2 sm:py-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky z-20 border-b border-gray-100 dark:border-slate-800 gap-2 sm:gap-3 ${profileAppearance ? 'top-0' : 'top-0 md:top-16'}`}>
-
-        {/* Left: Back button (desktop only) + Author details */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <button
-            id="back-to-feed-btn"
-            onClick={onClose}
-            className={`hidden sm:flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-full font-bold text-xs transition shadow-2xs cursor-pointer flex-shrink-0 ${profileAppearance ? 'hover:opacity-80' : 'bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400'}`}
-            style={profileAppearance?.accentColor ? { backgroundColor: `${profileAppearance.accentColor}18`, color: profileAppearance.accentColor } : undefined}
-            title={profileAppearance ? 'Back to Profile (Esc)' : 'Back to Feed (Esc)'}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
-
-          {/* Author avatar with mobile quick follow/following badge */}
-          <div className="relative inline-block flex-shrink-0">
-            <button
-              onClick={() => onSelectAuthor(post.author)}
-              className="focus:outline-none flex-shrink-0 group cursor-pointer block"
-              title={`View @${post.author} profile`}
-            >
-              <img
-                src={avatarUrl}
-                alt={post.author}
-                className="w-10 h-10 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-blue-500/20 group-hover:ring-blue-500 transition shadow-2xs bg-gray-100 dark:bg-slate-800"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
-                }}
-              />
-            </button>
-
-            {/* Mobile quick follow/following badge inside author photo */}
-            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleFollowAuthor(post.author);
-                }}
-                disabled={followLoading === post.author.toLowerCase()}
-                className={`sm:hidden absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center text-white ring-2 ring-white dark:ring-slate-900 shadow-xs transition-transform active:scale-90 cursor-pointer ${
-                  isFollowing(post.author)
-                    ? 'bg-blue-600 dark:bg-blue-500'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-                title={isFollowing(post.author) ? 'Following author (click to unfollow)' : 'Follow author'}
-                aria-label={isFollowing(post.author) ? 'Following author' : 'Follow author'}
-              >
-                {isFollowing(post.author) ? (
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                ) : (
-                  <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                )}
-              </button>
-            )}
-          </div>
-
-          {/* Author info & metadata */}
-          <div className="min-w-0 flex items-center gap-1.5 sm:gap-2 flex-wrap text-xs">
-            <button
-              onClick={() => onSelectAuthor(post.author)}
-              className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition truncate cursor-pointer text-xs sm:text-sm max-w-[110px] xs:max-w-[140px] sm:max-w-none"
-            >
-              @{post.author}
-            </button>
-            <span className="hidden sm:inline-flex text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-              {rep}
-            </span>
-
-            {/* Author Quick Follow (Desktop) & Mute (Desktop + Mobile) */}
-            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
-              <div className="flex items-center gap-1 ml-0.5">
-                {/* Desktop pill follow button */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleFollowAuthor(post.author)}
-                  disabled={followLoading === post.author.toLowerCase()}
-                  className={`hidden sm:inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold transition cursor-pointer disabled:opacity-50 ${
-                    isFollowing(post.author)
-                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs'
-                  }`}
-                  title={isFollowing(post.author) ? 'Click to unfollow' : 'Follow this author on Hive'}
-                >
-                  {isFollowing(post.author) ? (
-                    <>
-                      <Check className="w-3 h-3" />
-                      <span>Following</span>
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-3 h-3" />
-                      <span>Follow</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Mute button directly next to author info */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleMuteAuthor(post.author)}
-                  className={`p-1 rounded-full text-xs transition cursor-pointer ${
-                    contentFilterConfig.authors.includes(post.author.toLowerCase())
-                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
-                      : 'text-gray-400 hover:text-rose-600 hover:bg-gray-100 dark:hover:bg-slate-800'
-                  }`}
-                  title={
-                    contentFilterConfig.authors.includes(post.author.toLowerCase())
-                      ? 'Author is muted (Click to unmute)'
-                      : 'Mute this author (hide their posts & comments)'
-                  }
-                >
-                  <VolumeX className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Date / relative time when comment/post was made (shown on mobile & desktop) */}
-            <span className="text-gray-400 dark:text-slate-500 text-[11px] sm:text-xs flex items-center gap-1" title={postDate.full}>
-              <span className="text-gray-300 dark:text-slate-600">•</span>
-              <Clock className="w-3 h-3 text-gray-400 dark:text-slate-500 hidden sm:inline" />
-              <span>{postDate.relative}</span>
-            </span>
-
-            {/* Desktop only: Comment badge; hidden on mobile to save space */}
-            {isComment && (
-              <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                Comment
-              </span>
-            )}
-
-            {(post.community_title || post.community) && (
-              <>
-                <span className="text-gray-300 dark:text-slate-600 hidden md:inline">•</span>
-                <button
-                  onClick={() => {
-                    onSelectTag(post.community || post.category);
-                    onClose();
-                  }}
-                  className="hidden md:flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition truncate cursor-pointer text-xs"
-                  title="View Community"
-                >
-                  <Layers className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                  <span className="truncate">{post.community_title || post.community}</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Right Actions: Translator, Shortcut to Comments, Share, Ecency, Close */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Free Markdown-Preserving Translation Dropdown */}
-          <PostTranslatorDropdown
-            currentLanguage={activeTranslationLang}
-            isTranslating={isTranslating}
-            translationProgress={translationProgress}
-            onSelectLanguage={handleTranslatePost}
-            onResetOriginal={handleResetOriginalPost}
-          />
-
-          {/* Header Shortcut to Comments (hidden on mobile comments as requested) */}
-          <button
-            onClick={scrollToComments}
-            className={`${
-              isComment ? 'hidden sm:flex' : 'flex'
-            } items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 text-xs font-bold transition border border-blue-200/60 dark:border-blue-900/60 shadow-2xs cursor-pointer flex-shrink-0`}
-            title={`Jump directly to ${totalCommentsCount} comments`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>{totalCommentsCount}</span>
-            <span className="hidden lg:inline text-[11px] font-medium text-blue-600/80 dark:text-blue-400/80">Comments</span>
-          </button>
-
-          <button
-            onClick={handleCopyLink}
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex"
-            title="Copy Hive link"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="w-4 h-4" />}
-          </button>
-
-          <a
-            href={`https://ecency.com/@${post.author}/${post.permlink}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex"
-            title="View on Ecency.com"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition cursor-pointer flex-shrink-0"
-            title="Close post (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* ================= POST CONTENT AREA ================= */}
-      <div className="py-4 sm:py-6 space-y-5 w-full max-w-full px-2 sm:px-10">
+      <div className="w-full max-w-full space-y-4 px-2 py-4 sm:px-4 sm:py-5">
 
-        {/* ================= COMMENT PARENT CONTEXT BANNER (DESKTOP ONLY) ================= */}
-        {isComment && (
-          <div className="hidden sm:block p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-50/90 dark:from-blue-950/40 via-indigo-50/70 dark:via-indigo-950/30 to-blue-50/40 dark:to-slate-900 border border-blue-100/90 dark:border-blue-900/40 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                    <span className="text-[11px] font-bold uppercase tracking-wider bg-blue-100/80 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
-                      {parentPost?.depth && parentPost.depth > 0 ? 'Nested Comment Reply' : 'Comment on Root Post'}
-                    </span>
-                    <span className="text-gray-500 dark:text-slate-400">In response to</span>
-                    {post.parent_author && (
-                      <button
-                        type="button"
-                        onClick={() => onSelectAuthor(post.parent_author!)}
-                        className="font-bold text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline cursor-pointer"
-                      >
-                        @{post.parent_author}
-                      </button>
-                    )}
-                  </div>
-                  {parentPost && (
-                    <span className="text-[11px] text-gray-400 dark:text-slate-500">
-                      Original discussion published {formatPostDate(parentPost.created).relative}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Button to navigate to parent post */}
-              {parentPost && onSelectPost && (
-                <button
-                  type="button"
-                  onClick={() => onSelectPost(parentPost)}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 text-blue-700 dark:text-blue-300 hover:text-white dark:hover:text-white font-bold text-xs shadow-2xs border border-blue-200 dark:border-blue-800 hover:border-blue-600 transition cursor-pointer group/parent flex-shrink-0"
-                  title="Open and read the parent post or comment"
-                >
-                  <span>Open Parent {parentPost.depth && parentPost.depth > 0 ? 'Comment' : 'Post'}</span>
-                  <ArrowLeft className="w-3.5 h-3.5 rotate-180 group-hover/parent:translate-x-0.5 transition-transform" />
-                </button>
-              )}
-            </div>
-
-            {/* Parent Content Preview */}
-            {parentPost ? (
-              <div className="bg-white/95 dark:bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-blue-150/80 dark:border-blue-900/40 text-xs sm:text-sm text-gray-700 dark:text-slate-200 space-y-1.5">
-                {parentPost.title && !parentPost.title.startsWith('Re: ') && (
-                  <div className="font-bold text-gray-900 dark:text-white text-sm sm:text-base line-clamp-1">
-                    {parentPost.title}
-                  </div>
-                )}
-                <p className="line-clamp-3 text-gray-600 dark:text-slate-300 leading-relaxed italic text-xs sm:text-sm">
-                  "{getPostSnippet(parentPost.body, 250)}"
-                </p>
-              </div>
-            ) : loadingParent ? (
-              <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 animate-pulse py-1">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Fetching parent post context from Hive...</span>
-              </div>
-            ) : post.parent_permlink ? (
-              <div className="text-xs text-gray-500 dark:text-slate-400 italic bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                Replying to discussion thread: "{String(post.parent_permlink).replace(/[-_]/g, ' ')}"
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {/* Mobile Microblog Header (PeakD Snap / Ecency Wave) */}
-        {isComment && isMicroblog && (
-          <div className="sm:hidden flex items-center gap-2 mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-200 border border-cyan-200 dark:border-cyan-800">
-              {isPeakSnap ? 'PeakD Snap • Microblog' : 'Ecency Wave • Microblog'}
-            </span>
-          </div>
-        )}
-
-        {/* ================= HERO TITLE BANNER (HIDDEN ON MOBILE FOR COMMENTS) ================= */}
+        {/* ================= EDITORIAL TITLE PANEL ================= */}
         {(() => {
           const primaryTagOrCommunity =
             post.community_title || (post.community ? post.community : post.category) || 'blog';
+          const normalizedPrimary = primaryTagOrCommunity.toLowerCase().replace(/^#/, '');
+          const compactTags = postTags
+            .filter((tag) => tag !== normalizedPrimary && tag !== post.community?.toLowerCase() && tag !== post.category?.toLowerCase())
+            .slice(0, 4);
 
           return (
             <div
-              className={`relative rounded-xl sm:rounded-[22px] overflow-hidden ${
-                isComment ? 'hidden sm:flex' : 'flex'
-                } flex-col justify-start items-start gap-2.5 shadow-sm border border-blue-200/50 dark:border-blue-900/40 mb-6 bg-slate-900/10 dark:bg-slate-900/40 px-4 pb-5 pt-8 sm:px-6 sm:pb-6 sm:pt-9 min-h-[160px]`}
+              className="relative mb-1 flex flex-col items-start gap-2 border-b border-slate-200 pb-3 dark:border-slate-700"
+              style={{ borderColor: profileAppearance?.accentColor ? `${profileAppearance.accentColor}35` : undefined }}
             >
-              {/* Skeleton placeholder while cover image or data is loading to prevent layout shift */}
-              {loadingCover && (
-                <div className="absolute inset-0 bg-blue-100/60 dark:bg-blue-950/40 animate-pulse z-0" />
-              )}
-
-              {/* Cover Image Background (Luminous, Lightened & Softly Blurred) */}
-              {authorCoverImage ? (
-                <img
-                  src={authorCoverImage}
-                  alt=""
-                  onLoad={() => setLoadingCover(false)}
-                  className="absolute inset-0 w-full h-full object-cover filter brightness-[1.15] contrast-[1.02] blur-[3.5px] scale-110 transition-opacity duration-300"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                    setAuthorCoverImage(null);
-                    setLoadingCover(false);
-                  }}
-                />
-              ) : (
-                /* Elegant scenic gradient fallback in light luminous blue tones */
-                <div className="absolute inset-0 bg-gradient-to-r from-[#1e3a8a]/40 via-[#2563eb]/30 to-[#38bdf8]/40 filter blur-[4px] scale-110" />
-              )}
-
-              {/* Light luminous tint overlay: clear & bright, with a soft blue tone from the project */}
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-950/35 via-blue-900/15 to-transparent pointer-events-none" />
-              <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
-
-              {/* Single Main Tag/Community Pill Badge inside the banner (top-left, flex-shrink-0 so never hidden) */}
-              <div className="relative z-10 flex-shrink-0">
+              {!isComment && <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1486,33 +1182,226 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     else if (post.category) onSelectTag(post.category);
                     onClose();
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-semibold backdrop-blur-md border border-blue-300/30 shadow-xs transition-colors cursor-pointer flex-shrink-0"
+                  className="inline-flex min-h-6 max-w-[150px] items-center gap-1 rounded-md border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60"
+                  style={profileAppearance?.accentColor ? { borderColor: `${profileAppearance.accentColor}45`, color: profileAppearance.accentColor } : undefined}
                   title={`View #${primaryTagOrCommunity}`}
                 >
-                  <span className="text-[11px] opacity-90">✦</span>
-                  <span className="capitalize">{primaryTagOrCommunity}</span>
+                  <Hash className="h-3 w-3 shrink-0" />
+                  <span className="truncate capitalize">{primaryTagOrCommunity.replace(/^#/, '')}</span>
                 </button>
-              </div>
+                {compactTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => { onSelectTag(tag); onClose(); }}
+                    className="inline-flex min-h-6 max-w-[120px] items-center gap-1 rounded-md border border-slate-200 bg-slate-50/80 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:bg-slate-800"
+                    title={`View #${tag}`}
+                  >
+                    <Hash className="h-3 w-3 shrink-0 text-slate-400" />
+                    <span className="truncate">{tag}</span>
+                  </button>
+                ))}
+              </div>}
 
-              {/* Big, Clear Post Title: uppercase, glued right below tag, expanding downwards, full title without truncation */}
+              {/* Title case and a controlled measure make long headings easier to scan. */}
               <h1
-                className="relative z-10 font-black uppercase leading-tight sm:leading-snug tracking-tight text-white max-w-full break-words text-lg sm:text-2xl md:text-3xl"
+                className="m-0 w-full max-w-none break-words text-[1.75rem] font-bold leading-[1.14] tracking-[-0.035em] text-slate-950 dark:text-white sm:text-[2.25rem] sm:leading-tight"
                 title={translatedTitle || post.title}
-                style={{
-                  border: 'none',
-                  outline: 'none',
-                  textShadow:
-                    '0 1px 2px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.85), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
-                  WebkitTextStroke: '0.5px #000000'
-                }}
+                style={{ color: profileAppearance?.textColor || undefined }}
               >
-                {isComment && (!post.title || post.title.startsWith('Re:'))
-                  ? `Comment by @${post.author}`
-                  : (translatedTitle || post.title)}
+                {translatedTitle || post.title || `Reply by @${post.author}`}
               </h1>
             </div>
           );
         })()}
+
+        {/* Parent context: identify the comment being answered without repeating the root container. */}
+        {isComment && (
+          <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <div className="flex items-start gap-3">
+              <img
+                src={getHiveAvatarUrl(parentPost?.author || post.parent_author || '', 'small')}
+                alt=""
+                className="mt-0.5 h-9 w-9 shrink-0 rounded-full bg-white object-cover ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700"
+                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small'; }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">
+                    {isContainerParent ? 'Snap/Wave container' : 'Replying to'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onSelectAuthor(parentPost?.author || post.parent_author || '')}
+                    className="font-semibold text-slate-800 hover:text-blue-700 hover:underline dark:text-slate-100 dark:hover:text-blue-300"
+                  >
+                    @{parentPost?.author || post.parent_author}
+                  </button>
+                  {parentPost?.created && (
+                    <span className="text-slate-400 dark:text-slate-500">· {formatPostDate(parentPost.created).relative}</span>
+                  )}
+                </div>
+
+                {parentPost ? (
+                  <div className="mt-1.5 min-w-0">
+                    {parentPost.body && (
+                      <p className="mt-1 line-clamp-2 break-words text-sm leading-5 text-slate-600 dark:text-slate-300">
+                        {getPostSnippet(parentPost.body, 220)}
+                      </p>
+                    )}
+                  </div>
+                ) : loadingParent ? (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Loading parent comment…</span>
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+                    {isContainerParent ? 'Snap/Wave container reference' : 'Parent comment reference'}
+                  </p>
+                )}
+              </div>
+
+              {onSelectPost && post.parent_author && post.parent_permlink && (
+                <button
+                  type="button"
+                  onClick={() => onSelectPost(parentPost || {
+                    post_id: 0,
+                    author: post.parent_author!,
+                    permlink: post.parent_permlink!,
+                    category: post.category || '',
+                    title: '',
+                    body: '',
+                    json_metadata: {},
+                    created: '',
+                    depth: isContainerParent ? 0 : 1,
+                    children: 0,
+                    net_rshares: 0,
+                    is_paidout: false,
+                    payout: 0,
+                    pending_payout_value: '0.000 HBD',
+                    author_reputation: 0
+                  })}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700 dark:hover:text-blue-300"
+                  title="Open the comment this post replies to"
+                >
+                  <span className="hidden sm:inline">Open {parentPost?.depth ? 'comment' : isContainerParent ? 'container' : 'post'}</span>
+                  <span className="sm:hidden">Open</span>
+                  <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Author metadata follows the title, as in a conventional article layout. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2 pb-1">
+          <div className="relative shrink-0">
+            <button onClick={() => onSelectAuthor(post.author)} className="group block rounded-full" title={`View @${post.author} profile`}>
+              <img
+                src={avatarUrl}
+                alt={post.author}
+                className="h-8 w-8 rounded-full bg-slate-100 object-cover ring-1 ring-white shadow-sm transition group-hover:ring-blue-300 dark:bg-slate-800 dark:ring-slate-900"
+                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium'; }}
+              />
+            </button>
+            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleToggleFollowAuthor(post.author); }}
+                disabled={followLoading === post.author.toLowerCase()}
+                className={`absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white shadow-sm transition active:scale-90 disabled:opacity-50 dark:ring-slate-900 ${isFollowing(post.author) ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                title={isFollowing(post.author) ? 'Following author (click to unfollow)' : 'Follow author'}
+                aria-label={isFollowing(post.author) ? 'Following author' : 'Follow author'}
+              >
+                {isFollowing(post.author) ? <Check className="h-2.5 w-2.5 stroke-[3]" /> : <Plus className="h-2.5 w-2.5 stroke-[3]" />}
+              </button>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <button onClick={() => onSelectAuthor(post.author)} className="max-w-full truncate text-sm font-bold text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-300">
+                @{post.author}
+              </button>
+              {isComment && (
+                <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                  Comment
+                </span>
+              )}
+              {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => handleToggleMuteAuthor(post.author)}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition ${contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300' : 'text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-800'}`}
+                  title={contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'Unmute author' : 'Mute author'}
+                  aria-label={contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'Unmute author' : 'Mute author'}
+                >
+                  <VolumeX className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1" title={postDate.full}><Clock className="h-3 w-3" />{postDate.relative}</span>
+              {(post.community_title || post.community) && (
+                <button
+                  onClick={() => { onSelectTag(post.community || post.category); onClose(); }}
+                  className="inline-flex max-w-[130px] items-center gap-1 truncate font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                  title="View Community"
+                >
+                  <Layers className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{post.community_title || post.community}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <PostTranslatorDropdown
+              currentLanguage={activeTranslationLang}
+              isTranslating={isTranslating}
+              translationProgress={translationProgress}
+              onSelectLanguage={handleTranslatePost}
+              onResetOriginal={handleResetOriginalPost}
+            />
+            <button
+              onClick={scrollToComments}
+              className={`${isComment ? 'hidden sm:flex' : 'flex'} h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-blue-950/50 dark:hover:text-blue-300`}
+              title={`Jump directly to ${totalCommentsCount} comments`}
+              aria-label={`${totalCommentsCount} comments`}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>{totalCommentsCount}</span>
+            </button>
+            <a
+              href={`https://hiveblocks.com/${encodeURIComponent(post.category || 'hive')}/@${encodeURIComponent(post.author)}/${encodeURIComponent(post.permlink)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              title="View on HiveBlocks Explorer"
+              aria-label="View on HiveBlocks Explorer"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <button
+              onClick={handleCopyLink}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              title={copied ? 'Link copied' : 'Copy post link'}
+              aria-label={copied ? 'Link copied' : 'Copy post link'}
+            >
+              {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+              title="Close post (Esc)"
+              aria-label="Close post"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
 
         {/* Translation active notification banner */}
         {activeTranslationLang && (
@@ -1572,7 +1461,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
             id="sanitized-post-body"
             ref={bodyContainerRef}
             onClick={handleBodyClick}
-            className="article-body max-w-none text-gray-800 dark:text-slate-100 leading-relaxed break-words pt-2 text-base sm:text-lg select-text"
+            onAuxClick={handleContentAuxClick}
+            className="article-body w-full max-w-none break-words pt-0 text-[16px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-[17px] select-text"
           >
             {safeHtmlContent && safeHtmlContent.trim().length > 0 ? (
               <div dangerouslySetInnerHTML={{ __html: safeHtmlContent }} />
@@ -1609,32 +1499,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
             )}
           </div>
         )}
-
-
-        {/* Full Tags Section at bottom of post (HIDDEN ON COMMENTS) */}
-        {!isComment && postTags.length > 0 && (
-          <div className="pt-4 pb-2 border-t border-gray-100 dark:border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-              Topics & Tags
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {postTags.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    onSelectTag(t);
-                    onClose();
-                  }}
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-gray-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium border border-gray-200 dark:border-slate-700 transition cursor-pointer"
-                >
-                  <Hash className="w-3 h-3 text-gray-400 dark:text-slate-500" />
-                  <span>{t}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Beneficiaries if present */}
         {post.beneficiaries && post.beneficiaries.length > 0 && (
           <div className="p-3.5 rounded-2xl bg-gray-50/80 dark:bg-slate-800/60 text-xs text-gray-500 dark:text-slate-400 space-y-1">
@@ -1650,23 +1514,22 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
         {/* ================= BOTTOM ENGAGEMENT & VOTING BAR ================= */}
-        <div className="pt-4 sm:pt-6 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-4 flex-nowrap sm:flex-wrap">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/50">
 
           {/* 1. Upvote Button with Keychain Slider Popover (Mobile 1st, Desktop grouped right) */}
-          <div className="relative flex-1 sm:flex-initial order-1 sm:order-2 sm:ml-auto">
+          <div className="relative order-2 sm:ml-auto">
             <button
               id="keychain-vote-btn"
               onClick={() => setShowVoteSlider(!showVoteSlider)}
               disabled={voteLoading}
-              className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-full text-xs font-semibold sm:font-bold transition shadow-xs cursor-pointer ${
+              className={`h-9 flex items-center justify-center gap-2 px-3 rounded-lg text-sm font-semibold transition shadow-sm cursor-pointer ${
                 hasVoted
-                  ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/60 sm:bg-rose-500 sm:text-white sm:border-transparent'
-                  : 'bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-rose-50 sm:dark:bg-rose-950/40 sm:hover:bg-rose-100 sm:text-rose-600 sm:dark:text-rose-400'
+                  ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/70'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 hover:border-blue-700'
               }`}
-              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' } : undefined}
               title={hasVoted ? 'Upvoted with Keychain' : 'Upvote with Keychain'}
             >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasVoted ? 'fill-rose-600 dark:fill-rose-400 sm:fill-white' : 'text-rose-500 sm:text-inherit'}`} />
+              <Heart className={`w-4 h-4 ${hasVoted ? 'fill-rose-600 dark:fill-rose-400' : 'fill-white'}`} />
               <span className="truncate">{hasVoted ? 'Upvoted' : 'Upvote'}</span>
             </button>
 
@@ -1720,37 +1583,35 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
 
           {/* 2. Tip Button (Mobile 2nd, Desktop left side) */}
-          <div className="flex-1 sm:flex-initial order-2 sm:order-1 sm:ml-0">
+          <div className="order-1">
             <button
               onClick={() => setShowTipModal(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-amber-50 sm:dark:bg-amber-950/40 sm:hover:bg-amber-100 sm:dark:hover:bg-amber-900/50 sm:text-amber-700 sm:dark:text-amber-300 font-semibold sm:font-bold text-xs transition cursor-pointer"
-              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px' } : undefined}
+              className="h-9 flex items-center justify-center gap-2 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-900/60 font-semibold text-sm transition cursor-pointer"
               title="Send tip to author"
             >
-              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 sm:text-amber-600 sm:dark:text-amber-400" />
+              <Coins className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span className="truncate"><span className="hidden sm:inline">Send </span>Tip</span>
             </button>
           </div>
 
           {/* 3. Reblog Button (Mobile 3rd, Desktop right side) */}
-          <div className="flex-1 sm:flex-initial order-3 sm:order-3">
+          <div className="order-3">
             <button
               id="keychain-reblog-btn"
               type="button"
               onClick={handleReblog}
               disabled={isReblogging || hasReblogged}
-              className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-2.5 py-2 sm:px-4 sm:py-2 rounded-xl sm:rounded-full text-xs font-semibold sm:font-bold transition shadow-xs cursor-pointer ${
+              className={`h-9 flex items-center justify-center gap-2 px-3 rounded-lg text-sm font-semibold transition border shadow-sm cursor-pointer ${
                 hasReblogged
-                  ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200/60 dark:border-purple-900/60 sm:bg-purple-600 sm:text-white sm:border-transparent'
-                  : 'bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200 dark:hover:bg-slate-750 text-gray-700 dark:text-slate-200 border border-gray-200/50 dark:border-slate-700/50 sm:bg-purple-50 sm:dark:bg-purple-950/40 sm:hover:bg-purple-100 sm:dark:hover:bg-purple-900/50 sm:text-purple-600 sm:dark:text-purple-400'
+                  ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/70'
+                  : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
               } disabled:cursor-not-allowed`}
-              style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { borderRadius: '5px', fontSize: '20px', borderWidth: '0.1px' } : undefined}
               title={hasReblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'}
             >
               {isReblogging ? (
-                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 animate-spin" />
+                <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
               ) : (
-                <Repeat className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${hasReblogged ? 'text-purple-600 dark:text-purple-400 sm:text-white' : 'text-purple-500 sm:text-inherit'}`} />
+                <Repeat className={`w-4 h-4 ${hasReblogged ? 'text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-300'}`} />
               )}
               <span className="truncate">{hasReblogged ? 'Reblogged' : 'Reblog'}</span>
             </button>
@@ -1759,8 +1620,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
           {/* 4. Comments Counter Shortcut (Hidden on mobile per request, preserved on desktop) */}
           <button
             onClick={scrollToComments}
-            className="hidden sm:flex order-4 items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 px-3 py-2 rounded-full transition cursor-pointer"
-            style={typeof window !== 'undefined' && window.innerWidth >= 640 ? { fontSize: '20px', borderRadius: '5px', borderWidth: '0.1px' } : undefined}
+            className="hidden sm:flex order-4 h-9 items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-slate-200 dark:border-slate-700 px-3 rounded-lg shadow-sm transition cursor-pointer"
             title="Jump to Comments"
           >
             <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
@@ -1768,6 +1628,119 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </button>
 
         </div>
+
+        {/* ================= DISCUSSION & COMMENTS ================= */}
+        <section id="comments-section" className="pt-6 border-t border-gray-100 dark:border-slate-800 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Discussion ({totalCommentsCount})</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              {loadingDiscussion && (
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 animate-pulse">Loading…</span>
+              )}
+              <label className="relative flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                <select
+                  aria-label="Sort comments"
+                  value={commentSort}
+                  onChange={(event) => setCommentSort(event.target.value as 'newest' | 'oldest')}
+                  className="max-w-[7.5rem] appearance-none bg-transparent pr-4 text-xs font-semibold text-slate-700 outline-none dark:text-slate-200"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 h-3 w-3" />
+              </label>
+            </div>
+          </div>
+
+          {/* New Comment Box */}
+          <form onSubmit={handleAddComment} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 space-y-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {currentUser ? (
+                <>
+                  <img
+                    src={getHiveAvatarUrl(currentUser.username, 'small')}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                  />
+                  <div className="min-w-0">
+                    <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">@{currentUser.username}</span>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400">Replying to this post</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">Join the discussion</span>
+                    <span className="block text-[10px] text-amber-700 dark:text-amber-300">Connect Keychain to reply</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <textarea
+              rows={2}
+              value={newCommentBody}
+              onChange={(e) => setNewCommentBody(e.target.value)}
+              placeholder={currentUser ? 'Write your response in Markdown...' : 'Connect Hive Keychain in the top menu to comment...'}
+              className="min-h-16 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950"
+            />
+
+            {commentSuccess && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Comment published successfully to the Hive blockchain!</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Markdown supported</span>
+              <button
+                type="submit"
+                disabled={commentLoading || !newCommentBody.trim()}
+                className="flex h-8 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Comment List */}
+          {sortedComments.length > 0 ? (
+            <div className="space-y-0" onClick={handleContentLink} onAuxClick={handleContentAuxClick}>
+              {sortedComments.map((comment) => (
+                <CommentThreadItem
+                  key={comment.post_id || `${comment.author}/${comment.permlink}`}
+                  comment={comment}
+                  discussion={discussion}
+                  postAuthor={post.author}
+                  sortOrder={commentSort}
+                  depth={0}
+                  onSelectAuthor={onSelectAuthor}
+                  onSelectPost={onSelectPost}
+                  currentUser={currentUser}
+                  onRequireLogin={onRequireLogin}
+                  onRefreshDiscussion={() => fetchDiscussion(true)}
+                  onToggleFollowAuthor={handleToggleFollowAuthor}
+                  onToggleMuteAuthor={handleToggleMuteAuthor}
+                  isUserFollowing={isFollowing}
+                  isAuthorMuted={(author: string) => contentFilterConfig.authors.includes(author.toLowerCase().trim())}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 rounded-2xl bg-gray-50/60 dark:bg-slate-800/40 text-center text-xs text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-800">
+              {loadingDiscussion ? 'Syncing comments from Hive...' : 'No comments yet on this post.'}
+            </div>
+          )}
+        </section>
 
         {/* ================= RELATED STORIES / MORE FROM AUTHOR (HIDDEN ON COMMENTS) ================= */}
         {!isComment && relatedStories.length > 0 && (
@@ -1859,85 +1832,6 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
         )}
 
-        {/* ================= DISCUSSION & COMMENTS ================= */}
-        <section id="comments-section" className="pt-8 border-t border-gray-100 dark:border-slate-800 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span>Discussion ({totalCommentsCount})</span>
-            </h3>
-            {loadingDiscussion && (
-              <span className="text-xs text-gray-400 dark:text-slate-500 animate-pulse">Loading discussion...</span>
-            )}
-          </div>
-
-          {/* New Comment Box */}
-          <form onSubmit={handleAddComment} className="bg-gray-50/80 dark:bg-slate-800/50 p-3 sm:p-5 rounded-xl sm:rounded-2xl space-y-3 border border-gray-100 dark:border-slate-800 -mx-1 sm:mx-0">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-gray-700 dark:text-slate-300">Leave a reply</span>
-              {currentUser ? (
-                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Replying as @{currentUser.username}</span>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400 font-medium">Connect Keychain to reply</span>
-              )}
-            </div>
-
-            <textarea
-              rows={3}
-              value={newCommentBody}
-              onChange={(e) => setNewCommentBody(e.target.value)}
-              placeholder={currentUser ? 'Write your response in Markdown...' : 'Connect Hive Keychain in the top menu to comment...'}
-              className="w-full p-2.5 sm:p-3 bg-white dark:bg-slate-900 rounded-xl text-xs sm:text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-xs"
-            />
-
-            {commentSuccess && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Comment published successfully to the Hive blockchain!</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end">
-              <button
-                type="submit"
-                disabled={commentLoading || !newCommentBody.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition shadow-xs cursor-pointer"
-                style={{ borderRadius: '5px', borderWidth: '0.1px' }}
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Comment List */}
-          {comments.length > 0 ? (
-            <div className="space-y-3 sm:space-y-4 -mx-1 sm:mx-0">
-              {comments.map((comment) => (
-                <CommentThreadItem
-                  key={comment.post_id || `${comment.author}/${comment.permlink}`}
-                  comment={comment}
-                  discussion={discussion}
-                  depth={0}
-                  onSelectAuthor={onSelectAuthor}
-                  onSelectPost={onSelectPost}
-                  currentUser={currentUser}
-                  onRequireLogin={onRequireLogin}
-                  onRefreshDiscussion={() => fetchDiscussion(true)}
-                  onToggleFollowAuthor={handleToggleFollowAuthor}
-                  onToggleMuteAuthor={handleToggleMuteAuthor}
-                  isUserFollowing={isFollowing}
-                  isAuthorMuted={(author: string) => contentFilterConfig.authors.includes(author.toLowerCase().trim())}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 rounded-2xl bg-gray-50/60 dark:bg-slate-800/40 text-center text-xs text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-800">
-              {loadingDiscussion ? 'Syncing comments from Hive...' : 'No comments yet on this post.'}
-            </div>
-          )}
-        </section>
-
       </div>
 
       {/* ================= TIP MODAL ================= */}
@@ -2021,20 +1915,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
       <button
         id="floating-comments-shortcut-btn"
         onClick={scrollToComments}
-        className="fixed right-4 sm:right-7 bottom-32 sm:bottom-24 z-40 flex items-center gap-2 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg border border-gray-200/90 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 text-gray-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-bold transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group"
+        className="fixed right-4 sm:right-7 bottom-32 sm:bottom-24 z-40 flex h-10 items-center gap-1.5 rounded-full border border-gray-200/90 bg-white/95 px-3 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-blue-400 hover:text-blue-600 hover:shadow-xl dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
         title={`Jump directly to comments (${totalCommentsCount})`}
+        aria-label={`${totalCommentsCount} comments`}
       >
-        <div className="relative flex items-center justify-center">
-          <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-          {totalCommentsCount > 0 && (
-            <span className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full min-w-[16px] text-center leading-tight shadow-2xs">
-              {totalCommentsCount}
-            </span>
-          )}
-        </div>
-        <span className="text-xs font-bold hidden sm:inline text-gray-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-          {totalCommentsCount} {totalCommentsCount === 1 ? 'Comment' : 'Comments'}
-        </span>
+        <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <span>{totalCommentsCount}</span>
       </button>
 
       {/* ================= FLOATING SCROLL NAVIGATION (FOLLOWS USER DOWN THE PAGE) ================= */}
@@ -2234,6 +2120,79 @@ export const PostReader: React.FC<PostReaderProps> = ({
         document.body
       )}
 
+      {pendingExternalLink && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          role="presentation"
+          onClick={() => setPendingExternalLink(null)}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="external-link-warning-title"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <AlertCircle className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 id="external-link-warning-title" className="text-base font-bold text-slate-900 dark:text-white">
+                  Leaving Nebulosa
+                </h2>
+                <p className="mt-1.5 text-sm leading-5 text-slate-600 dark:text-slate-300">
+                  This user-posted link opens an external site. It could lead to a fake airdrop, a wallet connection request, or a request to sign a transaction.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingExternalLink(null)}
+                className="-mt-1 -mr-1 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label="Close link warning"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                {new URL(pendingExternalLink).hostname}
+              </p>
+              <p className="mt-1 break-all text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+                {pendingExternalLink}
+              </p>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Never enter your private keys or approve transactions you do not understand.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingExternalLink(null)}
+                className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(pendingExternalLink, '_blank', 'noopener,noreferrer');
+                  setPendingExternalLink(null);
+                }}
+                className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+              >
+                Continue to site
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+
     </article>
   );
 };
@@ -2241,6 +2200,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
 interface CommentThreadItemProps {
   comment: HivePost;
   discussion: Record<string, HivePost>;
+  postAuthor: string;
+  sortOrder: 'newest' | 'oldest';
   depth: number;
   onSelectAuthor: (author: string) => void;
   onSelectPost?: (post: HivePost) => void;
@@ -2256,6 +2217,8 @@ interface CommentThreadItemProps {
 const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   comment,
   discussion,
+  postAuthor,
+  sortOrder,
   depth,
   onSelectAuthor,
   onSelectPost,
@@ -2289,7 +2252,6 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   // Expand / collapse child replies (default expanded)
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const rep = calculateReputation(comment.author_reputation);
   const avatar = getHiveAvatarUrl(comment.author, 'small');
 
   // Comment translation state (free, markdown-preserved)
@@ -2325,11 +2287,14 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         item => item.parent_author === comment.author && item.parent_permlink === comment.permlink
       );
     }
-    if (isAuthorMuted) {
-      return directReplies.filter(c => !isAuthorMuted(c.author));
-    }
-    return directReplies;
-  }, [comment.author, comment.permlink, comment.replies, discussion, isAuthorMuted]);
+    const visibleReplies = isAuthorMuted
+      ? directReplies.filter(c => !isAuthorMuted(c.author))
+      : directReplies;
+    return visibleReplies.sort((a, b) => {
+      const difference = getCommentTimestamp(a.created) - getCommentTimestamp(b.created);
+      return sortOrder === 'newest' ? -difference : difference;
+    });
+  }, [comment.author, comment.permlink, comment.replies, discussion, isAuthorMuted, sortOrder]);
 
   const totalVotes = Math.max(0, (comment.stats?.total_votes || comment.active_votes?.length || 0) + voteCountDelta);
   // Handle vote on comment via Keychain
@@ -2407,14 +2372,14 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   return (
     <div
       onClick={handleCardClick}
-      className={`px-2.5 py-3 sm:p-4 rounded-xl sm:rounded-2xl transition-all ${
+      className={`min-w-0 transition-colors ${
         depth === 0
-          ? 'bg-gray-50/80 dark:bg-slate-800/60 border border-gray-100/70 dark:border-slate-700/60 shadow-2xs'
-          : 'bg-white/90 dark:bg-slate-900/90 border border-blue-100 dark:border-blue-950/70 shadow-2xs'
+          ? 'border-b border-slate-100 py-3 first:pt-1 last:border-b-0 dark:border-slate-800'
+          : 'rounded-lg bg-slate-50/70 px-3 py-2.5 dark:bg-slate-800/40'
       } ${depth >= 1 && childReplies.length > 0 ? 'sm:cursor-default cursor-pointer' : ''}`}
     >
       {/* Author Header */}
-      <div className="flex items-center justify-between text-xs mb-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
           <img
             src={avatar}
@@ -2430,7 +2395,11 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           >
             @{comment.author}
           </button>
-          <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">({rep})</span>
+          {comment.author.toLowerCase() === postAuthor.toLowerCase() && (
+            <span className="rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/50 dark:text-blue-300">
+              Post author
+            </span>
+          )}
 
           {onToggleFollowAuthor && onToggleMuteAuthor && (!currentUser || currentUser.username.toLowerCase() !== comment.author.toLowerCase()) && (
             <div className="flex items-center gap-1 ml-0.5">
@@ -2477,12 +2446,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
       {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
       <div
-        className="article-body text-xs sm:text-sm text-gray-800 dark:text-slate-100 leading-relaxed pl-1 sm:pl-8 break-words max-w-none mb-2"
+        className="comment-body article-body mb-1.5 max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm"
         dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
       />
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
-      <div className="flex items-center gap-2.5 sm:gap-4 text-[11px] text-gray-500 dark:text-slate-400 pl-1 sm:pl-8 pt-1 flex-wrap">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-gray-500 dark:text-slate-400">
         {/* Upvote */}
         <button
           type="button"
@@ -2588,7 +2557,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
       {/* In-line Reply Box */}
       {showReplyBox && (
-        <form onSubmit={handleSendReply} className="mt-3 pl-1 sm:pl-8 space-y-2 animate-in fade-in">
+        <form onSubmit={handleSendReply} className="mt-2 space-y-2 animate-in fade-in">
           <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
             <span>Replying to @{comment.author}</span>
             <button
@@ -2632,12 +2601,14 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         <>
           {/* Depth === 0: Render direct subcomments on both mobile and desktop when expanded */}
           {depth === 0 && isExpanded && (
-            <div className="mt-2.5 sm:mt-3 pl-1.5 sm:pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-2.5 sm:space-y-3 transition-colors">
+            <div className="mt-2 space-y-1.5 border-l border-slate-200 pl-3 transition-colors dark:border-slate-700">
               {childReplies.map((child) => (
                 <CommentThreadItem
                   key={child.post_id || `${child.author}/${child.permlink}`}
                   comment={child}
                   discussion={discussion}
+                  postAuthor={postAuthor}
+                  sortOrder={sortOrder}
                   depth={depth + 1}
                   onSelectAuthor={onSelectAuthor}
                   onSelectPost={onSelectPost}
@@ -2655,12 +2626,14 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
           {/* Depth >= 1: Render deeper nested sub-subcomments ONLY on desktop when expanded */}
           {depth >= 1 && isExpanded && (
-            <div className="hidden sm:block mt-3 pl-5 border-l-2 border-blue-200/90 dark:border-blue-900/80 hover:border-blue-400 dark:hover:border-blue-600 space-y-3 transition-colors">
+            <div className="hidden sm:block mt-2 space-y-1.5 border-l border-slate-200 pl-3 dark:border-slate-700">
               {childReplies.map((child) => (
                 <CommentThreadItem
                   key={child.post_id || `${child.author}/${child.permlink}`}
                   comment={child}
                   discussion={discussion}
+                  postAuthor={postAuthor}
+                  sortOrder={sortOrder}
                   depth={depth + 1}
                   onSelectAuthor={onSelectAuthor}
                   onSelectPost={onSelectPost}

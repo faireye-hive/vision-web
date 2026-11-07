@@ -113,6 +113,10 @@ export class KeychainService {
     };
   }
 
+  private static unavailableResponse(): KeychainResponse {
+    return { success: false, error: 'This action requires Hive Keychain.' };
+  }
+
   /** Start a clearly marked, read-only session for an existing public Hive account. */
   static async loginDemo(username: string): Promise<{ success: boolean; user?: CurrentUser; error?: string }> {
     const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
@@ -166,7 +170,7 @@ export class KeychainService {
       return { success: false, error: 'Please enter a valid Hive username.' };
     }
 
-    const hasKeychain = this.isInstalled();
+    const hasKeychain = this.isInstalled() && Boolean(window.hive_keychain?.requestSignBuffer);
 
     if (!hasKeychain) {
       return { success: false, error: 'Hive Keychain was not detected. Use Demo mode for read-only browsing.' };
@@ -217,12 +221,7 @@ export class KeychainService {
     weight: number = 10000 // 10000 = 100%
   ): Promise<KeychainResponse> {
     if (this.isDemoSession()) return this.demoReadOnlyResponse();
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: 'Vote registered locally in test mode (Hive Keychain extension not detected).'
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestVote) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestVote!(
@@ -254,12 +253,7 @@ export class KeychainService {
       format: 'markdown'
     });
 
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: 'Comment registered locally in test mode.'
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestPost) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestPost!(
@@ -288,12 +282,7 @@ export class KeychainService {
     const cleanPermlink = permlink.trim();
     const json = JSON.stringify(['reblog', { account: cleanUser, author: cleanAuthor, permlink: cleanPermlink }]);
 
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: 'Reblog registered locally in test mode.'
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       try {
@@ -378,12 +367,7 @@ export class KeychainService {
       }
     ]);
 
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: `${follow ? 'Follow' : 'Unfollow'} registered in test mode.`
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestCustomJson!(
@@ -421,12 +405,7 @@ export class KeychainService {
       }
     ]);
 
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: `${mute ? 'Mute' : 'Unmute'} registered in test mode.`
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestCustomJson!(
@@ -479,33 +458,12 @@ export class KeychainService {
       }
     ];
 
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: 'Profile updated in local test mode (Hive Keychain extension not detected).'
-      };
+    if (!this.isInstalled() || !window.hive_keychain?.requestBroadcast) {
+      return { success: false, error: 'Updating your profile requires Hive Keychain with broadcast support.' };
     }
 
     return new Promise((resolve) => {
-      if (window.hive_keychain?.requestBroadcast) {
-        window.hive_keychain.requestBroadcast(
-          cleanUsername,
-          [op],
-          'Posting',
-          (response) => {
-            resolve(response);
-          }
-        );
-      } else {
-        // Fallback to custom_json if requestBroadcast is unsupported
-        this.broadcastCustomJson(
-          cleanUsername,
-          'nebulosa_profile_update',
-          'Posting',
-          JSON.stringify({ profile: profileData }),
-          'Update Profile Metadata'
-        ).then(resolve);
-      }
+      window.hive_keychain!.requestBroadcast!(cleanUsername, [op], 'Posting', resolve);
     });
   }
 
@@ -520,12 +478,7 @@ export class KeychainService {
     displayName: string = 'Broadcast Custom JSON'
   ): Promise<KeychainResponse> {
     if (this.isDemoSession()) return this.demoReadOnlyResponse();
-    if (!this.isInstalled()) {
-      return {
-        success: false,
-        message: 'Hive Keychain is not installed or not detected.'
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestCustomJson!(
@@ -552,12 +505,7 @@ export class KeychainService {
     currency: 'HIVE' | 'HBD' = 'HIVE'
   ): Promise<KeychainResponse> {
     if (this.isDemoSession()) return this.demoReadOnlyResponse();
-    if (!this.isInstalled()) {
-      return {
-        success: true,
-        message: 'Tip registered locally in test mode.'
-      };
-    }
+    if (!this.isInstalled() || !window.hive_keychain?.requestTransfer) return this.unavailableResponse();
 
     return new Promise((resolve) => {
       window.hive_keychain!.requestTransfer!(
