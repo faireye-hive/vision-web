@@ -10,7 +10,6 @@ import {
   Sparkles,
   Check,
   CornerDownRight,
-  X,
   MoreHorizontal,
   UserX,
   Copy,
@@ -75,7 +74,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   const [voteLoading, setVoteLoading] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // 3-dots options menu state
   const [showMenu, setShowMenu] = useState(false);
@@ -422,7 +420,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
             author={snap.author}
             permlink={snap.permlink}
             onSelectTag={onSelectTag}
-            onOpenImage={setSelectedImage}
             onOpenDetail={onOpenDetail ? () => onOpenDetail(snap) : undefined}
             textClassName="text-sm text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
             charLimit={300}
@@ -651,28 +648,6 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
         }}
       />
 
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-10 right-0 p-2 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/15 transition cursor-pointer"
-              title="Close image"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img
-              src={selectedImage}
-              alt="Enlarged snap attachment"
-              className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
     </article>
   );
 });

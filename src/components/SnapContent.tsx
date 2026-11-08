@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useNavigation } from '../context/NavigationContext';
 import { HivePost, getPost, getPostSnippet, getHiveAvatarUrl } from '../services/hiveApi';
 import { markdownToSafeHtml } from '../utils/sanitize';
@@ -127,7 +127,6 @@ interface SnapContentProps {
   author: string;
   permlink: string;
   onSelectTag?: (tag: string) => void;
-  onOpenImage?: (url: string) => void;
   onOpenDetail?: () => void;
   textClassName?: string;
   charLimit?: number;
@@ -181,7 +180,6 @@ export function SnapContent({
   author,
   permlink,
   onSelectTag,
-  onOpenImage,
   onOpenDetail,
   textClassName = '',
   charLimit = 300,
@@ -229,8 +227,24 @@ export function SnapContent({
     [body, author, permlink]
   );
   const [failed, setFailed] = useState<Record<string, true>>({});
+  const [activeGalleryIndex, setActiveGalleryIndex] = useState<number | null>(null);
 
   const shownImages = images.filter((url) => !failed[imageIdentity(url)]);
+
+  useEffect(() => {
+    if (activeGalleryIndex === null) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveGalleryIndex(null);
+      if (event.key === 'ArrowRight') {
+        setActiveGalleryIndex((index) => index === null ? null : (index + 1) % shownImages.length);
+      }
+      if (event.key === 'ArrowLeft') {
+        setActiveGalleryIndex((index) => index === null ? null : (index - 1 + shownImages.length) % shownImages.length);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeGalleryIndex, shownImages.length]);
 
   const { isTruncated, truncatedText } = useMemo(() => {
     if (!enableTruncation) {
@@ -342,30 +356,93 @@ export function SnapContent({
       ))}
 
       {shownImages.length > 0 && (
-        <div className={`mt-3 ${shownImages.length === 1 ? '' : 'grid gap-2 grid-cols-2'}`}>
-          {shownImages.map((url) => (
-            <div
+        <div className={`mt-3 overflow-hidden rounded-2xl ${shownImages.length === 1 ? '' : 'grid grid-cols-2 gap-1.5'}`}>
+          {shownImages.slice(0, shownImages.length === 1 ? 1 : 4).map((url, index) => (
+            <button
               key={imageIdentity(url)}
+              type="button"
+              aria-label={`Open image ${index + 1} of ${shownImages.length}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onOpenImage?.(url);
+                setActiveGalleryIndex(index);
               }}
-              className="relative rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 cursor-pointer"
+              className={`relative block min-w-0 overflow-hidden border border-slate-100 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/40 ${shownImages.length === 1 ? 'w-full rounded-2xl' : 'aspect-[16/10] rounded-xl'}`}
             >
               <SafeSnapImage
                 src={url}
-                alt="Snap attachment"
-                className="w-full h-full max-h-96"
-                imgClassName="w-full h-full object-cover max-h-80"
-                aspectRatio="16/9"
+                alt={`Snap image ${index + 1}`}
+                className={`${shownImages.length === 1 ? 'max-h-96' : 'h-full'} w-full`}
+                imgClassName={`${shownImages.length === 1 ? 'max-h-80' : 'h-full'} w-full object-cover`}
+                aspectRatio={shownImages.length === 1 ? '16/9' : undefined}
                 onStatus={(status) => {
                   if (status !== 'error') return;
                   const key = imageIdentity(url);
                   setFailed((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
                 }}
               />
-            </div>
+              {shownImages.length > 4 && index === 3 && (
+                <span className="absolute inset-0 flex items-center justify-center bg-slate-950/60 text-2xl font-bold text-white">
+                  +{shownImages.length - 4}
+                </span>
+              )}
+            </button>
           ))}
+        </div>
+      )}
+
+      {activeGalleryIndex !== null && shownImages[activeGalleryIndex] && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Snap image gallery"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 p-4 backdrop-blur-sm"
+          onClick={() => setActiveGalleryIndex(null)}
+        >
+          <button
+            type="button"
+            aria-label="Close gallery"
+            onClick={() => setActiveGalleryIndex(null)}
+            className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="absolute left-1/2 top-5 -translate-x-1/2 rounded-full bg-black/40 px-3 py-1 text-xs font-medium text-white">
+            {activeGalleryIndex + 1} / {shownImages.length}
+          </div>
+          {shownImages.length > 1 && (
+            <button
+              type="button"
+              aria-label="Previous image"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActiveGalleryIndex((activeGalleryIndex - 1 + shownImages.length) % shownImages.length);
+              }}
+              className="absolute left-3 z-10 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:left-6"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+          )}
+          <div className="flex h-[82vh] w-[88vw] max-w-6xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <SafeSnapImage
+              src={shownImages[activeGalleryIndex]}
+              alt={`Snap image ${activeGalleryIndex + 1} of ${shownImages.length}`}
+              className="h-full w-full bg-transparent"
+              imgClassName="h-full w-full object-contain"
+            />
+          </div>
+          {shownImages.length > 1 && (
+            <button
+              type="button"
+              aria-label="Next image"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActiveGalleryIndex((activeGalleryIndex + 1) % shownImages.length);
+              }}
+              className="absolute right-3 z-10 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 sm:right-6"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          )}
         </div>
       )}
     </div>

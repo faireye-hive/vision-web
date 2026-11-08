@@ -62,7 +62,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 }) => {
   const [discussionMap, setDiscussionMap] = useState<Record<string, HivePost>>(initialDiscussionMap);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Upvote state for main snap
   const [upvoted, setUpvoted] = useState(false);
@@ -551,7 +550,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
               author={snap.author}
               permlink={snap.permlink}
               onSelectTag={onSelectTag}
-              onOpenImage={setSelectedImage}
               textClassName="text-[16px] sm:text-[17px] text-slate-800 dark:text-slate-100 leading-relaxed break-words prose prose-slate dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
             />
 
@@ -738,19 +736,6 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
         }}
       />
 
-      {/* Lightbox */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setSelectedImage(null)}
-        >
-          <img
-            src={selectedImage}
-            alt="Snap attachment"
-            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
-          />
-        </div>
-      )}
     </div>
   );
 };
