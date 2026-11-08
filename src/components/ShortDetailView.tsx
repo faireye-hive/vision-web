@@ -127,6 +127,15 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
     }
   }, [snap.author, snap.permlink, onUpdateDiscussionMap]);
 
+  // The feed only includes top-level Snaps. Fetch this Snap's full thread as
+  // soon as it opens so replies are present without requiring a manual refresh.
+  useEffect(() => {
+    void fetchFreshDiscussion(true);
+    // fetchFreshDiscussion is tied to the current Snap; keep this request scoped
+    // to opening or switching threads, not parent renders from the map update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap.author, snap.permlink]);
+
   const navigate = useNavigate();
 
   // Cache snap itself into discussionMap so it is preserved when returning from children
@@ -623,7 +632,9 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
             ) : (
               <div className="py-10 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <MessageCircle className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700 mb-2" />
-                <p className="text-slate-400 font-medium text-xs sm:text-sm">No comments yet. Be the first to reply!</p>
+                <p className="text-slate-400 font-medium text-xs sm:text-sm">
+                  {isRefreshing ? 'Loading replies…' : 'No comments yet. Be the first to reply!'}
+                </p>
               </div>
             )}
           </div>
