@@ -366,7 +366,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   const timeAgo = formatTime(snap.created);
 
   return (
-    <div className="w-full min-w-0 max-w-none mx-auto animate-in fade-in duration-150">
+    <div className="shorts-readable w-full min-w-0 max-w-none mx-auto animate-in fade-in duration-150">
       <div className="bg-white dark:bg-slate-900 rounded-none sm:rounded-[32px] border-0 sm:border border-slate-200/70 dark:border-slate-800 shadow-none sm:shadow-[0_8px_30px_rgba(15,23,42,0.04)] flex flex-col min-h-screen sm:min-h-0 relative">
         {/* Header Bar - Sticky to follow scroll */}
         <div className="flex items-center justify-between px-3.5 py-3 sm:px-6 sm:py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-30 rounded-none sm:rounded-t-[32px]">
