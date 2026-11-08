@@ -866,7 +866,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       id={id}
       onTouchStart={handleFeedTouchStart}
       onTouchEnd={handleFeedTouchEnd}
-      className="shorts-page w-full max-w-none mx-auto space-y-3"
+      className="shorts-page shorts-readable w-full max-w-none mx-auto space-y-3"
     >
       {postSuccessMessage && (
         <div role="status" className="fixed right-5 top-20 z-[60] flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-xl dark:border-emerald-900/70 dark:bg-slate-900 dark:text-emerald-300">
