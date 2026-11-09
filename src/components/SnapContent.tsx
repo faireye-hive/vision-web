@@ -366,13 +366,13 @@ export function SnapContent({
                 event.stopPropagation();
                 setActiveGalleryIndex(index);
               }}
-              className={`relative block min-w-0 overflow-hidden border border-slate-100 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/40 ${shownImages.length === 1 ? 'w-full rounded-2xl' : 'aspect-[16/10] rounded-xl'}`}
+              className={`relative block min-w-0 overflow-hidden border border-slate-100 bg-slate-100 text-left dark:border-slate-800 dark:bg-slate-800/70 ${shownImages.length === 1 ? 'mx-auto aspect-[3/4] w-full max-w-[18rem] rounded-2xl' : 'aspect-[16/10] rounded-xl'}`}
             >
               <SafeSnapImage
                 src={url}
                 alt={`Snap image ${index + 1}`}
                 className={`${shownImages.length === 1 ? 'max-h-96' : 'h-full'} w-full`}
-                imgClassName={`${shownImages.length === 1 ? 'max-h-80' : 'h-full'} w-full object-cover`}
+                imgClassName="h-full w-full !object-contain"
                 aspectRatio={shownImages.length === 1 ? '16/9' : undefined}
                 onStatus={(status) => {
                   if (status !== 'error') return;
