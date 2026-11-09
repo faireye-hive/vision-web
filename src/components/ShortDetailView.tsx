@@ -1091,7 +1091,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-4 sm:gap-5 mt-2.5 pt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-5 mt-2.5 pt-1">
             <button
               type="button"
               onClick={(e) => {
