@@ -186,6 +186,7 @@ export function SnapContent({
   enableTruncation = true,
 }: SnapContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const navigate = useNavigate();
   const { handleOpenNotificationPost } = useNavigation();
 
@@ -366,14 +367,29 @@ export function SnapContent({
                 event.stopPropagation();
                 setActiveGalleryIndex(index);
               }}
-              className={`relative block min-w-0 overflow-hidden border border-slate-100 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/40 ${shownImages.length === 1 ? 'w-full rounded-2xl' : 'aspect-[16/10] rounded-xl'}`}
+              className={`relative mx-auto block min-w-0 overflow-hidden border border-slate-100 bg-slate-100 text-left dark:border-slate-800 dark:bg-slate-800/70 ${shownImages.length === 1 ? 'aspect-[3/4] w-full max-w-[18rem] rounded-2xl' : 'aspect-[16/10] w-full rounded-xl'}`}
+              style={shownImages.length === 1 ? {
+                aspectRatio: imageAspectRatios[imageIdentity(url)] || '3/4',
+                maxWidth: imageAspectRatios[imageIdentity(url)]
+                  ? `${24 * imageAspectRatios[imageIdentity(url)]}rem`
+                  : '18rem',
+                maxHeight: '24rem'
+              } : undefined}
             >
               <SafeSnapImage
                 src={url}
                 alt={`Snap image ${index + 1}`}
-                className={`${shownImages.length === 1 ? 'max-h-96' : 'h-full'} w-full`}
-                imgClassName={`${shownImages.length === 1 ? 'max-h-80' : 'h-full'} w-full object-cover`}
-                aspectRatio={shownImages.length === 1 ? '16/9' : undefined}
+                className="h-full w-full"
+                imgClassName="h-full w-full !object-contain"
+                aspectRatio={shownImages.length === 1 ? '3/4' : undefined}
+                onNaturalDimensions={(width, height) => {
+                  if (shownImages.length !== 1 || !height) return;
+                  const ratio = width / height;
+                  const key = imageIdentity(url);
+                  setImageAspectRatios((previous) => previous[key] === ratio
+                    ? previous
+                    : { ...previous, [key]: ratio });
+                }}
                 onStatus={(status) => {
                   if (status !== 'error') return;
                   const key = imageIdentity(url);
