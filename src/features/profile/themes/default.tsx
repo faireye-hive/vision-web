@@ -26,7 +26,9 @@ import { ProfileTheme, ThemeProps } from './themeTypes';
 import { getHiveAvatarUrl, getPostThumbnail, getPostSnippet, HivePost } from '../../../services/hiveApi';
 import { DEFAULT_PROFILE_STYLE } from '../profileStyleTypes';
 import { useNavigation } from '../../../context/NavigationContext';
-import { getSafeImageUrl } from '../../../utils/sanitize';
+import { getSafeImageUrl, markdownToSafeHtml } from '../../../utils/sanitize';
+import { hasScamCommentSignals, hasSuspiciousCommentLanguage } from '../../../utils/scamAlert';
+import { ScamAlertNotice } from '../../../components/ScamAlertNotice';
 
 /**
  * THEME: Clean Slate (Default)
@@ -388,6 +390,8 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
             const thumbnail = rawThumbnail ? getSafeImageUrl(rawThumbnail, { width: 600 }) : null;
             const snippet = getPostSnippet(post.body || '', 240);
             const isCommentOrReply = activeTab === 'comments' || activeTab === 'replies';
+            const isScamAlertComment = isCommentOrReply && hasSuspiciousCommentLanguage(post.body || '')
+              && hasScamCommentSignals(post.body || '', markdownToSafeHtml(post.body || ''));
             
             // Check if this post is a reblog
             const isReblog = Boolean(
@@ -493,8 +497,9 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                         {post.title && !post.title.startsWith('RE:') && (
                           <h3 className="my-1 line-clamp-2 text-base font-bold leading-snug text-slate-900 transition-colors group-hover/card:text-blue-700 dark:text-white dark:group-hover/card:text-blue-300 sm:text-lg">{post.title}</h3>
                         )}
-                        <p className={`mb-3 mt-1.5 min-w-0 break-words text-sm font-normal leading-relaxed text-slate-600 dark:text-slate-300 ${isCommentOrReply ? 'line-clamp-4' : 'line-clamp-2'}`}>{snippet || post.body}</p>
+                        <p className={`mb-3 mt-1.5 min-w-0 break-words text-sm font-normal leading-relaxed ${isScamAlertComment ? 'text-rose-700 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300'} ${isCommentOrReply ? 'line-clamp-4' : 'line-clamp-2'}`}>{snippet || post.body}</p>
                       </button>
+                      {isScamAlertComment && <ScamAlertNotice />}
                     </div>
 
                     {/* Interactions Row - Anchored to bottom */}
