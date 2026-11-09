@@ -427,7 +427,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
           />
 
           {/* Action Bar (Twitter / Shorts Style) */}
-          <div className="flex flex-wrap items-center justify-between gap-1 pt-2 mt-2 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <div className="shorts-action-row flex flex-wrap items-center justify-between gap-0.5 pt-2 mt-2 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             {/* Upvote Button */}
             <button
               type="button"
@@ -435,7 +435,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               disabled={voteLoading}
               title={upvoted ? 'Voted' : 'Vote on this Snap with Hive Keychain'}
               aria-label={upvoted ? 'Voted' : 'Vote on this Snap'}
-              className={`flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
+              className={`flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
                 upvoted
                   ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 font-bold'
                   : 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/30'
@@ -470,7 +470,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               }}
               title={onOpenDetail ? `Open Snap and view ${replyCount} ${replyLabel}` : showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
               aria-label={showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
-              className={`flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
+              className={`flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
                 showSubcomments
                   ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 font-medium'
                   : 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/30'
@@ -493,7 +493,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleResnap}
               title="Resnap with comment"
-              className="flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+              className="flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
             >
               <Share2 className="w-4 h-4 -scale-x-100" />
               <span>Resnap</span>
@@ -504,7 +504,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleCopyLink}
               title="Copy share link"
-              className="flex items-center gap-1.5 min-h-9 py-1.5 px-2.5 rounded-xl hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               {copied ? (
                 <>
