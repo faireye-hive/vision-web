@@ -163,16 +163,16 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
+      <div className="fixed inset-x-3 bottom-3 top-auto sm:inset-y-0 sm:right-0 sm:inset-x-auto sm:bottom-auto max-w-full flex justify-center sm:justify-end">
         <div
           ref={drawerRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="w-screen max-w-md bg-white dark:bg-slate-900 shadow-2xl flex flex-col border-l border-slate-200 dark:border-slate-800 animate-in slide-in-from-right duration-300"
+          className="h-[min(76dvh,42rem)] w-full max-w-md sm:h-full sm:w-screen sm:max-w-md rounded-3xl sm:rounded-none bg-white dark:bg-slate-900 shadow-2xl flex flex-col border border-slate-200 dark:border-slate-800 sm:border-y-0 sm:border-r-0 animate-in slide-in-from-bottom sm:slide-in-from-right duration-300"
         >
           {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="p-3 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
                 <SlidersHorizontal className="w-5 h-5" />
@@ -281,7 +281,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
           </div>
 
           {/* Drawer Body */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 space-y-4">
             {/* ================= TAB 1: HASHTAGS FREQUENCY ================= */}
             {activeTab === 'hashtags' && (
               <div className="space-y-3">
@@ -565,7 +565,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 flex items-center justify-between text-xs">
+          <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 flex items-center justify-between text-xs">
             <span className="text-slate-500 dark:text-slate-400">
               Preferences saved locally
             </span>

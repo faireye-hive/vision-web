@@ -220,10 +220,10 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   return (
     <div 
       id="blockchain-stats-modal"
-      className="fixed inset-0 z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
+      className="fixed inset-x-0 top-14 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:inset-0 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
     >
       <div 
-        className="relative my-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:my-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        className="relative my-0 flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:my-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
