@@ -512,3 +512,20 @@ html.dark #sanitized-post-body pre code {
 .shorts-readable [class~="text-[16px]"] { font-size: 1.125rem !important; }
 .shorts-readable [class~="text-[17px]"] { font-size: 1.1875rem !important; }
 
+/* Keep floating Shorts actions above the fixed mobile tab bar. */
+.shorts-mobile-floating-control {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 380px) {
+  .shorts-source-nav-icon {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .shorts-mobile-floating-control {
+    bottom: 1.5rem;
+  }
+}
+
