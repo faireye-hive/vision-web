@@ -2257,6 +2257,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   // Comment translation state (free, markdown-preserved)
   const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
   const [isTranslatingComment, setIsTranslatingComment] = useState(false);
+  const [isCommentBodyExpanded, setIsCommentBodyExpanded] = useState(false);
 
   const handleToggleTranslateComment = async () => {
     if (translatedCommentBody) {
@@ -2275,7 +2276,9 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
     }
   };
 
-  const safeCommentHtml = markdownToSafeHtml(translatedCommentBody || comment.body);
+  const displayedCommentBody = translatedCommentBody || comment.body;
+  const safeCommentHtml = markdownToSafeHtml(displayedCommentBody);
+  const shouldCollapseComment = displayedCommentBody.length > 450;
   const postDate = formatPostDate(comment.created);
 
   // Child replies from discussion map
@@ -2445,10 +2448,32 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       </div>
 
       {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
-      <div
-        className="comment-body article-body mb-1.5 max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm"
-        dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
-      />
+      <div className={`relative mb-1.5 ${shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''}`}>
+        <div
+          className="comment-body article-body max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm"
+          dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
+        />
+        {shouldCollapseComment && !isCommentBodyExpanded && (
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t ${
+              depth > 0
+                ? 'from-slate-50/90 dark:from-slate-800/90'
+                : 'from-white/95 dark:from-slate-900/95'
+            } to-transparent`}
+          />
+        )}
+      </div>
+      {shouldCollapseComment && (
+        <button
+          type="button"
+          onClick={() => setIsCommentBodyExpanded((expanded) => !expanded)}
+          aria-expanded={isCommentBodyExpanded}
+          className="mb-1 inline-flex min-h-8 items-center rounded-lg px-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+        >
+          {isCommentBodyExpanded ? 'Show less' : '… Read more'}
+        </button>
+      )}
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-gray-500 dark:text-slate-400">
