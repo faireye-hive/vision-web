@@ -61,6 +61,38 @@ import { useNavigation } from '../context/NavigationContext';
 
 const TRUSTED_HIVE_LINK_HOSTS = ['peakd.com', 'ecency.com', 'hive.blog', '3speak.tv', '3speak.com', '3speak.online'];
 
+const SUSPICIOUS_COMMENT_TERMS = /\b(?:airdrop|giveaway|free\s+(?:tokens?|hive|hbd)|claim\s+(?:now|your|free)|connect\s+(?:your\s+)?wallet|verify\s+(?:your\s+)?wallet|seed\s+phrase|private\s+key)\b/i;
+
+function isExternalCommentHref(href: string): boolean {
+  if (/^(?:\/|#|mailto:|tel:)/i.test(href) && !href.startsWith('//')) return false;
+  try {
+    const url = new URL(href, 'https://nebulosa.invalid');
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    return !TRUSTED_HIVE_LINK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function hasExternalCommentLink(html: string): boolean {
+  const anchorPattern = /<a\b([^>]*)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = anchorPattern.exec(html))) {
+    const href = match[1].match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
+    if (href && isExternalCommentHref(href.replace(/&amp;/g, '&'))) return true;
+  }
+  return false;
+}
+
+function disableExternalCommentLinks(html: string): string {
+  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (anchor, attributes: string, label: string) => {
+    const href = attributes.match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
+    if (!href || !isExternalCommentHref(href.replace(/&amp;/g, '&'))) return anchor;
+    return `<span class="comment-scam-link" title="Blocked: suspicious external link">${label}</span>`;
+  });
+}
+
 function isTrustedHiveLink(url: URL): boolean {
   const host = url.hostname.toLowerCase();
   return url.protocol === 'https:' && !url.port && !url.username && !url.password &&
@@ -2277,7 +2309,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   };
 
   const displayedCommentBody = translatedCommentBody || comment.body;
-  const safeCommentHtml = markdownToSafeHtml(displayedCommentBody);
+  const sanitizedCommentHtml = markdownToSafeHtml(displayedCommentBody);
+  const isScamAlertComment = SUSPICIOUS_COMMENT_TERMS.test(comment.body || '')
+    && hasExternalCommentLink(sanitizedCommentHtml);
+  const safeCommentHtml = isScamAlertComment
+    ? disableExternalCommentLinks(sanitizedCommentHtml)
+    : sanitizedCommentHtml;
   const shouldCollapseComment = displayedCommentBody.length > 450;
   const postDate = formatPostDate(comment.created);
 
@@ -2450,7 +2487,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
       <div className={`relative mb-1.5 ${shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''}`}>
         <div
-          className="comment-body article-body max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm"
+          className={`comment-body article-body max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
           dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
         />
         {shouldCollapseComment && !isCommentBodyExpanded && (
@@ -2473,6 +2510,21 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         >
           {isCommentBodyExpanded ? 'Show less' : '… Read more'}
         </button>
+      )}
+
+      {isScamAlertComment && (
+        <div
+          role="alert"
+          className="mb-2 flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-rose-950 dark:border-rose-900/80 dark:bg-rose-950/40 dark:text-rose-100"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700 dark:text-rose-300" aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide">Scam Alert</p>
+            <p className="mt-0.5 text-xs leading-relaxed">
+              This comment combines a suspicious crypto offer with an external link. The link is disabled to help prevent accidental clicks.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
