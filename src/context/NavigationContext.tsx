@@ -154,6 +154,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   // Sync state with React Router location.pathname & search
   useEffect(() => {
+    // Route changes should dismiss the stats modal and reveal the selected page.
+    setShowStatsModal(false);
     let cancelled = false;
     const requestId = ++routeRequestRef.current;
     const pathname = location.pathname;
@@ -366,6 +368,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   // Navigation handlers
   const handleNavChange = useCallback((tab: NavTab) => {
+    setShowStatsModal(false);
     setActiveNav(tab);
     setFeedAuthor(null);
     setSelectedPost(null);
