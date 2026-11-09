@@ -319,7 +319,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
       data-post-index={postIndex}
       data-author={post.author}
       data-permlink={post.permlink}
-      className={`discover_gallery_post_card discover_post_card bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 mb-3 sm:mb-6 group flex flex-col relative ${
+      className={`discover_gallery_post_card discover_post_card bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] sm:hover:shadow-md transition-shadow duration-200 mb-3 sm:mb-6 group flex flex-col relative ${
         showMoreMenu ? 'z-50' : 'z-1'
       }`}
     >
@@ -450,7 +450,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             src={currentImageSrc}
             alt={post.title}
             loading="lazy"
-            className="max-h-full max-w-full h-auto w-auto object-contain mx-auto block transition-transform duration-300 group-hover/img:scale-[1.008]"
+            className="max-h-full max-w-full h-auto w-auto object-contain mx-auto block transition-transform duration-300 sm:group-hover/img:scale-[1.008]"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
@@ -465,7 +465,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 e.stopPropagation();
                 setCardImageIndex((prev) => (prev > 0 ? prev - 1 : postImages.length - 1));
               }}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 hover:bg-black/85 text-white backdrop-blur-md border border-white/20 shadow-lg transition opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 sm:hover:bg-black/85 text-white backdrop-blur-md border border-white/20 shadow-lg transition opacity-80 sm:hover:opacity-100 sm:hover:scale-105 cursor-pointer z-20"
               title="Previous image"
             >
               <ChevronLeft id={`${uid}-image-prev-icon`} className="w-5 h-5" />
@@ -481,7 +481,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 e.stopPropagation();
                 setCardImageIndex((prev) => (prev < postImages.length - 1 ? prev + 1 : 0));
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 hover:bg-black/85 text-white backdrop-blur-md border border-white/20 shadow-lg transition opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 sm:hover:bg-black/85 text-white backdrop-blur-md border border-white/20 shadow-lg transition opacity-80 sm:hover:opacity-100 sm:hover:scale-105 cursor-pointer z-20"
               title="Next image"
             >
               <ChevronRight id={`${uid}-image-next-icon`} className="w-5 h-5" />
