@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Rss,
   Compass,
@@ -433,10 +434,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       </nav>
 
       {/* ================= FULL MENU BOTTOM SHEET (MODAL) ================= */}
-      {showMenu && (
+      {showMenu && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end md:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-xs flex flex-col justify-end md:hidden animate-in fade-in duration-200"
           onClick={() => setShowMenu(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('mobile.menuTitle')}
         >
           <div
             className="w-full max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-t-3xl border-t border-gray-200/90 dark:border-slate-800 p-5 pb-8 shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[85vh] overflow-y-auto"
@@ -720,7 +724,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </div>
             <UiLanguagePicker />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
