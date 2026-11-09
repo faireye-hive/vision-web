@@ -76,7 +76,7 @@ export const ShortTranslatorDropdown: React.FC<ShortTranslatorDropdownProps> = (
       {isOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 bottom-full mb-1.5 sm:bottom-auto sm:top-full sm:mt-1.5 w-48 sm:w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-100 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute left-0 right-auto bottom-full mb-1.5 sm:left-auto sm:right-0 sm:bottom-auto sm:top-full sm:mt-1.5 w-48 sm:w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-100 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center justify-between">
             <span className="flex items-center gap-1">

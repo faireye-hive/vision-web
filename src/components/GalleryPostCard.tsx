@@ -100,18 +100,35 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
 
   // More options menu (3-dots)
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [openMenuUpwards, setOpenMenuUpwards] = useState(false);
+  const [moreMenuPosition, setMoreMenuPosition] = useState({ top: 0, left: 0 });
   const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleToggleMoreMenu = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!showMoreMenu && moreButtonRef.current) {
       const rect = moreButtonRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenMenuUpwards(spaceBelow < 220);
+      const menuWidth = 208;
+      const menuHeight = Math.min(240, window.innerHeight - 16);
+      const openUpwards = window.innerHeight - rect.bottom < menuHeight + 8;
+      const top = openUpwards
+        ? Math.max(8, rect.top - menuHeight - 8)
+        : rect.bottom + 6;
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+      setMoreMenuPosition({ top, left });
     }
     setShowMoreMenu((prev) => !prev);
   };
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const closeOnLayoutChange = () => setShowMoreMenu(false);
+    window.addEventListener('scroll', closeOnLayoutChange, true);
+    window.addEventListener('resize', closeOnLayoutChange);
+    return () => {
+      window.removeEventListener('scroll', closeOnLayoutChange, true);
+      window.removeEventListener('resize', closeOnLayoutChange);
+    };
+  }, [showMoreMenu]);
 
   // Refs for mouse wheel image flipping in lightbox
   const lightboxImageContainerRef = useRef<HTMLDivElement>(null);
@@ -628,11 +645,11 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             </button>
 
             {/* Dropdown Menu for More options(3-dots) */}
-            {showMoreMenu && (
+            {showMoreMenu && typeof document !== 'undefined' && createPortal(
               <>
                 <div
                   id={`${uid}-more-backdrop`}
-                  className="fixed inset-0 z-40 cursor-default"
+                  className="fixed inset-0 z-[999] cursor-default"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMoreMenu(false);
@@ -640,9 +657,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 />
                 <div
                   id={`${uid}-more-menu`}
-                  className={`absolute right-0 sm:left-auto sm:right-0 ${
-                    openMenuUpwards ? 'bottom-full mb-2' : 'top-full mt-1.5'
-                  } w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200`}
+                  className="fixed z-[1000] max-h-[calc(100dvh-1rem)] w-52 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1.5 text-xs text-gray-700 shadow-xl animate-in fade-in zoom-in-95 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                  style={moreMenuPosition}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -711,7 +727,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                     </button>
                   )}
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </div>
       </div>
