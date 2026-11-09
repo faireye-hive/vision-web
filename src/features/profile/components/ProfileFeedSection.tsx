@@ -18,6 +18,9 @@ import { extractPostTags, isNoiseTag } from '../../../utils/postTags';
 import { KeychainService } from '../../../services/keychain';
 import { useAuth } from '../../../context/AuthContext';
 import { VoteWeightDialog } from '../../../components/VoteWeightDialog';
+import { markdownToSafeHtml } from '../../../utils/sanitize';
+import { disableExternalCommentLinks, hasScamCommentSignals, hasSuspiciousCommentLanguage } from '../../../utils/scamAlert';
+import { ScamAlertNotice } from '../../../components/ScamAlertNotice';
 
 export type ProfileTab = 'blog' | 'posts' | 'comments' | 'replies' | 'mentions' | 'history';
 
@@ -268,24 +271,42 @@ export const ProfileFeedSection: React.FC<ProfileFeedSectionProps> = ({
               No comments published by this account yet.
             </div>
           ) : (
-            comments.map((comment) => (
-              <div
-                key={`${comment.author}/${comment.permlink}`}
-                onClick={() => onSelectPost(comment)}
-                className={`${cardStyleClass} ${roundedClass} p-4 hover:border-blue-400 dark:hover:border-blue-500 transition cursor-pointer`}
-              >
-                <div className="flex items-center gap-2 mb-1.5 text-xs text-gray-400">
-                  <span className="font-semibold text-gray-700 dark:text-slate-300">
-                    Replying to @{comment.parent_author}
-                  </span>
-                  <span>•</span>
-                  <span>{new Date(`${comment.created}Z`).toLocaleDateString()}</span>
+            comments.map((comment) => {
+              const looksSuspicious = hasSuspiciousCommentLanguage(comment.body || '');
+              const sanitizedHtml = looksSuspicious ? markdownToSafeHtml(comment.body || '') : '';
+              const isScamAlertComment = looksSuspicious && hasScamCommentSignals(comment.body || '', sanitizedHtml);
+              const commentHtml = isScamAlertComment ? disableExternalCommentLinks(sanitizedHtml) : sanitizedHtml;
+
+              return (
+                <div
+                  key={`${comment.author}/${comment.permlink}`}
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest('.comment-scam-link')) return;
+                    onSelectPost(comment);
+                  }}
+                  className={`${cardStyleClass} ${roundedClass} p-4 hover:border-blue-400 dark:hover:border-blue-500 transition cursor-pointer`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5 text-xs text-gray-400">
+                    <span className="font-semibold text-gray-700 dark:text-slate-300">
+                      Replying to @{comment.parent_author}
+                    </span>
+                    <span>•</span>
+                    <span>{new Date(`${comment.created}Z`).toLocaleDateString()}</span>
+                  </div>
+                  {isScamAlertComment ? (
+                    <div
+                      className="comment-body article-body scam-alert-comment line-clamp-3 text-xs text-gray-800 dark:text-slate-200 leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: commentHtml }}
+                    />
+                  ) : (
+                    <p className="text-xs text-gray-800 dark:text-slate-200 line-clamp-3 leading-relaxed">
+                      {comment.body}
+                    </p>
+                  )}
+                  {isScamAlertComment && <ScamAlertNotice />}
                 </div>
-                <p className="text-xs text-gray-800 dark:text-slate-200 line-clamp-3 leading-relaxed">
-                  {comment.body}
-                </p>
-              </div>
-            ))
+              );
+            })
           )}
 
           {comments.length >= 20 && (

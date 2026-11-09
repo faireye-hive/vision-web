@@ -58,40 +58,10 @@ import { translateMarkdown, translateText, POPULAR_TRANSLATION_LANGUAGES } from 
 import { PostTranslatorDropdown } from './PostTranslatorDropdown';
 import { ProfileReaderAppearance } from '../features/profile/profileStyleTypes';
 import { useNavigation } from '../context/NavigationContext';
+import { ScamAlertNotice } from './ScamAlertNotice';
+import { disableExternalCommentLinks, hasScamCommentSignals } from '../utils/scamAlert';
 
 const TRUSTED_HIVE_LINK_HOSTS = ['peakd.com', 'ecency.com', 'hive.blog', '3speak.tv', '3speak.com', '3speak.online'];
-
-const SUSPICIOUS_COMMENT_TERMS = /\b(?:airdrop|giveaway|free\s+(?:tokens?|hive|hbd)|claim\s+(?:now|your|free)|connect\s+(?:your\s+)?wallet|verify\s+(?:your\s+)?wallet|seed\s+phrase|private\s+key)\b/i;
-
-function isExternalCommentHref(href: string): boolean {
-  if (/^(?:\/|#|mailto:|tel:)/i.test(href) && !href.startsWith('//')) return false;
-  try {
-    const url = new URL(href, 'https://nebulosa.invalid');
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-    const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    return !TRUSTED_HIVE_LINK_HOSTS.some((domain) => host === domain || host.endsWith(`.${domain}`));
-  } catch {
-    return false;
-  }
-}
-
-function hasExternalCommentLink(html: string): boolean {
-  const anchorPattern = /<a\b([^>]*)>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = anchorPattern.exec(html))) {
-    const href = match[1].match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
-    if (href && isExternalCommentHref(href.replace(/&amp;/g, '&'))) return true;
-  }
-  return false;
-}
-
-function disableExternalCommentLinks(html: string): string {
-  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (anchor, attributes: string, label: string) => {
-    const href = attributes.match(/\bhref\s*=\s*(["'])(.*?)\1/i)?.[2];
-    if (!href || !isExternalCommentHref(href.replace(/&amp;/g, '&'))) return anchor;
-    return `<span class="comment-scam-link" title="Blocked: suspicious external link">${label}</span>`;
-  });
-}
 
 function isTrustedHiveLink(url: URL): boolean {
   const host = url.hostname.toLowerCase();
@@ -852,6 +822,10 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
   // Comment context state
   const isComment = Boolean(post.parent_author && post.parent_author.length > 0) || (post.depth !== undefined && post.depth > 0);
+  const isScamAlertCommentPost = isComment && hasScamCommentSignals(post.body || '', safeHtmlContent);
+  const displayedSafeHtmlContent = isScamAlertCommentPost
+    ? disableExternalCommentLinks(safeHtmlContent)
+    : safeHtmlContent;
   const isPeakSnap = useMemo(() => {
     if (!isComment) return false;
     const pAuthor = post.parent_author?.toLowerCase() || '';
@@ -1496,8 +1470,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
             onAuxClick={handleContentAuxClick}
             className="article-body w-full max-w-none break-words pt-0 text-[16px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-[17px] select-text"
           >
-            {safeHtmlContent && safeHtmlContent.trim().length > 0 ? (
-              <div dangerouslySetInnerHTML={{ __html: safeHtmlContent }} />
+            {isScamAlertCommentPost && <ScamAlertNotice />}
+            {displayedSafeHtmlContent && displayedSafeHtmlContent.trim().length > 0 ? (
+              <div
+                className={isScamAlertCommentPost ? 'scam-alert-comment' : ''}
+                dangerouslySetInnerHTML={{ __html: displayedSafeHtmlContent }}
+              />
             ) : loadBodyError ? (
               <div className="py-8 text-center space-y-3">
                 <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -2310,8 +2288,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
   const displayedCommentBody = translatedCommentBody || comment.body;
   const sanitizedCommentHtml = markdownToSafeHtml(displayedCommentBody);
-  const isScamAlertComment = SUSPICIOUS_COMMENT_TERMS.test(comment.body || '')
-    && hasExternalCommentLink(sanitizedCommentHtml);
+  const isScamAlertComment = hasScamCommentSignals(comment.body || '', sanitizedCommentHtml);
   const safeCommentHtml = isScamAlertComment
     ? disableExternalCommentLinks(sanitizedCommentHtml)
     : sanitizedCommentHtml;
@@ -2512,20 +2489,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         </button>
       )}
 
-      {isScamAlertComment && (
-        <div
-          role="alert"
-          className="mb-2 flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-rose-950 dark:border-rose-900/80 dark:bg-rose-950/40 dark:text-rose-100"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-700 dark:text-rose-300" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-wide">Scam Alert</p>
-            <p className="mt-0.5 text-xs leading-relaxed">
-              This comment combines a suspicious crypto offer with an external link. The link is disabled to help prevent accidental clicks.
-            </p>
-          </div>
-        </div>
-      )}
+      {isScamAlertComment && <ScamAlertNotice />}
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-gray-500 dark:text-slate-400">

@@ -15,6 +15,8 @@ import { KeychainService } from '../services/keychain';
 import { useAuth } from '../context/AuthContext';
 import { requestLogin } from '../utils/authEvents';
 import { VoteWeightDialog } from './VoteWeightDialog';
+import { disableExternalCommentLinks, hasScamCommentSignals, hasSuspiciousCommentLanguage } from '../utils/scamAlert';
+import { ScamAlertNotice } from './ScamAlertNotice';
 
 function parseHiveRef(url: string): { author: string; permlink: string } | null {
   const source = (url || '').split('#')[0];
@@ -89,7 +91,10 @@ function ReplyCard({
   const [sent, setSent] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
   const [voted, setVoted] = useState(false);
-  const html = markdownToSafeHtml(reply.body || '');
+  const looksSuspicious = hasSuspiciousCommentLanguage(reply.body || '');
+  const sanitizedHtml = looksSuspicious ? markdownToSafeHtml(reply.body || '') : '';
+  const isScamAlertComment = looksSuspicious && hasScamCommentSignals(reply.body || '', sanitizedHtml);
+  const html = isScamAlertComment ? disableExternalCommentLinks(sanitizedHtml) : sanitizedHtml;
 
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -126,9 +131,10 @@ function ReplyCard({
           </div>
         </div>
         <div
-          className="text-sm leading-relaxed text-slate-800 dark:text-slate-100 prose prose-sm dark:prose-invert max-w-none"
+          className={`text-sm leading-relaxed text-slate-800 dark:text-slate-100 prose prose-sm dark:prose-invert max-w-none ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
           dangerouslySetInnerHTML={{ __html: html }}
         />
+        {isScamAlertComment && <ScamAlertNotice />}
         <div className="flex items-center gap-3 mt-3">
           <button
             type="button"
