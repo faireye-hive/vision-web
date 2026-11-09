@@ -9,6 +9,7 @@ export interface SafeSnapImageProps {
   imgClassName?: string;
   onClick?: () => void;
   onStatus?: (status: 'loaded' | 'error') => void;
+  onNaturalDimensions?: (width: number, height: number) => void;
   showOverlayIcon?: boolean;
   /** Fixed aspect ratio for skeleton placeholder (e.g. "16/9", "4/3", "1/1"). Prevents layout shift. */
   aspectRatio?: string;
@@ -21,6 +22,7 @@ export const SafeSnapImage: React.FC<SafeSnapImageProps> = React.memo(({
   imgClassName = '',
   onClick,
   onStatus,
+  onNaturalDimensions,
   showOverlayIcon = false,
   aspectRatio
 }) => {
@@ -72,6 +74,7 @@ export const SafeSnapImage: React.FC<SafeSnapImageProps> = React.memo(({
       onStatus?.('error');
       return;
     }
+    onNaturalDimensions?.(img.naturalWidth, img.naturalHeight);
     setStatus('loaded');
     onStatus?.('loaded');
   };
