@@ -307,7 +307,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 isFeedActive ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400' : ''
               }`}
             >
-              <Rss className="w-5 h-5" />
+              <Rss className="h-6 w-6 shrink-0" strokeWidth={2.25} />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
               {t('nav.feed')}
@@ -330,7 +330,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 isDiscoverActive ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400' : ''
               }`}
             >
-              <Compass className="w-5 h-5" />
+              <Compass className="h-6 w-6 shrink-0" strokeWidth={2.25} />
               {isDiscoverActive && (
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white dark:ring-slate-900" />
               )}
@@ -371,7 +371,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 isShortsActive ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400' : ''
               }`}
             >
-              <Zap className="w-5 h-5" />
+              <Zap className="h-6 w-6 shrink-0" strokeWidth={2.25} />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
               {t('nav.shorts')}
@@ -394,7 +394,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 isCommunitiesActive ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400' : ''
               }`}
             >
-              <Users className="w-5 h-5" />
+              <Users className="h-6 w-6 shrink-0" strokeWidth={2.25} />
             </div>
             <span className="text-[10px] font-semibold tracking-tight leading-none mt-0.5 truncate">
               {t('nav.groups')}
@@ -420,7 +420,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 showMenu ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400' : ''
               }`}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="h-6 w-6 shrink-0" strokeWidth={2.25} />
               {unreadNotificationsCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
               )}
