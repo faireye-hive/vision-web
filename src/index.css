@@ -20,7 +20,7 @@ html {
   }
 
   html.dark body {
-    background-color: var(--ambient-bg, #0b0f17);
+    background-color: var(--ambient-bg, #101214);
     color: var(--reading-text, #f1f5f9);
   }
 
@@ -32,6 +32,29 @@ html {
     cursor: not-allowed;
   }
 }
+
+/* Neutral near-black surfaces for the default night theme. Tailwind's slate
+   surfaces are noticeably blue, so map panel and canvas utilities to the
+   application's intended charcoal palette while preserving their opacity. */
+html.dark [class~="dark:bg-slate-900"] { background-color: #070809 !important; }
+html.dark [class~="dark:bg-slate-900/40"] { background-color: rgb(7 8 9 / 0.4) !important; }
+html.dark [class~="dark:bg-slate-900/50"] { background-color: rgb(7 8 9 / 0.5) !important; }
+html.dark [class~="dark:bg-slate-900/60"] { background-color: rgb(7 8 9 / 0.6) !important; }
+html.dark [class~="dark:bg-slate-900/70"] { background-color: rgb(7 8 9 / 0.7) !important; }
+html.dark [class~="dark:bg-slate-900/75"] { background-color: rgb(7 8 9 / 0.75) !important; }
+html.dark [class~="dark:bg-slate-900/80"] { background-color: rgb(7 8 9 / 0.8) !important; }
+html.dark [class~="dark:bg-slate-900/90"] { background-color: rgb(7 8 9 / 0.9) !important; }
+html.dark [class~="dark:bg-slate-900/95"] { background-color: rgb(7 8 9 / 0.95) !important; }
+html.dark [class~="dark:bg-slate-950"] { background-color: #101214 !important; }
+html.dark [class~="dark:bg-slate-950/40"] { background-color: rgb(16 18 20 / 0.4) !important; }
+html.dark [class~="dark:bg-slate-950/50"] { background-color: rgb(16 18 20 / 0.5) !important; }
+html.dark [class~="dark:bg-slate-950/60"] { background-color: rgb(16 18 20 / 0.6) !important; }
+html.dark [class~="dark:bg-slate-950/90"] { background-color: rgb(16 18 20 / 0.9) !important; }
+html.dark [class~="dark:bg-slate-950/95"] { background-color: rgb(16 18 20 / 0.95) !important; }
+html.dark [class~="dark:bg-[#111827]"],
+html.dark [class~="dark:bg-[#121829]"],
+html.dark [class~="dark:bg-[#161b2e]"],
+html.dark [class~="dark:bg-[#0c1222]"] { background-color: #070809 !important; }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
