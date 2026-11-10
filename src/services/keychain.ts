@@ -2,7 +2,7 @@
  * Hive Keychain Browser Extension Service
  * Enables client-side, keyless authentication, voting, posting, and tipping on the Hive blockchain.
  */
-import { hiveRpcCall } from './hiveApi';
+import { hiveRpcCall, getHiveAvatarUrl, resolveHiveAvatarUrl } from './hiveApi';
 
 // Hive Keychain global interface definition
 declare global {
@@ -98,7 +98,9 @@ export class KeychainService {
   static getCurrentUser(): CurrentUser | null {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : null;
+      if (!data) return null;
+      const user: CurrentUser = JSON.parse(data);
+      return user ? { ...user, avatar: resolveHiveAvatarUrl(user.avatar, user.username) } : null;
     } catch {
       return null;
     }
@@ -141,7 +143,7 @@ export class KeychainService {
 
       const user: CurrentUser = {
         username: cleanUsername,
-        avatar: profile.profile_image || `https://images.ecency.com/u/${cleanUsername}/avatar/medium`,
+        avatar: resolveHiveAvatarUrl(profile.profile_image, cleanUsername),
         hasKeychain: false,
         isDemo: true
       };
@@ -188,7 +190,7 @@ export class KeychainService {
           if (response.success) {
             const user: CurrentUser = {
               username: cleanUsername,
-              avatar: `https://images.ecency.com/u/${cleanUsername}/avatar/medium`,
+              avatar: getHiveAvatarUrl(cleanUsername),
               hasKeychain: true,
               reputation: 65,
               votingPower: 100
