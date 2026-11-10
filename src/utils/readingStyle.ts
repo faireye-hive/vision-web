@@ -60,7 +60,7 @@ const LIGHT_BG: Record<ReadingAmbient, string> = {
 };
 
 const DARK_BG: Record<ReadingAmbient, string> = {
-  default: '#0b0f17',
+  default: '#101214',
   paper: '#17140f',
   mist: '#101820',
   pine: '#0d1612',
