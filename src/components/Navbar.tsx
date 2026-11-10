@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { useBlacklistFlair } from '../context/BlacklistFlairContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu,
@@ -60,7 +62,7 @@ interface NavbarProps {
   onOpenWrite?: () => void;
   onOpenNotifications?: () => void;
   onOpenManageFollowing?: () => void;
-  activeNav?: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
+  activeNav?: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves' | 'snaps';
   onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
   currentUser: CurrentUser | null;
   onLogin: (user: CurrentUser) => void;
@@ -93,6 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedLanguage = 'global',
   onSelectLanguage
 }) => {
+  const blacklistFlair = useBlacklistFlair();
   const { unreadCount: unreadNotificationsCount } = useNotifications();
   const { openCommunity } = useNavigation();
   const { t } = useI18n();
@@ -827,6 +830,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"><Activity className="h-3.5 w-3.5" /></span>
                             <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.chainStats')}</span>
                           </button>
+                          <Link to="/snaps" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Nebulosa Snaps · No rewards</Link>
+                          <Link to="/chat" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Messages · Encrypted chat</Link>
+                          <Link to="/lists" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">My lists · Saved posts</Link>
+                          <button type="button" role="switch" aria-checked={blacklistFlair.enabled} onClick={blacklistFlair.toggle}
+                            className="col-span-2 flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-left dark:border-slate-700 dark:bg-slate-900">
+                            <span><span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">Show blacklist badges</span><span className="block text-[10px] text-slate-500">Your blacklist and lists you follow</span></span>
+                            <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${blacklistFlair.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${blacklistFlair.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} /></span>
+                          </button>
+                          {blacklistFlair.enabled && (blacklistFlair.loading || blacklistFlair.error) && <div role="status" className="col-span-2 px-2 text-[10px] text-slate-500">{blacklistFlair.loading ? 'Loading blacklist badges…' : <>{blacklistFlair.error} <button type="button" className="underline" onClick={blacklistFlair.refresh}>Retry</button></>}</div>}
                           {onToggleTheme && (
                             <button
                               type="button"

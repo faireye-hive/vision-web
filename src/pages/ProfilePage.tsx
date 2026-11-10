@@ -1,3 +1,7 @@
+import { BlacklistFlair } from '../components/BlacklistFlair';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ProfileConnections } from '../features/profile/components/ProfileConnections';
+import { isProfileRelation } from '../services/profileRelations';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
@@ -44,6 +48,7 @@ import {
   resetProfileStyleLocal
 } from '../services/profileStyleService';
 import { getProfileCache, setProfileCache } from '../services/profileCache';
+import { ProfilePageSkeleton } from '../features/profile/components/ProfileSkeleton';
 import { ProfileHeaderSection } from '../features/profile/components/ProfileHeaderSection';
 import { ProfileBioSection } from '../features/profile/components/ProfileBioSection';
 import { ProfileStatsSection } from '../features/profile/components/ProfileStatsSection';
@@ -770,6 +775,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     []
   );
 
+  const [connectionParams] = useSearchParams();
+  const connectionType = connectionParams.get('list');
+
   const smartPageColors = getSmartTextColors(effectiveStyle.textColor, effectiveStyle.textSecondaryColor, effectiveStyle.backgroundColor);
 
   return (
@@ -818,92 +826,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       <div className="relative z-10 max-w-full mx-auto px-2 sm:px-6 pb-16 animate-in fade-in duration-150">
 
 
+        {!isProfileRelation(connectionType) && (
+            <nav aria-label="Connections and moderation" className="mx-auto flex w-full max-w-[1392px] flex-wrap justify-end gap-2 pt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <BlacklistFlair username={currentUser} />
+              {!isOwner && effectiveStyle.themeId !== 'clean-slate' && <Link to={`/chat?to=${encodeURIComponent(currentUser)}`} className="rounded-xl bg-blue-600 px-3 py-2 text-white hover:bg-blue-700">Send message</Link>}
+              <Link className="rounded-lg px-3 py-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800" to={`/lists?owner=${encodeURIComponent(currentUser)}`}>Public lists</Link>
+              <Link className="rounded-lg px-3 py-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800" to={`?list=followers`}>Followers</Link>
+              <Link className="rounded-lg px-3 py-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800" to={`?list=following`}>Following</Link>
+              <Link className="rounded-lg px-3 py-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800" to={`?list=muted`}>Moderation lists</Link>
+            </nav>
+        )}
+
         {/* Loading and Error States */}
-        {loading ? (
-          <div className="w-full max-w-full space-y-6 animate-pulse">
-            {/* Cover Skeleton */}
-            <div 
-              className="w-full bg-slate-200 dark:bg-slate-800/80 min-h-[200px] sm:min-h-[220px] relative overflow-hidden shadow-sm"
-              style={{ borderRadius: '15px' }}
-            >
-              <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent" />
-              <div className="absolute bottom-4 left-4 sm:left-6 right-4 sm:right-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                <div className="flex items-end gap-3.5 sm:gap-5">
-                  <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-white dark:border-slate-900 bg-slate-300 dark:bg-slate-700 shrink-0 shadow-lg" />
-                  <div className="space-y-2 mb-1">
-                    <div className="h-6 sm:h-7 w-36 sm:w-48 bg-slate-300 dark:bg-slate-700 rounded-lg" />
-                    <div className="h-4 w-24 sm:w-32 bg-slate-300/80 dark:bg-slate-700/70 rounded-md" />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="h-9 w-24 bg-slate-300 dark:bg-slate-700 rounded-xl" />
-                </div>
-              </div>
-            </div>
-
-            {/* Grid Layout: Sidebar & Feed */}
-            <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-12 items-start">
-              {/* Sidebar Skeleton */}
-              <div className="space-y-6 pt-4 sm:pt-6">
-                <div className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-6 space-y-4">
-                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded-md" />
-                  <div className="space-y-2">
-                    <div className="h-3.5 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                    <div className="h-3.5 w-5/6 bg-slate-200 dark:bg-slate-800 rounded" />
-                    <div className="h-3.5 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
-                  </div>
-                  <div className="pt-3 border-t border-gray-100 dark:border-slate-800/60 flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800" />
-                    <div className="h-3.5 w-36 bg-slate-200 dark:bg-slate-800 rounded" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  {[1, 2, 3].map((n) => (
-                    <div key={n} className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-2xl p-4 text-center space-y-2">
-                      <div className="w-4 h-4 mx-auto rounded-full bg-slate-200 dark:bg-slate-800" />
-                      <div className="h-5 w-10 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
-                      <div className="h-2.5 w-12 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Feed Skeleton */}
-              <div className="space-y-5 pt-4 sm:pt-6">
-                <div className="flex gap-4 border-b border-gray-100 dark:border-slate-800 pb-3">
-                  {[1, 2, 3, 4, 5].map((tab) => (
-                    <div key={tab} className="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded-md" />
-                  ))}
-                </div>
-
-                {[1, 2, 3].map((card) => (
-                  <div
-                    key={card}
-                    className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800/80 rounded-[15px] p-4 flex flex-col sm:flex-row gap-4 h-auto sm:h-[180px] w-full max-w-[894px]"
-                  >
-                    <div className="w-full sm:w-[262px] h-36 sm:h-full bg-slate-200 dark:bg-slate-800/70 rounded-[15px] shrink-0" />
-                    <div className="flex-1 flex flex-col justify-between py-1 space-y-2">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
-                          <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
-                        </div>
-                        <div className="h-5 w-3/4 bg-slate-200 dark:bg-slate-800 rounded-md" />
-                        <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                        <div className="h-3 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
-                      </div>
-                      <div className="flex gap-2 pt-2">
-                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-                        <div className="h-7 w-12 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        {isProfileRelation(connectionType) ? (
+          <ProfileConnections key={currentUser} username={currentUser} type={connectionType} />
+        ) : loading ? (
+          <ProfilePageSkeleton isOwner={isOwner} />
         ) : error ? (
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-rose-100 dark:border-rose-950/50 rounded-3xl p-12 text-center space-y-3 shadow-xs">
             <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{error}</p>
@@ -917,6 +855,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         ) : account && (
           <>
+
             {(() => {
               const theme = getThemeById(style.themeId);
               const ThemeLayout = theme.Layout;

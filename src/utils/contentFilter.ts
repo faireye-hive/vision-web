@@ -91,7 +91,10 @@ export interface FilterResult {
 /**
  * Check if a single Hive post matches any blocked author or word/tag
  */
-export function checkPostFiltered(post: HivePost, config: ContentFilterConfig): FilterResult {
+export function checkPostFiltered(post: HivePost, config: ContentFilterConfig, mutedAuthors: ReadonlySet<string> = new Set()): FilterResult {
+  if (mutedAuthors.has((post.author || '').trim().replace(/^@/, '').toLowerCase())) {
+    return { filtered: true, reason: 'author' };
+  }
   if (!config.enabled) {
     return { filtered: false };
   }
@@ -161,7 +164,8 @@ export function checkPostFiltered(post: HivePost, config: ContentFilterConfig): 
  */
 export function applyContentFilter(
   posts: HivePost[],
-  config: ContentFilterConfig
+  config: ContentFilterConfig,
+  mutedAuthors: ReadonlySet<string> = new Set()
 ): {
   visiblePosts: HivePost[];
   hiddenPosts: HivePost[];
@@ -169,7 +173,7 @@ export function applyContentFilter(
   hiddenByWordCount: number;
   totalHiddenCount: number;
 } {
-  if (!config.enabled || (config.words.length === 0 && config.authors.length === 0)) {
+  if (mutedAuthors.size === 0 && (!config.enabled || (config.words.length === 0 && config.authors.length === 0))) {
     return {
       visiblePosts: posts,
       hiddenPosts: [],
@@ -185,7 +189,7 @@ export function applyContentFilter(
   let hiddenByWordCount = 0;
 
   for (const post of posts) {
-    const res = checkPostFiltered(post, config);
+    const res = checkPostFiltered(post, config, mutedAuthors);
     if (res.filtered) {
       hiddenPosts.push(post);
       if (res.reason === 'author') {

@@ -213,6 +213,7 @@ export function ProfileReplies({
   username: string;
   onOpenPost: (post: HivePost) => void;
 }) {
+  const { isMuted } = useAuth();
   const [replies, setReplies] = useState<HivePost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -247,7 +248,7 @@ export function ProfileReplies({
 
   return (
     <div className="space-y-4">
-      {replies.map((reply) => (
+      {replies.filter(reply => !isMuted(reply.author)).map((reply) => (
         <ReplyCard key={`${reply.author}/${reply.permlink}`} reply={reply} onOpenPost={onOpenPost} />
       ))}
     </div>
@@ -261,6 +262,7 @@ export function ProfileMentions({
   username: string;
   onOpenPost: (post: HivePost) => void;
 }) {
+  const { isMuted } = useAuth();
   const [notes, setNotes] = useState<HiveNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -302,7 +304,7 @@ export function ProfileMentions({
 
   return (
     <div className="space-y-4">
-      {notes.map((note) => (
+      {notes.filter(note => !isMuted((note.msg || '').match(/@([a-z0-9.-]+)/i)?.[1] || '')).map((note) => (
         <MentionCard key={note.id || note.url} note={note} onOpenPost={onOpenPost} />
       ))}
     </div>

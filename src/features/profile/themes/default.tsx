@@ -1,3 +1,5 @@
+import { BlacklistFlair } from '../../../components/BlacklistFlair';
+import { Link } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Palette,
@@ -71,6 +73,7 @@ const ThemeHeader: React.FC<ThemeProps> = ({
               </button>
             ) : (
               <>
+                <Link to={`/chat?to=${encodeURIComponent(account?.name || '')}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"><MessageSquare className="h-4 w-4" />Message</Link>
                 <button type="button" onClick={onFollowToggle} aria-pressed={isFollowing} className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isFollowing ? 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
                   {isFollowing ? <UserMinus className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
                   {isFollowing ? 'Following' : 'Follow'}
@@ -85,12 +88,12 @@ const ThemeHeader: React.FC<ThemeProps> = ({
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">{meta.name || account?.name}</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">@{account?.name}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">@{account?.name}<BlacklistFlair username={account?.name || ''} /></p>
           </div>
           <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs sm:gap-x-6">
             {[{ label: 'Posts', value: postCount }, { label: 'Followers', value: followerCount }, { label: 'Following', value: followingCount }].map(stat => (
               <div key={stat.label} className="flex items-baseline gap-1.5 sm:flex-col sm:gap-0.5">
-                <dd className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{stat.value.toLocaleString()}</dd>
+                <dd className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{stat.label === 'Posts' ? stat.value.toLocaleString() : <Link to={`?list=${stat.label.toLowerCase()}`} className="rounded hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label={`View ${stat.label.toLowerCase()}`}>{stat.value.toLocaleString()}</Link>}</dd>
                 <dt className="text-slate-500 dark:text-slate-400">{stat.label}</dt>
               </div>
             ))}
@@ -458,7 +461,7 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                               alt={post.author} 
                               className="w-3.5 h-3.5 rounded-full inline-block object-cover border border-purple-300 dark:border-purple-700" 
                             />
-                            <span>@{post.author}</span>
+                            <span>@{post.author}</span><BlacklistFlair username={post.author} />
                           </button>
                         </div>
                       )}
@@ -489,7 +492,7 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                             alt={post.author} 
                             className="w-4 h-4 rounded-full object-cover border border-gray-200 dark:border-slate-700" 
                           />
-                          <span className="truncate">@{post.author}</span>
+                          <span className="truncate">@{post.author}</span><BlacklistFlair username={post.author} />
                         </button>
                       </div>
 

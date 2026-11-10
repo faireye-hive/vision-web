@@ -1,3 +1,7 @@
+import { useSavedLists } from '../context/SavedListsContext';
+import { BlacklistFlair } from './BlacklistFlair';
+import { CommunityUserFlair } from './CommunityUserFlair';
+import { PostCommunityLabels } from './PostCommunityLabels';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -72,7 +76,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
     : `discover-post-${cleanSlug}`;
 
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [openMenuUpwards, setOpenMenuUpwards] = useState(false);
+  const [moreMenuPosition, setMoreMenuPosition] = useState({ top: 0, left: 0 });
   const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleToggleMoreMenu = (e: React.MouseEvent | React.TouchEvent) => {
@@ -80,21 +84,36 @@ const PostCardComponent: React.FC<PostCardProps> = ({
     if (!showMoreMenu) {
       if (moreButtonRef.current) {
         const rect = moreButtonRef.current.getBoundingClientRect();
+        const menuWidth = 208;
+        const menuHeight = Math.min(240, window.innerHeight - 16);
         const bottomNavOffset = window.innerWidth < 640 ? 65 : 10;
-        const spaceBelow = window.innerHeight - rect.bottom - bottomNavOffset;
-        // If cramped below (less than 230px space), open upwards; otherwise open downwards
-        setOpenMenuUpwards(spaceBelow < 230);
+        const openUpwards = window.innerHeight - rect.bottom - bottomNavOffset < menuHeight + 8;
+        const top = openUpwards
+          ? Math.max(8, rect.top - menuHeight - 8)
+          : Math.min(rect.bottom + 6, window.innerHeight - menuHeight - 8);
+        const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+        setMoreMenuPosition({ top, left });
       }
       setShowMoreMenu(true);
     } else {
       setShowMoreMenu(false);
     }
   };
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const closeOnLayoutChange = () => setShowMoreMenu(false);
+    window.addEventListener('scroll', closeOnLayoutChange, true);
+    window.addEventListener('resize', closeOnLayoutChange);
+    return () => {
+      window.removeEventListener('scroll', closeOnLayoutChange, true);
+      window.removeEventListener('resize', closeOnLayoutChange);
+    };
+  }, [showMoreMenu]);
   // Check if current user has already upvoted this post
   const [upvoted, setUpvoted] = useState<boolean>(() => {
     if (currentUser?.username && post.active_votes) {
       return post.active_votes.some(
-        v => v.voter.toLowerCase() === currentUser.username.toLowerCase()
+        v => v.voter.toLowerCase() === currentUser.username.toLowerCase() && Number(v.percent ?? v.rshares) > 0
       );
     }
     return false;
@@ -113,15 +132,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
   const [isReblogging, setIsReblogging] = useState<boolean>(false);
   const [reblogSuccessToast, setReblogSuccessToast] = useState<boolean>(false);
 
-  const [isBookmarked, setIsBookmarked] = useState(() => {
-    try {
-      const saved = localStorage.getItem('hive_bookmarks') || '[]';
-      const parsed = JSON.parse(saved);
-      return parsed.includes(`${post.author}/${post.permlink}`);
-    } catch {
-      return false;
-    }
-  });
+  const { lists: savedLists, openPicker } = useSavedLists();
+  const isBookmarked = savedLists.some(list => list.posts.some(item => item.author === post.author && item.permlink === post.permlink));
 
   // Lightbox Gallery state for image clicks on feed post
   const [showGallery, setShowGallery] = useState(false);
@@ -410,23 +422,9 @@ const PostCardComponent: React.FC<PostCardProps> = ({
     }
   };
 
-  const toggleBookmark = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const id = `${post.author}/${post.permlink}`;
-    try {
-      const saved = localStorage.getItem('hive_bookmarks') || '[]';
-      let parsed: string[] = JSON.parse(saved);
-      if (parsed.includes(id)) {
-        parsed = parsed.filter(item => item !== id);
-        setIsBookmarked(false);
-      } else {
-        parsed.push(id);
-        setIsBookmarked(true);
-      }
-      localStorage.setItem('hive_bookmarks', JSON.stringify(parsed));
-    } catch {
-      setIsBookmarked(!isBookmarked);
-    }
+  const toggleBookmark = (event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    openPicker(post, event?.currentTarget.getBoundingClientRect());
   };
 
   const handleShare = (e?: React.MouseEvent) => {
@@ -638,6 +636,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
               >
                 {post.author}
               </button>
+              <BlacklistFlair username={post.author} />
+              <CommunityUserFlair post={post} />
 
               <span id={`${uid}-reputation`} className="discover_post_reputation text-xs sm:text-[10px] text-gray-400 dark:text-slate-500 font-medium">
                 ({rep})
@@ -675,7 +675,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
             }`}
-            title={isBookmarked ? 'Bookmarked' : 'Save post'}
+            title="Save post to lists"
+            aria-label="Save post to lists"
           >
             <Bookmark id={`${uid}-bookmark-icon`} className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
           </button>
@@ -814,12 +815,12 @@ const PostCardComponent: React.FC<PostCardProps> = ({
                 <MoreHorizontal id={`${uid}-more-icon`} className="w-4 h-4" />
               </button>
 
-              {/* Dropdown Menu */}
-              {showMoreMenu && (
+              {/* Render above card stacking contexts so sibling cards cannot cover it. */}
+              {showMoreMenu && typeof document !== 'undefined' && createPortal(
                 <>
                   <div
                     id={`${uid}-more-backdrop`}
-                    className="discover_post_more_backdrop fixed inset-0 z-40 cursor-default"
+                    className="discover_post_more_backdrop fixed inset-0 z-[999] cursor-default"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowMoreMenu(false);
@@ -831,9 +832,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
                   />
                   <div
                     id={`${uid}-more-menu`}
-                    className={`discover_post_more_menu absolute right-0 ${
-                      openMenuUpwards ? 'bottom-full mb-2' : 'top-full mt-1.5'
-                    } w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200`}
+                    className="discover_post_more_menu fixed z-[1000] max-h-[calc(100dvh-1rem)] w-52 overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 py-1.5 animate-in fade-in zoom-in-95 text-xs text-gray-700 dark:text-slate-200"
+                    style={moreMenuPosition}
                     onClick={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
                   >
@@ -891,7 +891,8 @@ const PostCardComponent: React.FC<PostCardProps> = ({
                       </button>
                     )}
                   </div>
-                </>
+                </>,
+                document.body
               )}
             </div>
           </div>
@@ -899,6 +900,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
       </div>
     </div>
 
+    <PostCommunityLabels post={post} />
     <VoteWeightDialog
       open={voteOpen}
       username={currentUser?.username || ''}
@@ -940,7 +942,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
             />
             <div id={`${uid}-lightbox-info`} className="min-w-0">
               <div id={`${uid}-lightbox-meta`} className="flex items-center gap-1.5 text-xs text-white">
-                <span id={`${uid}-lightbox-author`} className="font-bold truncate">@{post.author}</span>
+                <span id={`${uid}-lightbox-author`} className="font-bold truncate">@{post.author}</span><BlacklistFlair username={post.author} />
                 <span id={`${uid}-lightbox-time`} className="text-[10px] text-white/50">• {formatTime(post.created)}</span>
                 {postImages.length > 1 && (
                   <span

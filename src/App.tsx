@@ -1,3 +1,6 @@
+import { SavedListsProvider } from './context/SavedListsContext';
+import { SavedListsPicker } from './components/SavedListsPicker';
+import { BlacklistFlairProvider } from './context/BlacklistFlairContext';
 import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -28,10 +31,13 @@ import { useShortsWordFilter } from './hooks/useShortsWordFilter';
 import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
 import { I18nProvider } from './i18n/I18nContext';
 
+const SnapsPage = lazy(() => import('./pages/SnapsPage').then(m => ({ default: m.SnapsPage })));
 const ShortsPage = lazy(() => import('./pages/ShortsPage').then((m) => ({ default: m.ShortsPage })));
 const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default: m.WritePage })));
 const FollowingManagerPage = lazy(() => import('./pages/FollowingManagerPage').then((m) => ({ default: m.FollowingManagerPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const ChatPage = lazy(() => import('./pages/ChatPage').then(m => ({ default: m.ChatPage })));
+const SavedListsPage = lazy(() => import('./pages/SavedListsPage').then(m => ({ default: m.SavedListsPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const ExploreCommunitiesPage = lazy(() => import('./pages/ExploreCommunitiesPage').then((m) => ({ default: m.ExploreCommunitiesPage })));
 const ManageCommunitiesPage = lazy(() => import('./pages/ManageCommunitiesPage').then((m) => ({ default: m.ManageCommunitiesPage })));
@@ -188,7 +194,7 @@ function NebulosaApp() {
         onOpenWrite={openWritePage}
         onOpenNotifications={openNotificationsPage}
         onOpenManageFollowing={openFollowingManager}
-        activeNav={activeNav}
+        activeNav={standalonePage === 'snaps' ? 'snaps' : activeNav}
         onNavChange={handleNavChange}
         currentUser={currentUser}
         onLogin={login}
@@ -203,12 +209,15 @@ function NebulosaApp() {
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-1 sm:px-6 py-2 sm:py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
+        {standalonePage === 'snaps' && <SnapsPage />}
+        {standalonePage === 'chat' && <ChatPage />}
+        {standalonePage === 'lists' && <SavedListsPage />}
         {standalonePage === 'write' && (
           <WritePage
             onClose={closeStandalonePage}
             currentUser={currentUser}
             onRequireLogin={requestLogin}
-            defaultCommunity={tag.startsWith('hive-') ? tag : ''}
+            defaultCommunity={new URLSearchParams(location.search).get('community') || ''}
             joinedCommunities={joinedCommunities}
           />
         )}
@@ -590,15 +599,20 @@ export function App() {
     <BrowserRouter>
       <I18nProvider>
       <AuthProvider>
+      <BlacklistFlairProvider>
         <NavigationProvider>
           <NotificationsProvider>
             <ContentFilterProvider>
               <BookmarksProvider>
+              <SavedListsProvider>
                 <NebulosaApp />
+                <SavedListsPicker />
+              </SavedListsProvider>
               </BookmarksProvider>
             </ContentFilterProvider>
           </NotificationsProvider>
         </NavigationProvider>
+      </BlacklistFlairProvider>
       </AuthProvider>
       </I18nProvider>
     </BrowserRouter>

@@ -8,6 +8,8 @@ import { hiveRpcCall } from './hiveApi';
 declare global {
   interface Window {
     hive_keychain?: {
+      requestEncodeMessage?: (username: string, receiver: string, message: string, key: 'Memo', callback: (response: KeychainResponse) => void) => void;
+      requestVerifyKey?: (username: string, message: string, key: 'Memo', callback: (response: KeychainResponse) => void) => void;
       requestHandshake?: (callback: () => void) => void;
       requestSignBuffer?: (
         username: string,
@@ -380,6 +382,93 @@ export class KeychainService {
           resolve(response);
         }
       );
+    });
+  }
+
+  static async updateModerationList(
+    follower: string,
+    following: string,
+    action: 'blacklist' | 'unblacklist' | 'follow_blacklist' | 'unfollow_blacklist' | 'follow_muted' | 'unfollow_muted'
+  ): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
+    return new Promise(resolve => {
+      window.hive_keychain!.requestCustomJson!(follower, 'follow', 'Posting',
+        JSON.stringify(['follow', { follower, following, what: [action] }]),
+        `${action.replaceAll('_', ' ')} @${following}`, resolve);
+    });
+  }
+
+  static async publishShortEvents(username: string, operations: any[]): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    try {
+      if (!operations.length || operations.length > 4) throw new Error();
+      for (const operation of operations) {
+        const value = operation?.[1];
+        const event = JSON.parse(value?.json);
+        if (operation[0] !== 'custom_json' || event.app !== 'nebulosa-shorts' || event.version !== 1 || event.actor !== username ||
+            !['snap', 'vote', 'resnap', 'channel'].includes(event.type) || !Array.isArray(value.required_auths) || value.required_auths.length ||
+            !Array.isArray(value.required_posting_auths) || value.required_posting_auths.length !== 1 || value.required_posting_auths[0] !== username ||
+            typeof value.id !== 'string' || !/^(nebulosa\.(shorts|channels)\.v1|neb\.(thread|channel)\.[a-f0-9]{20})$/.test(value.id) ||
+            new TextEncoder().encode(value.id).length > 32 || new TextEncoder().encode(value.json).length > 8192) throw new Error();
+      }
+    } catch { return { success: false, error: 'Invalid no-rewards snap operation.' }; }
+    if (!this.isInstalled() || !window.hive_keychain?.requestBroadcast) return this.unavailableResponse();
+    return new Promise(resolve => {
+      try { window.hive_keychain!.requestBroadcast!(username, operations, 'Posting', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }
+      catch { resolve({ success: false, error: 'Keychain could not publish the snap event.' }); }
+    });
+  }
+
+  static async encodeMemoMessage(username: string, receiver: string, plaintext: string): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    if (!this.isInstalled() || !window.hive_keychain?.requestEncodeMessage) return { success: false, error: 'Hive Keychain with memo encryption support is required.' };
+    return new Promise(resolve => {
+      try { window.hive_keychain!.requestEncodeMessage!(username, receiver, `#${plaintext}`, 'Memo', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }
+      catch { resolve({ success: false, error: 'Keychain could not encrypt this message.' }); }
+    });
+  }
+
+  static async decodeMemoMessage(username: string, ciphertext: string): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    if (!/^#[1-9A-HJ-NP-Za-km-z]{100,}$/.test(ciphertext)) return { success: false, error: 'Invalid encrypted memo.' };
+    if (!this.isInstalled() || !window.hive_keychain?.requestVerifyKey) return { success: false, error: 'Hive Keychain with your private memo key is required.' };
+    return new Promise(resolve => {
+      try { window.hive_keychain!.requestVerifyKey!(username, ciphertext, 'Memo', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }
+      catch { resolve({ success: false, error: 'Keychain could not decrypt this message.' }); }
+    });
+  }
+
+  static async broadcastChatMessage(username: string, recipient: string, json: string): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    try {
+      const value = JSON.parse(json);
+      if (value.app !== 'nebulosa-chat' || value.version !== 1 || !/^[a-f0-9-]{36}$/.test(value.id) ||
+          !/^[a-z][a-z0-9.-]{2,15}$/.test(username) || !/^[a-z][a-z0-9.-]{2,15}$/.test(recipient) || username === recipient ||
+          value.from !== username || value.to !== recipient || typeof value.memo !== 'string' || !/^#[1-9A-HJ-NP-Za-km-z]{100,}$/.test(value.memo) ||
+          Object.keys(value).some(key => !['app', 'version', 'id', 'from', 'to', 'memo'].includes(key)) || new TextEncoder().encode(json).length > 8192) {
+        return { success: false, error: 'Refusing to publish an invalid encrypted chat message.' };
+      }
+    } catch { return { success: false, error: 'Invalid encrypted chat message.' }; }
+    if (!this.isInstalled() || !window.hive_keychain?.requestBroadcast) return this.unavailableResponse();
+    const operations = [...new Set([username, recipient])].map(account => ['custom_json', {
+      required_auths: [], required_posting_auths: [username], id: `nebulosa.chat.${account}`, json
+    }]);
+    return new Promise(resolve => {
+      try { window.hive_keychain!.requestBroadcast!(username, operations, 'Posting', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }
+      catch { resolve({ success: false, error: 'Keychain could not publish this encrypted message.' }); }
+    });
+  }
+
+  static async publishSavedList(username: string, id: string, json: string, title: string): Promise<KeychainResponse> {
+    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    if (!id || new TextEncoder().encode(id).length > 32 || new TextEncoder().encode(json).length > 8192) return { success: false, error: 'Invalid list payload size.' };
+    if (!this.isInstalled() || !window.hive_keychain?.requestCustomJson) return this.unavailableResponse();
+    return new Promise(resolve => {
+      try {
+        window.hive_keychain!.requestCustomJson!(username, id, 'Posting', json, title,
+          response => resolve(response || { success: false, error: 'No response from Keychain.' }));
+      } catch (error) { resolve({ success: false, error: error instanceof Error ? error.message : 'Keychain failed.' }); }
     });
   }
 

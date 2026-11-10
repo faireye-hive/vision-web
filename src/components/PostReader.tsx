@@ -1,3 +1,7 @@
+import { useI18n } from '../i18n/I18nContext';
+import { BlacklistFlair } from './BlacklistFlair';
+import { CommunityUserFlair } from './CommunityUserFlair';
+import { PostCommunityLabels } from './PostCommunityLabels';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -18,7 +22,6 @@ import {
   Send,
   Coins,
   Repeat,
-  AlertCircle,
   Hash,
   Bookmark,
   Loader2,
@@ -45,6 +48,7 @@ import {
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
+import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
 import {
   extract3SpeakVideoIds,
   get3SpeakData,
@@ -886,8 +890,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   }, [isComment, isContainerParent, post.parent_author, post.parent_permlink]);
 
-  const { isFollowing, setFollowingUsersList } = useAuth();
-  const { config: contentFilterConfig, addFilterAuthor, removeFilterAuthor } = useContentFilter();
+  const { isFollowing, setFollowingUsersList, mutedUsersLoading } = useAuth();
+  const { config: contentFilterConfig, addFilterAuthor, removeFilterAuthor, isAuthorHidden } = useContentFilter();
   const [followLoading, setFollowLoading] = useState<string | null>(null);
 
   const handleToggleFollowAuthor = async (targetAuthor: string) => {
@@ -1125,9 +1129,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
         item => item.parent_author === post.author && item.parent_permlink === post.permlink
       );
     }
-    const mutedSet = new Set((contentFilterConfig.authors || []).map(a => a.toLowerCase().trim()));
-    return list.filter(p => !mutedSet.has(p.author.toLowerCase().trim()));
-  }, [discussion, post, contentFilterConfig.authors]);
+    return list.filter(p => !isAuthorHidden(p.author));
+  }, [discussion, post, isAuthorHidden]);
 
   const sortedComments = useMemo(() => [...comments].sort((a, b) => {
     const difference = getCommentTimestamp(a.created) - getCommentTimestamp(b.created);
@@ -1139,6 +1142,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return Math.max(post.children || 0, discussionComments);
   }, [post.children, post.author, post.permlink, discussion]);
   const totalVotesCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (hasVoted ? 1 : 0);
+
+  if (mutedUsersLoading) return <div role="status" className="p-6 text-center text-sm text-slate-500">Loading moderation preferences…</div>;
+  if (isAuthorHidden(post.author)) return <div className="p-6 text-center text-sm text-slate-500"><p>This account is muted.</p><button onClick={onClose} className="mt-3 text-blue-500">Back</button></div>;
 
   return (
     <article
@@ -1221,8 +1227,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
           );
         })()}
 
+        <PostCommunityLabels post={fullPost || post} />
         {/* Parent context: identify the comment being answered without repeating the root container. */}
-        {isComment && (
+        {isComment && !isAuthorHidden(parentPost?.author || post.parent_author || '') && (
           <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 dark:border-slate-700 dark:bg-slate-800/50">
             <div className="flex items-start gap-3">
               <img
@@ -1330,6 +1337,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
               <button onClick={() => onSelectAuthor(post.author)} className="max-w-full truncate text-sm font-bold text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-300">
                 @{post.author}
               </button>
+              <BlacklistFlair username={post.author} />
+              <CommunityUserFlair post={fullPost || post} />
               {isComment && (
                 <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
                   Comment
@@ -1741,7 +1750,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   onToggleFollowAuthor={handleToggleFollowAuthor}
                   onToggleMuteAuthor={handleToggleMuteAuthor}
                   isUserFollowing={isFollowing}
-                  isAuthorMuted={(author: string) => contentFilterConfig.authors.includes(author.toLowerCase().trim())}
+                  isAuthorMuted={isAuthorHidden}
                 />
               ))}
             </div>
@@ -1778,7 +1787,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {relatedStories.map((relPost) => {
+              {relatedStories.filter(relPost => !isAuthorHidden(relPost.author)).map((relPost) => {
                 const thumb = getPostThumbnail(relPost);
                 return (
                   <div
@@ -2130,78 +2139,14 @@ export const PostReader: React.FC<PostReaderProps> = ({
         document.body
       )}
 
-      {pendingExternalLink && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm animate-in fade-in duration-150"
-          role="presentation"
-          onClick={() => setPendingExternalLink(null)}
-        >
-          <section
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="external-link-warning-title"
-            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                <AlertCircle className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <h2 id="external-link-warning-title" className="text-base font-bold text-slate-900 dark:text-white">
-                  Leaving Nebulosa
-                </h2>
-                <p className="mt-1.5 text-sm leading-5 text-slate-600 dark:text-slate-300">
-                  This user-posted link opens an external site. It could lead to a fake airdrop, a wallet connection request, or a request to sign a transaction.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPendingExternalLink(null)}
-                className="-mt-1 -mr-1 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Close link warning"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                {new URL(pendingExternalLink).hostname}
-              </p>
-              <p className="mt-1 break-all text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-                {pendingExternalLink}
-              </p>
-            </div>
-
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Never enter your private keys or approve transactions you do not understand.
-            </p>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                autoFocus
-                onClick={() => setPendingExternalLink(null)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.open(pendingExternalLink, '_blank', 'noopener,noreferrer');
-                  setPendingExternalLink(null);
-                }}
-                className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-              >
-                Continue to site
-              </button>
-            </div>
-          </section>
-        </div>,
-        document.body
-      )}
+      <ExternalLinkWarningModal
+        href={pendingExternalLink}
+        onCancel={() => setPendingExternalLink(null)}
+        onContinue={(href) => {
+          window.open(href, '_blank', 'noopener,noreferrer');
+          setPendingExternalLink(null);
+        }}
+      />
 
     </article>
   );
@@ -2264,10 +2209,19 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
 
   const avatar = getHiveAvatarUrl(comment.author, 'small');
 
+  const { locale } = useI18n();
+  const commentTranslationVersion = useRef(0);
   // Comment translation state (free, markdown-preserved)
   const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
   const [isTranslatingComment, setIsTranslatingComment] = useState(false);
   const [isCommentBodyExpanded, setIsCommentBodyExpanded] = useState(false);
+
+  useEffect(() => {
+    commentTranslationVersion.current++;
+    setTranslatedCommentBody(null);
+    setIsTranslatingComment(false);
+    return () => { commentTranslationVersion.current++; };
+  }, [locale, comment.author, comment.permlink, comment.body]);
 
   const handleToggleTranslateComment = async () => {
     if (translatedCommentBody) {
@@ -2275,14 +2229,15 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       return;
     }
     if (!comment.body || isTranslatingComment) return;
+    const version = commentTranslationVersion.current;
     setIsTranslatingComment(true);
     try {
-      const translated = await translateMarkdown(comment.body, 'pt');
-      setTranslatedCommentBody(translated);
+      const translated = await translateMarkdown(comment.body, locale);
+      if (version === commentTranslationVersion.current) setTranslatedCommentBody(translated);
     } catch (err) {
       console.error('Failed to translate comment:', err);
     } finally {
-      setIsTranslatingComment(false);
+      if (version === commentTranslationVersion.current) setIsTranslatingComment(false);
     }
   };
 
@@ -2412,6 +2367,8 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           >
             @{comment.author}
           </button>
+              <BlacklistFlair username={comment.author} />
+              <CommunityUserFlair post={comment} />
           {comment.author.toLowerCase() === postAuthor.toLowerCase() && (
             <span className="rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/50 dark:text-blue-300">
               Post author
@@ -2462,7 +2419,11 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       </div>
 
       {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
-      <div className={`relative mb-1.5 ${shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''}`}>
+      <div
+        className={`relative mb-1.5 ${
+          shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''
+        }`}
+      >
         <div
           className={`comment-body article-body max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
           dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
@@ -2488,7 +2449,6 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           {isCommentBodyExpanded ? 'Show less' : '… Read more'}
         </button>
       )}
-
       {isScamAlertComment && <ScamAlertNotice />}
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}

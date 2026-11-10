@@ -50,7 +50,7 @@ export const ShortTranslatorDropdown: React.FC<ShortTranslatorDropdownProps> = (
           setIsOpen(!isOpen);
         }}
         disabled={isTranslating}
-        className={`flex items-center gap-1 py-1 px-1.5 min-h-9 rounded-full text-xs font-semibold transition cursor-pointer select-none ${
+        className={`shorts-action-button flex items-center gap-1 py-1 px-1.5 min-h-9 rounded-full text-xs font-semibold transition cursor-pointer select-none ${
           currentLanguage
             ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-2xs font-bold'
             : 'text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/30'

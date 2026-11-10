@@ -1,3 +1,4 @@
+import { useAuth } from './AuthContext';
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import {
   ContentFilterConfig,
@@ -13,6 +14,7 @@ import { HivePost } from '../services/hiveApi';
 
 export interface ContentFilterContextType {
   config: ContentFilterConfig;
+  isAuthorHidden: (author: string) => boolean;
   addFilterWord: (word: string) => void;
   removeFilterWord: (word: string) => void;
   clearFilterWords: () => void;
@@ -32,6 +34,8 @@ export interface ContentFilterContextType {
 const ContentFilterContext = createContext<ContentFilterContextType | undefined>(undefined);
 
 export function ContentFilterProvider({ children }: { children: React.ReactNode }) {
+  const { mutedUsersList, mutedUsersLoading } = useAuth();
+  const mutedAuthors = useMemo(() => new Set(mutedUsersList.map(name => name.trim().replace(/^@/, '').toLowerCase())), [mutedUsersList]);
   const [config, setConfig] = useState<ContentFilterConfig>(() => loadFilterConfig());
 
   const addFilterWord = useCallback((word: string) => {
@@ -92,21 +96,27 @@ export function ContentFilterProvider({ children }: { children: React.ReactNode 
 
   const isPostFiltered = useCallback(
     (post: HivePost) => {
-      return checkPostFiltered(post, config);
+      return mutedUsersLoading ? { filtered: true, reason: 'author' as const } : checkPostFiltered(post, config, mutedAuthors);
     },
-    [config]
+    [config, mutedAuthors, mutedUsersLoading]
   );
 
   const filterPostsList = useCallback(
     (posts: HivePost[]) => {
-      return applyContentFilter(posts, config);
+      return applyContentFilter(mutedUsersLoading ? [] : posts, config, mutedAuthors);
     },
-    [config]
+    [config, mutedAuthors, mutedUsersLoading]
   );
+
+  const isAuthorHidden = useCallback((author: string) => {
+    const clean = author.trim().replace(/^@/, '').toLowerCase();
+    return mutedUsersLoading || mutedAuthors.has(clean) || (config.enabled && config.authors.includes(clean));
+  }, [mutedAuthors, config, mutedUsersLoading]);
 
   const value = useMemo(
     () => ({
       config,
+      isAuthorHidden,
       addFilterWord,
       removeFilterWord,
       clearFilterWords,
@@ -119,6 +129,7 @@ export function ContentFilterProvider({ children }: { children: React.ReactNode 
     }),
     [
       config,
+      isAuthorHidden,
       addFilterWord,
       removeFilterWord,
       clearFilterWords,

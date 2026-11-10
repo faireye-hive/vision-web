@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -601,9 +602,12 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
     }
   }, [snaps, onHashtagsExtracted]);
 
+  const { isMuted: isChainMuted, mutedUsersLoading } = useAuth();
+
   // Check if snap contains any blocked word or is written by a muted author
   const isSnapBlocked = useCallback(
     (snap: HivePost): boolean => {
+      if (mutedUsersLoading || isChainMuted(snap.author)) return true;
       if (!filterEnabled) return false;
       const authorLower = (snap.author || '').toLowerCase();
 
@@ -628,7 +632,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
         return bodyLower.includes(w) || authorLower === w;
       });
     },
-    [filterEnabled, blockedWords, blockedAuthors]
+    [filterEnabled, blockedWords, blockedAuthors, isChainMuted, mutedUsersLoading]
   );
 
   const directReplyCounts = useMemo(() => {

@@ -14,6 +14,7 @@ import {
 import { HiveCommunity, getCommunity, getHiveAvatarUrl } from '../services/hiveApi';
 import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '../context/NavigationContext';
+import { CommunityAdminButton } from './CommunityAdminButton';
 
 interface CommunityInfoCardProps {
   communityName: string;
@@ -191,7 +192,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
 
           <button
             type="button"
-            onClick={() => openWritePage()}
+            onClick={() => openWritePage(cleanName)}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             title="Write a post for this community"
             aria-label={`Write a post for ${community.title}`}
@@ -218,6 +219,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
           </div>
         </div>
 
+        <CommunityAdminButton communityName={cleanName} />
         {community.about && (
           <section className="mt-3">
             <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">

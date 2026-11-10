@@ -1,4 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useI18n } from '../i18n/I18nContext';
+import { BlacklistFlair } from './BlacklistFlair';
+import { filterCommentTree } from '../utils/contentVisibility';
+import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -60,6 +64,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   onMuteAuthor,
   blockedAuthors = []
 }) => {
+  const { isMuted, mutedUsersLoading } = useAuth();
   const [discussionMap, setDiscussionMap] = useState<Record<string, HivePost>>(initialDiscussionMap);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -264,8 +269,9 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
   };
 
   const commentTree = useMemo(() => {
-    return buildCommentTree(snap.author, snap.permlink, discussionMap);
-  }, [snap.author, snap.permlink, discussionMap]);
+    return filterCommentTree(buildCommentTree(snap.author, snap.permlink, discussionMap),
+      author => isMuted(author) || blockedAuthors.some(blocked => blocked.toLowerCase() === author.toLowerCase()));
+  }, [snap.author, snap.permlink, discussionMap, isMuted, blockedAuthors]);
 
   const handleVote = () => {
     if (!currentUser) {
@@ -364,6 +370,9 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 
   const avatarUrl = getHiveAvatarUrl(snap.author, 'small');
   const timeAgo = formatTime(snap.created);
+
+  if (mutedUsersLoading) return <div role="status" className="p-6 text-center text-sm text-slate-500">Loading moderation preferences…</div>;
+  if (isMuted(snap.author)) return <div className="p-6 text-center text-sm text-slate-500"><p>This account is muted.</p><button onClick={onBack} className="mt-3 text-blue-500">Back to Shorts</button></div>;
 
   return (
     <div className="shorts-readable w-full min-w-0 max-w-none mx-auto animate-in fade-in duration-150">
@@ -547,6 +556,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
                 >
                   @{snap.author}
                 </button>
+              <BlacklistFlair username={snap.author} />
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                   <span>{timeAgo}</span>
                 </div>
@@ -802,9 +812,18 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
 
   const cleanedBody = useMemo(() => cleanSnapBody(comment.body), [comment.body]);
 
+  const { locale } = useI18n();
+  const commentTranslationVersion = useRef(0);
   // Comment translation state (free, markdown-preserved)
   const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
   const [isTranslatingComment, setIsTranslatingComment] = useState(false);
+
+  useEffect(() => {
+    commentTranslationVersion.current++;
+    setTranslatedCommentBody(null);
+    setIsTranslatingComment(false);
+    return () => { commentTranslationVersion.current++; };
+  }, [locale, comment.author, comment.permlink, comment.body]);
 
   const handleToggleTranslateComment = async () => {
     if (translatedCommentBody) {
@@ -813,14 +832,15 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
     }
     const textToTranslate = cleanedBody || comment.body;
     if (!textToTranslate || isTranslatingComment) return;
+    const version = commentTranslationVersion.current;
     setIsTranslatingComment(true);
     try {
-      const res = await translateMarkdown(textToTranslate, 'pt');
-      setTranslatedCommentBody(res);
+      const res = await translateMarkdown(textToTranslate, locale);
+      if (version === commentTranslationVersion.current) setTranslatedCommentBody(res);
     } catch (err) {
       console.error('Failed to translate thread comment:', err);
     } finally {
-      setIsTranslatingComment(false);
+      if (version === commentTranslationVersion.current) setIsTranslatingComment(false);
     }
   };
 
@@ -947,6 +967,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
               >
                 @{comment.author}
               </button>
+              <BlacklistFlair username={comment.author} />
               <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">&middot;</span>
               <span className="text-[11px] text-slate-400">{timeAgo}</span>
             </div>

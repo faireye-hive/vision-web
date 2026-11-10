@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -6,6 +7,7 @@ import {
   Zap,
   Users,
   Menu,
+  MessageSquare,
   SlidersHorizontal,
   X,
   Edit3,
@@ -516,6 +518,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Menu Grid: 3 columns of action cards */}
             <div className="grid grid-cols-3 gap-2.5 mb-4">
+              <Link to="/snaps" onClick={() => setShowMenu(false)} className="flex flex-col items-center justify-center rounded-2xl border border-blue-200/60 bg-blue-50 p-3 text-center text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300">
+                <span className="mb-1.5 rounded-full bg-blue-600 p-2.5 text-white"><MessageSquare className="h-4 w-4" /></span>
+                <span className="text-xs font-semibold">Nebulosa Snaps</span><span className="mt-1 text-[10px] opacity-70">No rewards</span>
+              </Link>
               {/* 1. Write / Publish Post */}
               {onOpenWrite && (
                 <button

@@ -1,3 +1,4 @@
+import { legacySnapsRedirect } from '../utils/snapsRoutes';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HivePost, getPost, NON_POST_PERMLINKS } from '../services/hiveApi';
@@ -6,7 +7,7 @@ import { useAuth } from './AuthContext';
 
 export type NavTab = 'feed' | 'discover' | 'shorts' | 'communities';
 export type SortOption = 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-export type StandalonePage = 'write' | 'profile' | 'explore' | 'manage' | 'following' | 'notifications';
+export type StandalonePage = 'write' | 'profile' | 'explore' | 'manage' | 'following' | 'notifications' | 'lists' | 'chat' | 'snaps';
 
 export interface NavigationContextType {
   activeNav: NavTab;
@@ -31,7 +32,7 @@ export interface NavigationContextType {
   closeStandalonePage: () => void;
   openAuthorProfile: (username: string) => void;
   openCommunity: (communityName: string) => void;
-  openWritePage: () => void;
+  openWritePage: (community?: string) => void;
   openFollowingManager: () => void;
   openNotificationsPage: () => void;
   openCommunitiesModal: () => void;
@@ -161,6 +162,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     const pathname = location.pathname;
     const searchParams = new URLSearchParams(location.search);
 
+    const snapsRedirect = legacySnapsRedirect(pathname, location.search);
+    if (snapsRedirect) {
+      navigate(snapsRedirect, { replace: true });
+      return () => { cancelled = true; };
+    }
+
     // Parse sort. Absent sort keeps the in-memory choice from the navbar.
     const querySort = searchParams.get('sort') as SortOption | null;
     if (querySort && ['recommend', 'trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
@@ -272,6 +279,24 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         loadShell(cleanAuthor, cleanPermlink);
         return release;
       }
+    }
+
+    if (pathname === '/snaps') {
+      setStandalonePage('snaps');
+      setSelectedPost(null);
+      return release;
+    }
+
+    if (pathname === '/chat') {
+      setStandalonePage('chat');
+      setSelectedPost(null);
+      return release;
+    }
+
+    if (pathname === '/lists') {
+      setStandalonePage('lists');
+      setSelectedPost(null);
+      return release;
     }
 
     // Profile path: /profile/:username
@@ -416,8 +441,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       const u = (user || currentUser?.username || '').replace(/^@/, '');
       setProfileUser(u);
       navigate(`/profile/@${u}`);
+    } else if (page === 'snaps') {
+      navigate('/snaps');
+    } else if (page === 'chat') {
+      navigate('/chat');
+    } else if (page === 'lists') {
+      navigate('/lists');
     } else if (page === 'write') {
-      navigate('/write');
+      navigate(typeof user === 'string' && /^hive-\d+$/.test(user) ? `/write?community=${encodeURIComponent(user)}` : '/write');
     } else if (page === 'notifications') {
       navigate('/notifications');
     } else if (page === 'following') {
@@ -454,8 +485,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     openStandalonePage('profile', clean);
   }, [openStandalonePage]);
 
-  const openWritePage = useCallback(() => {
-    openStandalonePage('write');
+  const openWritePage = useCallback((community?: string) => {
+    openStandalonePage('write', community);
   }, [openStandalonePage]);
 
   const openFollowingManager = useCallback(() => {

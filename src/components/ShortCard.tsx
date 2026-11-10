@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import { useI18n } from '../i18n/I18nContext';
+import { BlacklistFlair } from './BlacklistFlair';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Heart,
   MessageCircle,
@@ -103,9 +105,18 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     setTranslatedBody(null);
   };
 
+  const { locale } = useI18n();
+  const replyTranslationVersion = useRef(0);
   // Subcomment translation state (map of permlink -> translatedBody)
   const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({});
   const [translatingReplyKey, setTranslatingReplyKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    replyTranslationVersion.current++;
+    setTranslatedReplies({});
+    setTranslatingReplyKey(null);
+    return () => { replyTranslationVersion.current++; };
+  }, [locale, snap.author, snap.permlink]);
 
   const handleToggleTranslateReply = async (reply: HivePost) => {
     const key = `${reply.author}/${reply.permlink}`;
@@ -119,14 +130,15 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
     }
     const cleanText = cleanSnapBody(reply.body) || reply.body;
     if (!cleanText || translatingReplyKey) return;
+    const version = replyTranslationVersion.current;
     setTranslatingReplyKey(key);
     try {
-      const translated = await translateMarkdown(cleanText, 'pt');
-      setTranslatedReplies((prev) => ({ ...prev, [key]: translated }));
+      const translated = await translateMarkdown(cleanText, locale);
+      if (version === replyTranslationVersion.current) setTranslatedReplies((prev) => ({ ...prev, [key]: translated }));
     } catch (err) {
       console.error('Failed to translate subcomment:', err);
     } finally {
-      setTranslatingReplyKey(null);
+      if (version === replyTranslationVersion.current) setTranslatingReplyKey(null);
     }
   };
 
@@ -311,6 +323,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               >
                 @{snap.author}
               </button>
+              <BlacklistFlair username={snap.author} />
               <span className="text-slate-300 dark:text-slate-600 select-none">&bull;</span>
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 {timeAgo}
@@ -435,7 +448,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               disabled={voteLoading}
               title={upvoted ? 'Voted' : 'Vote on this Snap with Hive Keychain'}
               aria-label={upvoted ? 'Voted' : 'Vote on this Snap'}
-              className={`flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
+              className={`shorts-action-button flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
                 upvoted
                   ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 font-bold'
                   : 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-rose-950/30'
@@ -470,7 +483,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               }}
               title={onOpenDetail ? `Open Snap and view ${replyCount} ${replyLabel}` : showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
               aria-label={showSubcomments ? 'Hide replies' : `View ${replyCount} ${replyLabel}`}
-              className={`flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
+              className={`shorts-action-button flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl transition cursor-pointer ${
                 showSubcomments
                   ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 font-medium'
                   : 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-blue-950/30'
@@ -493,7 +506,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleResnap}
               title="Resnap with comment"
-              className="flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+              className="shorts-action-button flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 transition cursor-pointer"
             >
               <Share2 className="w-4 h-4 -scale-x-100" />
               <span>Resnap</span>
@@ -504,7 +517,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
               type="button"
               onClick={handleCopyLink}
               title="Copy share link"
-              className="flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="shorts-action-button flex items-center gap-1 min-h-9 py-1 px-1.5 rounded-xl hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               {copied ? (
                 <>
@@ -570,6 +583,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                         >
                           @{reply.author}
                         </button>
+              <BlacklistFlair username={reply.author} />
                       </div>
                       <div className="flex items-center gap-2">
                         <button

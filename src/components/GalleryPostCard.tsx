@@ -1,3 +1,7 @@
+import { useSavedLists } from '../context/SavedListsContext';
+import { BlacklistFlair } from './BlacklistFlair';
+import { CommunityUserFlair } from './CommunityUserFlair';
+import { PostCommunityLabels } from './PostCommunityLabels';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -67,23 +71,19 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
   const [upvoted, setUpvoted] = useState<boolean>(() => {
     if (currentUser?.username && post.active_votes) {
       return post.active_votes.some(
-        (v) => v.voter.toLowerCase() === currentUser.username.toLowerCase()
+        (v) => v.voter.toLowerCase() === currentUser.username.toLowerCase() && Number(v.percent ?? v.rshares) > 0
       );
     }
     return false;
   });
   const [isVoting, setIsVoting] = useState<boolean>(false);
   const [voteOpen, setVoteOpen] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [reblogged, setReblogged] = useState(() => post.reblogged_by?.includes(currentUser?.username || '') || false);
+  const [reblogging, setReblogging] = useState(false);
 
-  const [isBookmarked, setIsBookmarked] = useState(() => {
-    try {
-      const saved = localStorage.getItem('hive_bookmarks') || '[]';
-      const parsed = JSON.parse(saved);
-      return parsed.includes(`${post.author}/${post.permlink}`);
-    } catch {
-      return false;
-    }
-  });
+  const { lists: savedLists, openPicker } = useSavedLists();
+  const isBookmarked = savedLists.some(list => list.posts.some(item => item.author === post.author && item.permlink === post.permlink));
 
   // Card Image Carousel state (flipper right on the feed card)
   const [cardImageIndex, setCardImageIndex] = useState(0);
@@ -228,23 +228,9 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showGallery, postImages.length]);
 
-  const toggleBookmark = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const id = `${post.author}/${post.permlink}`;
-    try {
-      const saved = localStorage.getItem('hive_bookmarks') || '[]';
-      let parsed: string[] = JSON.parse(saved);
-      if (parsed.includes(id)) {
-        parsed = parsed.filter((item) => item !== id);
-        setIsBookmarked(false);
-      } else {
-        parsed.push(id);
-        setIsBookmarked(true);
-      }
-      localStorage.setItem('hive_bookmarks', JSON.stringify(parsed));
-    } catch {
-      setIsBookmarked(!isBookmarked);
-    }
+  const toggleBookmark = (event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    openPicker(post, event?.currentTarget.getBoundingClientRect());
   };
 
   const handleShare = (e?: React.MouseEvent) => {
@@ -255,13 +241,38 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
     }
   };
 
-  const handleHeartClick = (e: React.MouseEvent) => {
+  const handleHeartClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
       return;
     }
+    if (isVoting) return;
+    setActionError('');
+    if (upvoted) {
+      setIsVoting(true);
+      try {
+        const response = await KeychainService.vote(currentUser.username, post.author, post.permlink, 0);
+        if (response.success) setUpvoted(false);
+        else setActionError(response.message || response.error || 'Could not remove your vote.');
+      } catch (error: any) { setActionError(error.message || 'Could not remove your vote.'); }
+      finally { setIsVoting(false); }
+      return;
+    }
     setVoteOpen(true);
+  };
+
+  const handleReblog = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!currentUser) { onRequireLogin?.(); return; }
+    if (reblogging || reblogged) return;
+    setReblogging(true); setActionError('');
+    try {
+      const result = await KeychainService.reblog(currentUser.username, post.author, post.permlink);
+      if (result.success) setReblogged(true);
+      else setActionError(result.message || result.error || 'Could not reblog this post.');
+    } catch (error: any) { setActionError(error.message || 'Could not reblog this post.'); }
+    finally { setReblogging(false); }
   };
 
   const handleQuickComment = async (e: React.FormEvent) => {
@@ -387,6 +398,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             >
               @{post.author}
             </button>
+              <BlacklistFlair username={post.author} />
+              <CommunityUserFlair post={post} />
             
             {(post.community_title || post.category) && (
               <>
@@ -422,7 +435,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
             }`}
-            title={isBookmarked ? 'Bookmarked' : 'Save post'}
+            title="Save post to lists"
+            aria-label="Save post to lists"
           >
             <Bookmark id={`${uid}-bookmark-icon`} className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
           </button>
@@ -579,6 +593,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
         </div>
       )}
 
+      <PostCommunityLabels post={post} />
       {/* Action Row: Upvote (no counts/payout), Comment (no count), Share, Read Full Post */}
       <div id={`${uid}-actions`} className="flex items-center justify-between p-3 sm:p-4">
         <div id={`${uid}-actions-left`} className="flex items-center gap-2.5">
@@ -593,9 +608,10 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50'
                 : 'bg-gray-50 dark:bg-slate-800/80 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-gray-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 border-gray-200/60 dark:border-slate-700'
             }`}
-            title={upvoted ? 'Upvoted' : 'Upvote post'}
+            title={upvoted ? 'Remove upvote' : 'Upvote post'}
+            aria-label={upvoted ? 'Remove upvote' : 'Upvote post'}
           >
-            <Heart id={`${uid}-upvote-icon`} className={`w-4 h-4 ${upvoted ? 'fill-current text-rose-600' : ''}`} />
+            {isVoting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart id={`${uid}-upvote-icon`} className={`w-4 h-4 ${upvoted ? 'fill-current text-rose-600' : ''}`} />}
           </button>
 
           {/* Quick Comment Toggle (Simple Icon without count) */}
@@ -614,6 +630,9 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             <span id={`${uid}-comment-toggle-count`} className="text-sm sm:text-xs font-bold">{post.children || 0}</span>
           </button>
 
+          <button id={`${uid}-reblog-btn`} type="button" onClick={handleReblog} disabled={reblogging || reblogged} title={reblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'} aria-label={reblogged ? 'Already reblogged' : 'Reblog with Hive Keychain'} className={`rounded-full p-2 transition disabled:opacity-60 ${reblogged ? 'text-purple-600' : 'text-slate-500 hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950/40'}`}>
+            {reblogging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Repeat className="h-4 w-4" />}
+          </button>
           {/* Share */}
           <button
             id={`${uid}-share-btn`}
@@ -694,7 +713,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer font-medium"
                   >
                     <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-blue-600 text-blue-600' : 'text-gray-500 dark:text-slate-400'}`} />
-                    <span>{isBookmarked ? 'Remove Bookmark' : 'Save Bookmark'}</span>
+                    <span>Save to lists</span>
                   </button>
 
                   {onMuteAuthor && (
@@ -794,6 +813,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
         </div>
       )}
 
+      {actionError && <p role="alert" className="px-4 pb-3 text-xs text-rose-600">{actionError}</p>}
       {/* Vote dialog */}
       <VoteWeightDialog
         open={voteOpen}
@@ -833,7 +853,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
               />
               <div id={`${uid}-lightbox-info`} className="min-w-0">
                 <div id={`${uid}-lightbox-meta`} className="flex items-center gap-1.5 text-xs text-white">
-                  <span id={`${uid}-lightbox-author`} className="font-bold truncate">@{post.author}</span>
+                  <span id={`${uid}-lightbox-author`} className="font-bold truncate">@{post.author}</span><BlacklistFlair username={post.author} />
                   <span id={`${uid}-lightbox-time`} className="text-[10px] text-white/50">• {formatTime(post.created)}</span>
                   {postImages.length > 1 && (
                     <span

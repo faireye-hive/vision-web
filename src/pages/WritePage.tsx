@@ -30,15 +30,17 @@ import {
 } from 'lucide-react';
 import { CATEGORY_DEFINITIONS } from '../data/categorySubtopics';
 import { CurrentUser, KeychainService } from '../services/keychain';
-import { HiveCommunity, listCommunities } from '../services/hiveApi';
+import { getSubscriptions, HiveCommunity, hiveRpcCall, listCommunities } from '../services/hiveApi';
 import { listKnownLanguages } from '../utils/communityTaxonomy';
 import { markdownToSafeHtml } from '../utils/sanitize';
+import { useCommunityFeatures } from '../hooks/useCommunityFeatures';
+import { communityPublishMetadata, loadCommunityFeatures } from '../services/communityFeatures';
 
 interface WritePageProps {
   onClose: () => void;
   currentUser: CurrentUser | null;
   onRequireLogin: () => void;
-  /** Ignorado de propósito: a comunidade nunca é escolhida automaticamente. */
+  /** Set only when the user explicitly chooses the community's Write button. */
   defaultCommunity?: string;
   joinedCommunities?: Record<string, boolean>;
 }
@@ -90,8 +92,10 @@ const DRAFT_KEYS = {
   title: 'hive_draft_title',
   body: 'hive_draft_body',
   tags: 'hive_draft_tags',
+  category: 'hive_draft_category',
   payout: 'hive_draft_payout',
-  lang: 'hive_draft_lang'
+  lang: 'hive_draft_lang',
+  permlink: 'hive_draft_permlink'
 } as const;
 const LEGACY_COMMUNITY_KEY = 'hive_draft_community';
 
@@ -136,24 +140,32 @@ export const WritePage: React.FC<WritePageProps> = ({
   onClose,
   currentUser,
   onRequireLogin,
+  defaultCommunity = '',
   joinedCommunities = {}
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
-  const [showOptions, setShowOptions] = useState(false);
+  const [showOptions, setShowOptions] = useState(!!defaultCommunity);
 
   const [title, setTitle] = useState(() => readDraft(DRAFT_KEYS.title));
   const [body, setBody] = useState(() => readDraft(DRAFT_KEYS.body));
   const [tagsInput, setTagsInput] = useState(() => readDraft(DRAFT_KEYS.tags, 'hive'));
+  const [blogCategory, setBlogCategory] = useState(() => readDraft(DRAFT_KEYS.category));
+  const [customPermlink, setCustomPermlink] = useState(() => readDraft(DRAFT_KEYS.permlink));
   const [payoutOption, setPayoutOption] = useState<PayoutOption>(() => {
     const saved = readDraft(DRAFT_KEYS.payout, '50-50');
     return saved === '100-hp' || saved === 'decline' ? saved : '50-50';
   });
-  // Sempre começa sem comunidade. Nada de prop, tag atual ou rascunho antigo.
-  const [selectedCommunity, setSelectedCommunity] = useState('');
+  // The general Write button starts on the blog; an explicit community link selects its destination.
+  const [selectedCommunity, setSelectedCommunity] = useState(/^hive-\d+$/.test(defaultCommunity) ? defaultCommunity : '');
+  const [communityCategory, setCommunityCategory] = useState('');
+  const [postFlair, setPostFlair] = useState('');
+  const { data: communityFeatures, loading: communityLoading, error: communityError, retry: retryCommunity } = useCommunityFeatures(selectedCommunity);
+  useEffect(() => { setCommunityCategory(''); setPostFlair(''); }, [selectedCommunity]);
   const [language, setLanguage] = useState(() => readDraft(DRAFT_KEYS.lang));
   const [imageUrl, setImageUrl] = useState('');
   const [communities, setCommunities] = useState<HiveCommunity[]>([]);
+  const [subscribedCommunityTitles, setSubscribedCommunityTitles] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -167,9 +179,11 @@ export const WritePage: React.FC<WritePageProps> = ({
     writeDraft(DRAFT_KEYS.title, title);
     writeDraft(DRAFT_KEYS.body, body);
     writeDraft(DRAFT_KEYS.tags, tagsInput);
+    writeDraft(DRAFT_KEYS.category, blogCategory);
+    writeDraft(DRAFT_KEYS.permlink, customPermlink);
     writeDraft(DRAFT_KEYS.payout, payoutOption);
     writeDraft(DRAFT_KEYS.lang, language);
-  }, [title, body, tagsInput, payoutOption, language]);
+  }, [title, body, tagsInput, blogCategory, customPermlink, payoutOption, language]);
 
   useEffect(() => {
     let mounted = true;
@@ -183,22 +197,39 @@ export const WritePage: React.FC<WritePageProps> = ({
     };
   }, []);
 
-  const communityOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    communities.forEach((community) => map.set(community.name, community.title || community.name));
-    Object.entries(joinedCommunities).forEach(([name, joined]) => {
-      if (joined && !map.has(name)) map.set(name, name);
-    });
-    if (selectedCommunity && !map.has(selectedCommunity)) {
-      map.set(selectedCommunity, selectedCommunity);
+  useEffect(() => {
+    let mounted = true;
+    if (!currentUser?.username) {
+      setSubscribedCommunityTitles({});
+      return () => { mounted = false; };
     }
-    return [...map.entries()].map(([name, label]) => ({ name, label }));
-  }, [communities, joinedCommunities, selectedCommunity]);
+    getSubscriptions(currentUser.username)
+      .then((rows) => {
+        if (!mounted) return;
+        const titles: Record<string, string> = {};
+        rows.forEach(([name, title]) => {
+          if (name && title) titles[name] = title;
+        });
+        setSubscribedCommunityTitles(titles);
+      })
+      .catch(() => {
+        if (mounted) setSubscribedCommunityTitles({});
+      });
+    return () => { mounted = false; };
+  }, [currentUser?.username]);
+
+  const communityOptions = useMemo(() => {
+    const communityLabels = new Map(communities.map((community) => [community.name, community.title || community.name]));
+    return Object.entries(joinedCommunities)
+      .filter(([, joined]) => joined)
+      .map(([name]) => ({ name, label: subscribedCommunityTitles[name] || communityLabels.get(name) || name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [communities, joinedCommunities, subscribedCommunityTitles]);
 
   const communityLabel = useMemo(() => {
     if (!selectedCommunity) return 'Personal Blog';
-    return communityOptions.find((c) => c.name === selectedCommunity)?.label || selectedCommunity;
-  }, [selectedCommunity, communityOptions]);
+    return communityFeatures?.community.title || communityOptions.find((c) => c.name === selectedCommunity)?.label || selectedCommunity;
+  }, [selectedCommunity, communityOptions, communityFeatures]);
 
   const tagList = useMemo(() => tagsInput.split(/\s+/).filter(Boolean), [tagsInput]);
 
@@ -266,6 +297,8 @@ export const WritePage: React.FC<WritePageProps> = ({
     setTitle('');
     setBody('');
     setTagsInput('hive');
+    setBlogCategory('');
+    setCustomPermlink('');
     setLanguage('');
     setImageUrl('');
     setSelectedCommunity('');
@@ -274,6 +307,7 @@ export const WritePage: React.FC<WritePageProps> = ({
   };
 
   const handlePublish = useCallback(async () => {
+    if (isSubmitting) return;
     if (!currentUser) {
       onRequireLogin();
       return;
@@ -290,11 +324,45 @@ export const WritePage: React.FC<WritePageProps> = ({
       setErrorMessage('Please write some content before publishing.');
       return;
     }
+    if (selectedCommunity && !communityCategory) {
+      setErrorMessage('Choose a category before publishing to this community.');
+      document.getElementById('write-community-category')?.focus();
+      return;
+    }
+    const requestedPermlink = customPermlink.trim();
+    if (requestedPermlink && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requestedPermlink)) {
+      setErrorMessage('Permlink must use lowercase letters, numbers, and single hyphens between words.');
+      document.getElementById('write-custom-permlink')?.focus();
+      return;
+    }
+    if (requestedPermlink.length > 256) {
+      setErrorMessage('Permlink must be 256 characters or fewer.');
+      document.getElementById('write-custom-permlink')?.focus();
+      return;
+    }
 
     setErrorMessage(null);
     setIsSubmitting(true);
 
     try {
+      if (requestedPermlink) {
+        let existingPost: { author?: string } | null = null;
+        try {
+          existingPost = await hiveRpcCall('bridge.get_post', {
+            author: currentUser.username,
+            permlink: requestedPermlink,
+            observer: ''
+          });
+        } catch (error) {
+          if (!(error as { isNotFound?: boolean })?.isNotFound) {
+            throw new Error('Could not verify this permlink is available. Please retry before publishing.');
+          }
+        }
+        if (existingPost?.author) throw new Error('You already have a post with this permlink. Choose another one to avoid editing it.');
+      }
+      const communityMetadata = selectedCommunity
+        ? communityPublishMetadata(selectedCommunity, communityCategory, postFlair || null, (await loadCommunityFeatures(selectedCommunity, true)).settings)
+        : null;
       const cleanTags = tagsInput
         .toLowerCase()
         .replace(/#/g, '')
@@ -305,10 +373,11 @@ export const WritePage: React.FC<WritePageProps> = ({
         cleanTags.push(language);
       }
 
-      const tags = cleanTags.length > 0 ? cleanTags.slice(0, MAX_TAGS) : ['hive'];
+      const tags = [...new Set([...(communityMetadata ? [selectedCommunity, communityMetadata.category] : blogCategory ? [blogCategory] : []), ...cleanTags])].slice(0, MAX_TAGS);
+      if (!tags.length) tags.push('hive');
       // Só posta em comunidade se o usuário escolheu uma; senão usa a primeira tag como categoria.
       const parentPermlink = selectedCommunity || tags[0] || 'hive';
-      const permlink = `${title
+      const permlink = requestedPermlink || `${title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
@@ -318,6 +387,7 @@ export const WritePage: React.FC<WritePageProps> = ({
         app: 'nebulosa-web/0.0.4',
         format: 'markdown',
         tags,
+        ...(communityMetadata ? { nebulosa: { community: communityMetadata } } : {}),
         ...(language ? { languages: [language] } : {})
       });
 
@@ -351,7 +421,7 @@ export const WritePage: React.FC<WritePageProps> = ({
       setIsSubmitting(false);
       setErrorMessage(err instanceof Error ? err.message : 'Unable to broadcast your post.');
     }
-  }, [body, currentUser, language, onClose, onRequireLogin, payoutOption, selectedCommunity, tagsInput, title]);
+  }, [body, currentUser, language, onClose, onRequireLogin, payoutOption, selectedCommunity, communityCategory, postFlair, tagsInput, blogCategory, title, customPermlink, isSubmitting]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -461,7 +531,7 @@ export const WritePage: React.FC<WritePageProps> = ({
           <button
             type="button"
             onClick={handlePublish}
-            disabled={isSubmitting || !title.trim() || !body.trim()}
+            disabled={isSubmitting || !title.trim() || !body.trim() || Boolean(selectedCommunity && (!communityFeatures || communityLoading || communityError || !communityCategory))}
             className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition shadow-sm hover:shadow-md cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
@@ -485,6 +555,10 @@ export const WritePage: React.FC<WritePageProps> = ({
           <Layers className="w-3.5 h-3.5" />
           <span>{communityLabel}</span>
         </button>
+        {!selectedCommunity && blogCategory && <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
+          <Tag className="w-3.5 h-3.5" />
+          Category: {CATEGORY_DEFINITIONS.find(category => category.tag === blogCategory)?.label || blogCategory}
+        </span>}
         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 font-medium">
           <Coins className="w-3.5 h-3.5 text-amber-500" />
           {PAYOUT_LABELS[payoutOption]}
@@ -555,6 +629,43 @@ export const WritePage: React.FC<WritePageProps> = ({
               </select>
             </div>
 
+            {!selectedCommunity && <div className="space-y-1.5">
+              <label htmlFor="write-blog-category" className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Post Category <span className="font-medium text-slate-400">(optional)</span></span>
+              </label>
+              <select id="write-blog-category" value={blogCategory} onChange={event => setBlogCategory(event.target.value)} className={selectClass} disabled={isSubmitting}>
+                <option value="">Use the first tag as category</option>
+                {CATEGORY_DEFINITIONS.map(category => <option key={category.tag} value={category.tag}>{category.icon} {category.label}</option>)}
+              </select>
+              <p className="text-[11px] text-slate-500">The selected category will be added as the post’s main Hive tag.</p>
+            </div>}
+
+            {selectedCommunity && <div className="space-y-1.5 sm:col-span-2">
+              <label htmlFor="write-community-category" className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Community Category <span className="text-rose-500">*</span></span>
+              </label>
+              {communityLoading ? <p className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700">Loading categories…</p> : communityError ? <p role="alert" className="text-xs text-rose-600">{communityError} <button type="button" onClick={retryCommunity} className="underline">Retry</button></p> : communityFeatures && <>
+                <select id="write-community-category" required aria-required="true" value={communityCategory} onChange={event => setCommunityCategory(event.target.value)} className={selectClass} disabled={isSubmitting}>
+                  <option value="">Choose a category before publishing</option>{communityFeatures.settings.categories.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+                <p className="text-[11px] text-slate-500">Select where this post belongs in {communityFeatures.community.title || communityFeatures.community.name}.</p>
+              </>}
+            </div>}
+
+            {selectedCommunity && communityFeatures && communityFeatures.settings.flairs.length > 0 && <div className="space-y-1.5">
+              <label htmlFor="write-post-flair" className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300">
+                <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Post Flair</span>
+              </label>
+              <select id="write-post-flair" value={postFlair} onChange={event => setPostFlair(event.target.value)} className={selectClass} disabled={isSubmitting}>
+                <option value="">No flair</option>{communityFeatures.settings.flairs.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </div>}
+
+            {selectedCommunity && !!communityFeatures?.settings.subtags.length && <div className="sm:col-span-2 flex flex-wrap gap-1.5">{communityFeatures.settings.subtags.map(tag => <button type="button" key={tag} onClick={() => addTag(tag)} disabled={isSubmitting} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">+ #{tag}</button>)}</div>}
+
             <div className="space-y-1.5">
               <label
                 htmlFor="write-payout"
@@ -596,6 +707,29 @@ export const WritePage: React.FC<WritePageProps> = ({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <label
+                htmlFor="write-custom-permlink"
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-300"
+              >
+                <LinkIcon className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Custom Permlink <span className="font-medium text-slate-400">(optional)</span></span>
+              </label>
+              <input
+                id="write-custom-permlink"
+                type="text"
+                value={customPermlink}
+                onChange={(event) => setCustomPermlink(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').slice(0, 256))}
+                placeholder="Leave blank to generate from the title"
+                maxLength={256}
+                autoComplete="off"
+                spellCheck={false}
+                className={selectClass}
+                disabled={isSubmitting}
+              />
+              <p className="text-[11px] text-slate-500">Use lowercase letters, numbers, and hyphens. Must be unique for your account. Leave blank for an automatic permlink.</p>
             </div>
 
             <div className="space-y-1.5">

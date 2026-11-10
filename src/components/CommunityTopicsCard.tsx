@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Hash, X } from 'lucide-react';
 import { HivePost } from '../services/hiveApi';
 import { useNavigation } from '../context/NavigationContext';
+import { useCommunityFeatures } from '../hooks/useCommunityFeatures';
 
 interface CommunityTopicsCardProps {
   communityPosts: HivePost[];
@@ -13,9 +14,11 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
   currentTag
 }) => {
   const { communitySubTopic, setCommunitySubTopic } = useNavigation();
+  const { data } = useCommunityFeatures(currentTag.startsWith('hive-') ? currentTag : '');
   // Extract topics from loaded community posts. Frequency is used only to order
   // discovery chips; no post or engagement counts are shown in the interface.
   const rankedTopics = useMemo(() => {
+    if (data?.configured) return [...new Set([...data.settings.categories.map(item => item.id), ...data.settings.subtags])].map(name => ({ name, count: 0 }));
     const counts: Record<string, number> = {};
 
     communityPosts.forEach((post) => {
@@ -53,7 +56,7 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15)
       .map(([name, count]) => ({ name, count }));
-  }, [communityPosts, currentTag]);
+  }, [communityPosts, currentTag, data]);
 
   return (
     <div className="w-full rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
@@ -102,7 +105,7 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
-              <span>#{name}</span>
+              <span>#{data?.settings.categories.find(item => item.id === name)?.label || name}</span>
             </button>
           );
         })}

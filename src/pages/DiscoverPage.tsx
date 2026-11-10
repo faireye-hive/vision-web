@@ -37,6 +37,8 @@ import { SubcategoryDropdown } from '../components/SubcategoryDropdown';
 import { rankPostsByCustomAlgorithm, qualifiesForTrending } from '../utils/contentScoring';
 import { appendUniquePosts } from '../utils/posts';
 import { requestLogin } from '../utils/authEvents';
+import { CommunityAdminButton } from '../components/CommunityAdminButton';
+import { CommunityTopicsCard } from '../components/CommunityTopicsCard';
 
 interface DiscoverPageProps {
   isCommunitiesFeed?: boolean;
@@ -82,6 +84,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     openCommunitiesModal,
     openManageCommunitiesModal
   } = useNavigation();
+
+  const [communityLayout, setCommunityLayout] = useState<'list' | 'gallery'>(() => {
+    try { return localStorage.getItem('nebulosa_communities_layout') === 'list' ? 'list' : 'gallery'; } catch { return 'gallery'; }
+  });
+  const layoutMode = isCommunitiesFeed ? communityLayout : feedLayoutMode;
+  const changeLayout = (mode: 'list' | 'gallery') => {
+    if (!isCommunitiesFeed) return setFeedLayoutMode(mode);
+    setCommunityLayout(mode);
+    try { localStorage.setItem('nebulosa_communities_layout', mode); } catch {}
+  };
 
   const joinedCount = useMemo(
     () => Object.values(joinedCommunities || {}).filter(Boolean).length,
@@ -504,7 +516,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         }
         const hasTag = tags.some((t) => typeof t === 'string' && t.toLowerCase().trim() === cleanSub);
         const inText = p.title?.toLowerCase().includes(cleanSub) || p.body?.toLowerCase().includes(cleanSub);
-        return hasTag || inText;
+        return hasTag || (!isCommunitiesFeed && inText);
       });
     }
 
@@ -520,20 +532,17 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       }
     }
 
-    const useGalleryLayout = isMobile || feedLayoutMode === 'gallery';
-
     return {
       displayedPosts: uniquePosts,
-      useGalleryLayout,
       filteredOutStats: {
         total: filterRes.totalHiddenCount,
         byWord: filterRes.hiddenByWordCount,
         byAuthor: filterRes.hiddenByAuthorCount
       }
     };
-  }, [posts, communitySubTopic, filterPostsList, isMobile, feedLayoutMode]);
+  }, [posts, communitySubTopic, filterPostsList, isCommunitiesFeed]);
 
-  const useGalleryLayout = isMobile || feedLayoutMode === 'gallery';
+  const useGalleryLayout = isMobile || layoutMode === 'gallery';
 
   return (
     <div
@@ -705,16 +714,17 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           {/* Feed Layout Toggle (Gallery Cards vs Compact List) */}
           <button
             type="button"
-            onClick={() => setFeedLayoutMode(feedLayoutMode === 'gallery' ? 'list' : 'gallery')}
+            onClick={() => changeLayout(layoutMode === 'gallery' ? 'list' : 'gallery')}
             className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100/80 dark:bg-slate-800/80 hover:bg-gray-200/70 dark:hover:bg-slate-700/70 border border-gray-200/60 dark:border-slate-700/60 text-gray-700 dark:text-slate-300 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 shrink-0"
-            title={feedLayoutMode === 'gallery' ? 'Switch to Compact List view' : 'Switch to Gallery view'}
+            title={layoutMode === 'gallery' ? 'Switch to Compact List view' : 'Switch to Gallery view'}
+            aria-label={layoutMode === 'gallery' ? 'Switch to Compact List view' : 'Switch to Gallery view'}
           >
-            {feedLayoutMode === 'gallery' ? (
+            {layoutMode === 'gallery' ? (
               <LayoutList className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             ) : (
               <LayoutGrid className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             )}
-            <span className="hidden lg:inline">{feedLayoutMode === 'gallery' ? 'Gallery' : 'List'}</span>
+            <span className="hidden lg:inline">{layoutMode === 'gallery' ? 'Gallery' : 'List'}</span>
           </button>
 
           {/* Content Filters */}
@@ -771,6 +781,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         </div>
       </div>
 
+      {isCommunitiesFeed && tag.startsWith('hive-') && <CommunityAdminButton communityName={tag} />}
+      {isCommunitiesFeed && <div className="xl:hidden"><CommunityTopicsCard communityPosts={posts} currentTag={tag} /></div>}
       {/* Active Category Spotlight Sub-banner */}
       {activeCategory && !isCommunitiesFeed && (
         <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-sm animate-in fade-in">

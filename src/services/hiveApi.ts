@@ -42,6 +42,8 @@ export interface HivePost {
   };
   community?: string;
   community_title?: string;
+  author_title?: string;
+  author_role?: string;
   active_votes?: Array<{
     voter: string;
     rshares: number | string;
@@ -1660,6 +1662,8 @@ async function fetchFollowedRootFeedInternal(
           author_reputation: typeof p.author_reputation === 'string' ? parseInt(p.author_reputation, 10) : (p.author_reputation || 0),
           community: p.community || p.category,
           community_title: p.community_title,
+          author_title: p.author_title,
+          author_role: p.author_role,
           active_votes: p.active_votes || [],
           reblogged_by: rebloggedBy,
           first_reblogged_by: p.first_reblogged_by || (rebloggedBy.length > 0 ? rebloggedBy[0] : undefined),
@@ -1899,6 +1903,8 @@ export async function getSimilarPosts(
       author_reputation: item.author_reputation,
       community: item.community,
       community_title: item.community_title,
+      author_title: item.author_title,
+      author_role: item.author_role,
       depth: 0,
       children: item.children || 0,
       net_rshares: item.net_rshares || 0,

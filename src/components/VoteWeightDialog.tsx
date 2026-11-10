@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { KeychainService } from '../services/keychain';
 
 const STORAGE_KEY = 'nebulosa_vote_percent';
@@ -66,7 +67,7 @@ export function VoteWeightDialog({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/50" onClick={onClose}>
       <div
         className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-2xl p-5 text-gray-900 dark:text-slate-100"
@@ -119,6 +120,7 @@ export function VoteWeightDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

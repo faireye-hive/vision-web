@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
 import { useNavigation } from '../context/NavigationContext';
 import { HivePost, getPost, getPostSnippet, getHiveAvatarUrl } from '../services/hiveApi';
 import { markdownToSafeHtml } from '../utils/sanitize';
@@ -186,6 +187,7 @@ export function SnapContent({
   enableTruncation = true,
 }: SnapContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [pendingExternalLink, setPendingExternalLink] = useState<string | null>(null);
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const navigate = useNavigate();
   const { handleOpenNotificationPost } = useNavigation();
@@ -308,10 +310,8 @@ export function SnapContent({
               }
 
               if (!isTrustedSnapLink(destination)) {
-                const shouldContinue = window.confirm(
-                  `This link will take you outside Nebulosa.\n\nDestination: ${destination.hostname}\n${destination.href}\n\nContinue only if you trust this site.`
-                );
-                if (!shouldContinue) return;
+                setPendingExternalLink(destination.href);
+                return;
               }
 
               if (destination.origin === window.location.origin) {
@@ -461,6 +461,15 @@ export function SnapContent({
           )}
         </div>
       )}
+
+      <ExternalLinkWarningModal
+        href={pendingExternalLink}
+        onCancel={() => setPendingExternalLink(null)}
+        onContinue={(href) => {
+          window.open(href, '_blank', 'noopener,noreferrer');
+          setPendingExternalLink(null);
+        }}
+      />
     </div>
   );
 }

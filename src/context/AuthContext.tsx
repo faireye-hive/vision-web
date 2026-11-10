@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { getFollowing, getMutedAccounts, getSubscriptions } from '../services/hiveApi';
 
@@ -12,6 +12,7 @@ export interface AuthContextType {
   refreshFollowing: () => Promise<void>;
   isFollowing: (username: string) => boolean;
   mutedUsersList: string[];
+  mutedUsersLoading: boolean;
   setMutedUsersList: React.Dispatch<React.SetStateAction<string[]>>;
   refreshMuted: () => Promise<void>;
   isMuted: (username: string) => boolean;
@@ -30,6 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [followingUsersList, setFollowingUsersList] = useState<string[]>([]);
   const [mutedUsersList, setMutedUsersList] = useState<string[]>([]);
+  const [mutedLoadedFor, setMutedLoadedFor] = useState<string | null>(null);
+  const muteRequest = useRef(0);
+  const mutedUsersLoading = !!currentUser && mutedLoadedFor !== currentUser.username;
   const [joinedCommunities, setJoinedCommunities] = useState<Record<string, boolean>>({});
 
   const refreshFollowing = useCallback(async () => {
@@ -46,15 +50,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser?.username]);
 
   const refreshMuted = useCallback(async () => {
+    const request = ++muteRequest.current;
     if (!currentUser?.username) {
+      setMutedLoadedFor(null);
       setMutedUsersList([]);
       return;
     }
     try {
       const list = await getMutedAccounts(currentUser.username, true);
+      if (request !== muteRequest.current) return;
       setMutedUsersList(list || []);
+      setMutedLoadedFor(currentUser.username);
     } catch {
-      setMutedUsersList([]);
+      if (request !== muteRequest.current) return;
+      setMutedLoadedFor(currentUser.username);
     }
   }, [currentUser?.username]);
 
@@ -168,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshFollowing,
       isFollowing,
       mutedUsersList,
+      mutedUsersLoading,
       setMutedUsersList,
       refreshMuted,
       isMuted,
@@ -184,6 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshFollowing,
       isFollowing,
       mutedUsersList,
+      mutedUsersLoading,
       refreshMuted,
       isMuted,
       toggleMuteUser,

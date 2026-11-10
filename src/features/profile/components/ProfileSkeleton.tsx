@@ -57,84 +57,73 @@ export const FeedCardsSkeleton: React.FC<{ count?: number }> = ({ count = 3 }) =
   );
 };
 
-export const ProfilePageSkeleton: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0a0f1d] animate-in fade-in duration-300">
-      {/* Banner Skeleton */}
-      <div className="relative mb-6">
-        <div 
-          className="w-full bg-slate-200 dark:bg-slate-800/60 relative shadow-2xl min-h-[200px] sm:min-h-[220px] animate-pulse"
-          style={{ borderRadius: '15px' }}
-        >
-          {/* Avatar Skeleton */}
-          <div className="absolute top-5 sm:top-10 left-4 sm:left-12 z-20">
-            <div className="w-[90px] h-[90px] sm:w-[120px] sm:h-[120px] rounded-full border-4 border-[#0a0f1d] bg-slate-300 dark:bg-slate-700 animate-pulse shadow-md" />
-          </div>
+const Placeholder: React.FC<{ className: string }> = ({ className }) => (
+  <div className={`rounded-md bg-slate-200 dark:bg-slate-800 ${className}`} />
+);
 
-          {/* Name & Rep Skeleton */}
-          <div 
-            className="absolute bottom-4 sm:bottom-10 left-32 xs:left-36 sm:left-60 z-10 space-y-2"
-            style={{ marginTop: '2px', marginLeft: '-59px', marginBottom: '23px' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-7 sm:h-9 w-40 sm:w-60 bg-slate-300 dark:bg-slate-700 rounded-xl" />
-              <div className="h-5 w-12 bg-blue-400/40 rounded-full" />
-            </div>
-            <div className="h-4 w-28 bg-slate-300/80 dark:bg-slate-700/60 rounded-md" />
-          </div>
-
-          {/* Action Button Skeleton */}
-          <div className="absolute bottom-4 sm:bottom-10 right-3 sm:right-8 z-20">
-            <div className="h-9 sm:h-11 w-28 sm:w-36 bg-slate-300/60 dark:bg-slate-700/60 rounded-2xl" />
+export const ProfilePageSkeleton: React.FC<{ isOwner?: boolean }> = ({ isOwner = false }) => (
+  <div role="status" aria-label="Loading profile" className="mx-auto w-full max-w-[1392px] space-y-4 py-4 sm:space-y-5 sm:py-5 motion-safe:animate-pulse">
+    <span className="sr-only">Loading profile…</span>
+    <div aria-hidden="true" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-[#111827]">
+      <Placeholder className="h-32 !rounded-none sm:h-40 lg:h-44" />
+      <div className="relative px-4 pb-4 sm:px-6 sm:pb-5">
+        <div className="flex items-end justify-between gap-3">
+          <Placeholder className="-mt-9 h-20 w-20 shrink-0 !rounded-2xl border-4 border-white dark:border-[#111827] sm:-mt-11 sm:h-24 sm:w-24 sm:!rounded-3xl" />
+          <div className="flex justify-end gap-2 pt-3">
+            <Placeholder className="h-10 w-28 !rounded-xl" />
+            {!isOwner && <Placeholder className="h-10 w-10 !rounded-xl" />}
           </div>
         </div>
-      </div>
-
-      {/* Grid Layout */}
-      <div className="max-w-full mx-auto px-4 sm:px-12 pb-20">
-        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-12 items-start">
-          {/* Left Sidebar Skeleton */}
-          <aside className="order-2 lg:order-1 space-y-6 pt-4 sm:pt-20">
-            <div 
-              className="bg-white dark:bg-[#161b2e] border border-gray-100 dark:border-slate-800 p-6 sm:p-8 shadow-sm w-full max-w-[420px] space-y-6 animate-pulse"
-              style={{ minHeight: '380px', borderRadius: '15px' }}
-            >
-              <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded-md" />
-              <div className="space-y-2">
-                <div className="h-3.5 w-full bg-slate-100 dark:bg-slate-800 rounded-md" />
-                <div className="h-3.5 w-4/5 bg-slate-100 dark:bg-slate-800 rounded-md" />
+        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <Placeholder className="h-8 w-40 sm:h-9 sm:w-48" />
+            <Placeholder className="mt-1 h-5 w-28" />
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 sm:gap-x-6">
+            {[0, 1, 2].map(stat => (
+              <div key={stat} className="flex items-baseline gap-1.5 sm:flex-col sm:gap-0.5">
+                <Placeholder className="h-5 w-8 sm:h-7" />
+                <Placeholder className="h-4 w-14" />
               </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="h-4 w-32 bg-slate-100 dark:bg-slate-800 rounded-md" />
-                <div className="h-4 w-40 bg-slate-100 dark:bg-slate-800 rounded-md" />
-                <div className="h-4 w-36 bg-slate-100 dark:bg-slate-800 rounded-md" />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2.5 pt-4">
-                <div className="h-20 bg-slate-50 dark:bg-slate-900/60 rounded-2xl" />
-                <div className="h-20 bg-slate-50 dark:bg-slate-900/60 rounded-2xl" />
-                <div className="h-20 bg-slate-50 dark:bg-slate-900/60 rounded-2xl" />
-              </div>
-            </div>
-          </aside>
-
-          {/* Right Feed Skeleton */}
-          <main className="order-1 lg:order-2 space-y-6 pt-6">
-            {/* Tab navigation skeleton */}
-            <div className="flex items-center gap-4 border-b border-gray-100 dark:border-slate-800 pb-3">
-              <div className="h-5 w-16 bg-blue-200 dark:bg-blue-900/40 rounded-lg animate-pulse" />
-              <div className="h-5 w-16 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
-              <div className="h-5 w-20 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
-              <div className="h-5 w-16 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
-              <div className="h-5 w-20 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
-            </div>
-
-            {/* Cards Skeleton */}
-            <FeedCardsSkeleton count={3} />
-          </main>
+            ))}
+          </div>
         </div>
       </div>
     </div>
-  );
-};
+    <div aria-hidden="true" className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-5">
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-[#111827]">
+          <div className="mb-2.5 flex h-8 items-center lg:h-5"><Placeholder className="h-5 w-16" /></div>
+          <div className="space-y-2"><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-4/5" /></div>
+          <div className="hidden lg:block">
+            <div className="mt-4 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              {[0, 1, 2].map(row => <Placeholder key={row} className="h-4 w-3/4" />)}
+            </div>
+            <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800"><Placeholder className="h-4 w-28" /></div>
+          </div>
+        </div>
+        {isOwner && <div className="hidden h-[70px] rounded-2xl border border-dashed border-slate-300 bg-white/50 dark:border-slate-700 dark:bg-slate-900/50 lg:block" />}
+      </div>
+      <div className="min-w-0 space-y-3">
+        <div className="flex min-w-0 gap-1 overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-[#111827]">
+          {[64, 72, 104, 88, 104].map((width, index) => <div key={index} style={{ width }} className="h-10 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800" />)}
+        </div>
+        {[0, 1, 2].map(card => (
+          <div key={card} className="rounded-2xl border border-gray-100/90 bg-white p-4 dark:border-slate-800/80 dark:bg-[#161b2e] sm:p-5">
+            <div className="flex min-w-0 flex-col items-start gap-3.5 sm:flex-row sm:gap-5">
+              <Placeholder className="order-1 aspect-video w-full shrink-0 !rounded-xl sm:order-2 sm:aspect-[4/3] sm:w-36 lg:w-44" />
+              <div className="order-2 w-full min-w-0 flex-1 self-stretch sm:order-1">
+                <div className="mb-1.5 flex h-6 items-center justify-between gap-2"><Placeholder className="h-4 w-24" /><Placeholder className="h-4 w-20" /></div>
+                <Placeholder className="my-1 h-6 w-4/5 sm:h-7" />
+                <div className="mb-3 mt-1.5 space-y-2"><Placeholder className="h-4 w-full" /><Placeholder className="h-4 w-2/3" /></div>
+                <div className="flex gap-2 border-t border-gray-100/90 pt-2.5 dark:border-slate-800/70 sm:pt-3">
+                  {[0, 1, 2].map(action => <Placeholder key={action} className="h-8 w-10 !rounded-xl" />)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
