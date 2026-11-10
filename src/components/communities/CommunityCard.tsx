@@ -1,5 +1,7 @@
 import { handleImageFallback } from '../../utils/imageFallback';
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { communityPath } from '../../utils/communityRoutes';
 import { ArrowUpRight, Check, Plus, ShieldAlert, Users } from 'lucide-react';
 import { getHiveAvatarUrl } from '../../services/hiveApi';
 import { ClassifiedCommunity } from '../../utils/communityTaxonomy';
@@ -24,6 +26,11 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
   const { community } = item;
   const name = community.title || community.name;
   const authors = community.num_authors || 0;
+  const handleOpen = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onOpen();
+  };
 
   return (
     <article className="group relative flex min-h-[184px] flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.035)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:shadow-black/20 [content-visibility:auto] [contain-intrinsic-size:auto_184px]">
@@ -31,9 +38,9 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
 
       <div>
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={onOpen}
+          <Link
+            to={communityPath(community.name)}
+            onClick={handleOpen}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
             aria-label={`Open ${name}`}
           >
@@ -52,7 +59,7 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
                 {community.name}
               </span>
             </span>
-          </button>
+          </Link>
 
           <button
             type="button"
@@ -122,13 +129,13 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={onOpen}
+        <Link
+          to={communityPath(community.name)}
+          onClick={handleOpen}
           className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
         >
-          View feed <ArrowUpRight className="h-3.5 w-3.5" />
-        </button>
+          View community <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
       </footer>
     </article>
   );

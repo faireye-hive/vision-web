@@ -33,9 +33,9 @@ html {
   }
 }
 
-/* Neutral near-black surfaces for the default night theme. Tailwind's slate
-   surfaces are noticeably blue, so map panel and canvas utilities to the
-   application's intended charcoal palette while preserving their opacity. */
+/* Shared neutral surfaces for the night theme. Tailwind's slate surfaces are
+   noticeably blue; map them to the charcoal palette used by Discover while
+   retaining each utility's opacity and hierarchy. */
 html.dark [class~="dark:bg-slate-900"] { background-color: #070809 !important; }
 html.dark [class~="dark:bg-slate-900/40"] { background-color: rgb(7 8 9 / 0.4) !important; }
 html.dark [class~="dark:bg-slate-900/50"] { background-color: rgb(7 8 9 / 0.5) !important; }
@@ -51,10 +51,43 @@ html.dark [class~="dark:bg-slate-950/50"] { background-color: rgb(16 18 20 / 0.5
 html.dark [class~="dark:bg-slate-950/60"] { background-color: rgb(16 18 20 / 0.6) !important; }
 html.dark [class~="dark:bg-slate-950/90"] { background-color: rgb(16 18 20 / 0.9) !important; }
 html.dark [class~="dark:bg-slate-950/95"] { background-color: rgb(16 18 20 / 0.95) !important; }
+html.dark [class~="dark:bg-slate-800"] { background-color: #151719 !important; }
+html.dark [class~="dark:bg-slate-800/30"] { background-color: rgb(21 23 25 / 0.3) !important; }
+html.dark [class~="dark:bg-slate-800/40"] { background-color: rgb(21 23 25 / 0.4) !important; }
+html.dark [class~="dark:bg-slate-800/50"] { background-color: rgb(21 23 25 / 0.5) !important; }
+html.dark [class~="dark:bg-slate-800/60"] { background-color: rgb(21 23 25 / 0.6) !important; }
+html.dark [class~="dark:bg-slate-800/70"] { background-color: rgb(21 23 25 / 0.7) !important; }
+html.dark [class~="dark:bg-slate-800/80"] { background-color: rgb(21 23 25 / 0.8) !important; }
+html.dark [class~="dark:bg-slate-800/90"] { background-color: rgb(21 23 25 / 0.9) !important; }
+html.dark [class~="dark:bg-slate-800/95"] { background-color: rgb(21 23 25 / 0.95) !important; }
+html.dark [class~="dark:bg-slate-700"] { background-color: #222628 !important; }
+html.dark [class~="dark:bg-slate-700/40"] { background-color: rgb(34 38 40 / 0.4) !important; }
+html.dark [class~="dark:bg-slate-700/50"] { background-color: rgb(34 38 40 / 0.5) !important; }
+html.dark [class~="dark:bg-slate-700/60"] { background-color: rgb(34 38 40 / 0.6) !important; }
+html.dark [class~="dark:bg-slate-700/70"] { background-color: rgb(34 38 40 / 0.7) !important; }
+html.dark [class~="dark:bg-slate-700/80"] { background-color: rgb(34 38 40 / 0.8) !important; }
+html.dark [class~="dark:bg-slate-700/90"] { background-color: rgb(34 38 40 / 0.9) !important; }
+html.dark [class~="dark:bg-slate-600"] { background-color: #303638 !important; }
+html.dark [class~="dark:bg-slate-600/70"] { background-color: rgb(48 54 56 / 0.7) !important; }
 html.dark [class~="dark:bg-[#111827]"],
 html.dark [class~="dark:bg-[#121829]"],
 html.dark [class~="dark:bg-[#161b2e]"],
 html.dark [class~="dark:bg-[#0c1222]"] { background-color: #070809 !important; }
+html.dark [class~="dark:bg-[#111827]/95"] { background-color: rgb(7 8 9 / 0.95) !important; }
+html.dark [class~="dark:bg-[#0c1222]/80"] { background-color: rgb(7 8 9 / 0.8) !important; }
+html.dark [class~="dark:bg-[#0c1222]/95"] { background-color: rgb(7 8 9 / 0.95) !important; }
+
+/* Keep the shared panel outlines neutral too; colored borders remain accents. */
+html.dark [class~="dark:border-slate-800"] { border-color: #25292b !important; }
+html.dark [class~="dark:border-slate-800/60"] { border-color: rgb(37 41 43 / 0.6) !important; }
+html.dark [class~="dark:border-slate-800/70"] { border-color: rgb(37 41 43 / 0.7) !important; }
+html.dark [class~="dark:border-slate-800/80"] { border-color: rgb(37 41 43 / 0.8) !important; }
+html.dark [class~="dark:border-slate-800/90"] { border-color: rgb(37 41 43 / 0.9) !important; }
+html.dark [class~="dark:border-slate-700"] { border-color: #343a3d !important; }
+html.dark [class~="dark:border-slate-700/50"] { border-color: rgb(52 58 61 / 0.5) !important; }
+html.dark [class~="dark:border-slate-700/60"] { border-color: rgb(52 58 61 / 0.6) !important; }
+html.dark [class~="dark:border-slate-700/70"] { border-color: rgb(52 58 61 / 0.7) !important; }
+html.dark [class~="dark:border-slate-700/80"] { border-color: rgb(52 58 61 / 0.8) !important; }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
@@ -73,13 +106,13 @@ html.dark [class~="dark:bg-[#0c1222]"] { background-color: #070809 !important; }
 }
 
 .dark ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(16, 18, 20, 0.8);
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
+  background: rgba(48, 54, 56, 0.8);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 85, 105, 1);
+  background: rgba(64, 70, 72, 1);
 }
 
 /* ================= High-Contrast Article Body & Post Reading Typography ================= */
@@ -116,16 +149,23 @@ html.dark [class~="dark:bg-[#0c1222]"] { background-color: #070809 !important; }
 .article-body h3 { font-size: 1.25rem; margin-top: 1.25rem; margin-bottom: 0.65rem; }
 .article-body h4 { font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
 
-.article-body a,
-.article-content a {
+.article-body a[href],
+.article-content a[href] {
   color: #2563eb;
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.article-body a:hover,
-.article-content a:hover {
+.article-body a[href]:hover,
+.article-content a[href]:hover {
   color: #1d4ed8;
+}
+
+.article-body a:not([href]),
+.article-content a:not([href]) {
+  color: inherit;
+  text-decoration: none;
+  cursor: text;
 }
 
 .article-body blockquote,
@@ -359,14 +399,14 @@ html.dark #sanitized-post-body h6 {
   color: #ffffff !important; /* pure white headings */
 }
 
-html.dark .article-body a,
-html.dark .article-content a,
-html.dark #sanitized-post-body a {
+html.dark .article-body a[href],
+html.dark .article-content a[href],
+html.dark #sanitized-post-body a[href] {
   color: #60a5fa !important; /* bright blue */
 }
-html.dark .article-body a:hover,
-html.dark .article-content a:hover,
-html.dark #sanitized-post-body a:hover {
+html.dark .article-body a[href]:hover,
+html.dark .article-content a[href]:hover,
+html.dark #sanitized-post-body a[href]:hover {
   color: #93c5fd !important;
 }
 

@@ -114,6 +114,11 @@ export interface HiveNotification {
   score?: number;
 }
 
+function isVoteNotification(notification: HiveNotification): boolean {
+  const type = String(notification.type || '').trim().toLowerCase();
+  return type === 'vote' || type === 'vote_operation' || type === 'vote_notification';
+}
+
 export interface FollowedCreatorInfo {
   username: string;
   lastPostDate?: string;
@@ -994,19 +999,32 @@ export async function getAccountNotifications(
   try {
     // Share the first page between the unread badge (15) and inbox (50).
     const requestLimit = Math.max(50, limit);
-    const params: { account: string; limit: number; last_id?: string } = {
-      account: cleaned,
-      limit: requestLimit
-    };
-    if (lastId) {
-      params.last_id = lastId;
-    }
     const result = await fetchWithCache<HiveNotification[]>(
-      `notifications:${cleaned}:${requestLimit}:${lastId || ''}`,
+      `notifications:no-votes:v1:${cleaned}:${requestLimit}:${lastId || ''}`,
       async () => {
-        const rows = await hiveRpcCall<HiveNotification[]>('bridge.account_notifications', params);
-        if (!Array.isArray(rows)) throw new Error('Invalid notifications response');
-        return rows;
+        const visible: HiveNotification[] = [];
+        let cursor = lastId;
+
+        // Votes are intentionally not inbox notifications. Keep requesting older
+        // rows until this page is full so filtering does not break pagination.
+        while (visible.length < requestLimit) {
+          const pageParams: { account: string; limit: number; last_id?: string } = {
+            account: cleaned,
+            limit: requestLimit
+          };
+          if (cursor) pageParams.last_id = cursor;
+          const rows = await hiveRpcCall<HiveNotification[]>('bridge.account_notifications', pageParams);
+          if (!Array.isArray(rows)) throw new Error('Invalid notifications response');
+
+          visible.push(...rows.filter((row) => row && !isVoteNotification(row)));
+          if (rows.length < requestLimit) break;
+
+          const nextCursor = String(rows[rows.length - 1]?.id ?? '');
+          if (!nextCursor || nextCursor === cursor) break;
+          cursor = nextCursor;
+        }
+
+        return visible.slice(0, requestLimit);
       },
       { ttl: 30_000, forceRefresh }
     );
@@ -1321,13 +1339,29 @@ export function getPostThumbnail(post: HivePost): string | null {
  */
 export function getPostSnippet(body: string, maxLength: number = 180): string {
   if (!body || typeof body !== 'string') return '';
+  const hasImageUrl = /https?:\/\/[^\r\n<>"')\]]*?\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#][^\s<>"')\]]*)?/i.test(body);
+  const bareUrl = body.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
+  let bareUrlHost = '';
+  if (bareUrl && !hasImageUrl) {
+    try {
+      bareUrlHost = new URL(bareUrl).hostname.replace(/^www\./i, '');
+    } catch {
+      // Ignore malformed URLs; the snippet cleanup below still removes them.
+    }
+  }
   const clean = body
     .replace(/!\[.*?\]\(.*?\)/g, '') // remove images
+    // Bare image URLs are media, not useful description text. Allow spaces in
+    // the URL path because Hive posts often contain unescaped filenames.
+    .replace(/https?:\/\/[^\r\n<>"')\]]*?\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#][^\s<>"')\]]*)?/gi, '')
+    .replace(/https?:\/\/[^\s<>"')\]]+/gi, '') // hide bare links such as audio and external pages
     .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // link to text
     .replace(/<[^>]*>/g, '') // remove HTML tags
+    .replace(/[\[\]()]/g, ' ') // remove leftover brackets from malformed Markdown links
     .replace(/[#*`_~>-]/g, ' ') // remove markdown symbols
     .replace(/\s+/g, ' ')
     .trim();
+  if (!clean && bareUrlHost) return bareUrlHost;
   if (clean.length <= maxLength) return clean;
   return clean.slice(0, maxLength) + '...';
 }

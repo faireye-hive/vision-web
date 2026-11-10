@@ -623,6 +623,9 @@ export const WritePage: React.FC<WritePageProps> = ({
                 className={selectClass}
               >
                 <option value="">Personal Blog (No Community)</option>
+                {selectedCommunity && !communityOptions.some(community => community.name === selectedCommunity) && (
+                  <option value={selectedCommunity}>{communityLabel}</option>
+                )}
                 {communityOptions.map((community) => (
                   <option key={community.name} value={community.name}>
                     {community.label}

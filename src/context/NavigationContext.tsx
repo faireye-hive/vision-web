@@ -1,4 +1,5 @@
 import { legacySnapsRedirect } from '../utils/snapsRoutes';
+import { communityNameFromPath, communityPath, COMMUNITY_NAME } from '../utils/communityRoutes';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HivePost, getPost, NON_POST_PERMLINKS } from '../services/hiveApi';
@@ -215,7 +216,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Community path: /c/:community
     if (pathname.startsWith('/c/')) {
-      const comm = decodeURIComponent(pathname.replace(/^\/c\//, '').replace(/\/+$/, '').trim().toLowerCase());
+      const comm = communityNameFromPath(pathname);
       setActiveNav('communities');
       setTagState(comm);
       tagRef.current = comm;
@@ -423,7 +424,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   const openCommunity = useCallback((communityName: string) => {
     const clean = communityName.trim().toLowerCase();
-    setTag(clean);
+    if (!COMMUNITY_NAME.test(clean)) return;
+    setTagState(clean);
+    tagRef.current = clean;
     setActiveNav('communities');
     setStandalonePage(null);
     setSelectedPost(null);
@@ -431,7 +434,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (sort === 'recommend') {
       setSortState('trending');
     }
-    navigate(`/c/${clean}`);
+    feedScrollPositionRef.current = 0;
+    navigate(communityPath(clean), { state: { communityLanding: true } });
+    window.scrollTo({ top: 0 });
   }, [navigate, sort]);
 
   const openStandalonePage = useCallback((page: StandalonePage, user?: string) => {

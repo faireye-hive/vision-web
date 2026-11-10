@@ -302,6 +302,7 @@ export function SnapContent({
               }
 
               if (destination.protocol !== 'https:' && destination.protocol !== 'http:') return;
+              if (destination.username || destination.password) return;
 
               const hivePost = extractHivePostLinks(destination.href)[0];
               if (hivePost) {
