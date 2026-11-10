@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { HiveNotification, getAccountNotifications } from '../services/hiveApi';
 import { useAuth } from './AuthContext';
+import { pollWhileVisible } from '../utils/visiblePolling';
 
 export const LAST_READ_NOTIF_KEY = 'hive_last_read_notif_id';
 
@@ -40,15 +41,17 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [ghostNotification, setGhostNotification] = useState<HiveNotification | null>(null);
   const prevTopIdRef = useRef('');
 
-  const checkNotifications = useCallback(async () => {
-    if (!currentUser?.username) {
-      setUnreadCount(0);
-      prevTopIdRef.current = '';
-      return;
-    }
+  useEffect(() => {
+    let active = true;
+    const username = currentUser?.username;
+    setUnreadCount(0);
+    setGhostNotification(null);
+    prevTopIdRef.current = '';
+    if (!username) return;
 
-    try {
-      const notifs = await getAccountNotifications(currentUser.username, 15);
+    const stop = pollWhileVisible(async () => {
+      const notifs = await getAccountNotifications(username, 15);
+      if (!active) return;
       if (!notifs || notifs.length === 0) {
         setUnreadCount(0);
         return;
@@ -62,16 +65,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         setGhostNotification(top);
       }
       prevTopIdRef.current = topId;
-    } catch {
-      // Non-critical network check.
-    }
+    }, 45000);
+    return () => { active = false; stop(); };
   }, [currentUser?.username]);
-
-  useEffect(() => {
-    checkNotifications();
-    const interval = window.setInterval(checkNotifications, 45000);
-    return () => window.clearInterval(interval);
-  }, [checkNotifications]);
 
   useEffect(() => {
     const onCleared = () => {

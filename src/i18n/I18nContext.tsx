@@ -38,8 +38,9 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const html = UI_LOCALES.find((item) => item.code === locale)?.html || locale;
-    document.documentElement.lang = html;
+    const selected = UI_LOCALES.find((item) => item.code === locale);
+    document.documentElement.lang = selected?.html || locale;
+    document.documentElement.dir = selected?.dir || 'ltr';
   }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => ({

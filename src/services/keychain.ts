@@ -2,7 +2,9 @@
  * Hive Keychain Browser Extension Service
  * Enables client-side, keyless authentication, voting, posting, and tipping on the Hive blockchain.
  */
-import { hiveRpcCall, getHiveAvatarUrl, resolveHiveAvatarUrl } from './hiveApi';
+import { hiveRpcCall, getHiveAvatarUrl, resolveHiveAvatarUrl, invalidateFollowingCache } from './hiveApi';
+import { apiCache } from './apiCache';
+import { invalidateProfileCache, invalidateAccountContentCache } from './profileCache';
 
 // Hive Keychain global interface definition
 declare global {
@@ -270,6 +272,10 @@ export class KeychainService {
         permlink,
         '',
         (response) => {
+          if (response.success) {
+            invalidateAccountContentCache(username);
+            if (parentAuthor) invalidateAccountContentCache(parentAuthor);
+          }
           resolve(response);
         }
       );
@@ -305,6 +311,7 @@ export class KeychainService {
           json,
           `Reblog @${cleanAuthor}/${cleanPermlink}`,
           (response) => {
+            if (response?.success) invalidateAccountContentCache(cleanUser);
             resolve(response || { success: false, error: 'No response from Keychain' });
           }
         );
@@ -347,6 +354,11 @@ export class KeychainService {
         json,
         `${subscribe ? 'Subscribe' : 'Unsubscribe'} ${community}`,
         (response) => {
+          if (response.success) {
+            apiCache.invalidate(`subscriptions:${username.replace(/^@/, '').trim().toLowerCase()}`);
+            apiCache.invalidate(`community:${community}`);
+            apiCache.invalidatePattern(/^ranked_posts:[^:]+:my:/);
+          }
           resolve(response);
         }
       );
@@ -381,6 +393,10 @@ export class KeychainService {
         json,
         `${follow ? 'Follow' : 'Unfollow'} @${following}`,
         (response) => {
+          if (response.success) {
+            invalidateFollowingCache(follower);
+            invalidateFollowingCache(following);
+          }
           resolve(response);
         }
       );
@@ -506,6 +522,7 @@ export class KeychainService {
         json,
         `${mute ? 'Mute' : 'Unmute'} @${following}`,
         (response) => {
+          if (response.success) apiCache.invalidate(`muted_list:${follower.replace(/^@/, '').trim().toLowerCase()}`);
           resolve(response);
         }
       );
@@ -554,7 +571,14 @@ export class KeychainService {
     }
 
     return new Promise((resolve) => {
-      window.hive_keychain!.requestBroadcast!(cleanUsername, [op], 'Posting', resolve);
+      window.hive_keychain!.requestBroadcast!(cleanUsername, [op], 'Posting', response => {
+        if (response.success) {
+          apiCache.invalidate(`account:${cleanUsername}`);
+          apiCache.invalidate(`profile:${cleanUsername}`);
+          invalidateProfileCache(cleanUsername);
+        }
+        resolve(response);
+      });
     });
   }
 

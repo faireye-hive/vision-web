@@ -23,6 +23,14 @@ const MAX_PERSISTED_CHARS = 100_000;
 // Route and cursor keys are highly variable. Keep cache lifetime from turning
 // into unbounded process lifetime when someone browses many feeds/profiles.
 const MAX_MEMORY_ENTRIES = 100;
+// Keep an expired result briefly for offline fallback, without treating it as fresh.
+const STALE_RETENTION_MS = 30 * 60 * 1000;
+const inflightFetches = new Map<string, { promise: Promise<unknown>; bypass: boolean }>();
+
+function validEntry(entry: CacheEntry<unknown>, now: number): boolean {
+  return !!entry && Number.isFinite(entry.timestamp) && entry.timestamp <= now &&
+    Number.isFinite(entry.ttl) && entry.ttl > 0 && entry.data != null;
+}
 
 function isPostLike(value: unknown): boolean {
   return !!value && typeof value === 'object' && 'permlink' in value && 'body' in value;
@@ -114,7 +122,7 @@ class ApiCacheManager {
           }
           try {
             const entry: CacheEntry<any> = JSON.parse(raw);
-            if (now - entry.timestamp < entry.ttl && !isBulkPostPayload(entry.data)) {
+            if (validEntry(entry, now) && now - entry.timestamp < entry.ttl + STALE_RETENTION_MS && !isBulkPostPayload(entry.data)) {
               this.memoryCache.set(key.replace(this.storagePrefix, ''), entry);
             } else {
               storage.removeItem(key);
@@ -128,8 +136,8 @@ class ApiCacheManager {
       }
     };
 
-    if (window.sessionStorage) loadStorage(window.sessionStorage);
-    if (window.localStorage) loadStorage(window.localStorage);
+    try { loadStorage(window.sessionStorage); } catch { /* Storage access can be denied. */ }
+    try { loadStorage(window.localStorage); } catch { /* Memory caching still works. */ }
 
     this.trimMemoryCache();
 
@@ -139,7 +147,7 @@ class ApiCacheManager {
   private trimMemoryCache() {
     const now = Date.now();
     for (const [key, entry] of this.memoryCache) {
-      if (now - entry.timestamp > entry.ttl) {
+      if (now - entry.timestamp >= entry.ttl + STALE_RETENTION_MS) {
         this.memoryCache.delete(key);
         this.removeStorage(key, entry.persistent);
       }
@@ -166,10 +174,12 @@ class ApiCacheManager {
     }
 
     const now = Date.now();
-    if (now - entry.timestamp > entry.ttl) {
-      // Expired entry
-      this.memoryCache.delete(key);
-      this.removeStorage(key, entry.persistent);
+    if (now - entry.timestamp >= entry.ttl) {
+      // Retain expired entries only for bounded offline fallback.
+      if (now - entry.timestamp >= entry.ttl + STALE_RETENTION_MS) {
+        this.memoryCache.delete(key);
+        this.removeStorage(key, entry.persistent);
+      }
       this.stats.misses++;
       this.notify();
       return null;
@@ -191,9 +201,7 @@ class ApiCacheManager {
     const entry = this.memoryCache.get(key);
     if (!entry) return false;
     const now = Date.now();
-    if (now - entry.timestamp > entry.ttl) {
-      this.memoryCache.delete(key);
-      this.removeStorage(key, entry.persistent);
+    if (now - entry.timestamp >= entry.ttl) {
       return false;
     }
     return true;
@@ -204,6 +212,11 @@ class ApiCacheManager {
    */
   public getStale<T>(key: string): T | null {
     const entry = this.memoryCache.get(key);
+    if (entry && Date.now() - entry.timestamp >= entry.ttl + STALE_RETENTION_MS) {
+      this.memoryCache.delete(key);
+      this.removeStorage(key, entry.persistent);
+      return null;
+    }
     if (entry && entry.data !== undefined && entry.data !== null) {
       return entry.data as T;
     }
@@ -225,6 +238,10 @@ class ApiCacheManager {
 
     this.memoryCache.delete(key);
     this.memoryCache.set(key, entry);
+    // A direct/optimistic write supersedes any older read still in flight.
+    inflightFetches.delete(key);
+    // Remove an older persisted value even when the replacement is memory-only.
+    this.removeStorage(key);
     this.setStorage(key, entry);
     this.trimMemoryCache();
     this.notify();
@@ -234,6 +251,7 @@ class ApiCacheManager {
    * Invalidate a specific cache key
    */
   public invalidate(key: string): void {
+    inflightFetches.delete(key);
     const entry = this.memoryCache.get(key);
     this.memoryCache.delete(key);
     this.removeStorage(key, entry?.persistent);
@@ -245,8 +263,12 @@ class ApiCacheManager {
    */
   public invalidatePattern(pattern: RegExp | string): void {
     const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    const matches = (key: string) => { regex.lastIndex = 0; return regex.test(key); };
+    for (const key of inflightFetches.keys()) {
+      if (matches(key)) inflightFetches.delete(key);
+    }
     for (const [key, entry] of this.memoryCache.entries()) {
-      if (regex.test(key)) {
+      if (matches(key)) {
         this.memoryCache.delete(key);
         this.removeStorage(key, entry.persistent);
       }
@@ -258,6 +280,7 @@ class ApiCacheManager {
    * Purge all cached data
    */
   public clear(): void {
+    inflightFetches.clear();
     this.memoryCache.clear();
     if (typeof window !== 'undefined') {
       const purge = (storage: Storage) => {
@@ -273,8 +296,8 @@ class ApiCacheManager {
         } catch {}
       };
 
-      if (window.sessionStorage) purge(window.sessionStorage);
-      if (window.localStorage) purge(window.localStorage);
+      try { purge(window.sessionStorage); } catch { /* Storage access can be denied. */ }
+      try { purge(window.localStorage); } catch { /* Memory cache is already cleared. */ }
     }
     this.stats.entries = 0;
     this.notify();
@@ -334,8 +357,6 @@ export const CACHE_TTL = {
   TRENDING_TAGS: 7 * 24 * 60 * 60 * 1000 // 7 DIAS (1 semana)
 };
 
-const inflightFetches = new Map<string, Promise<unknown>>();
-
 /**
  * Wrapper to fetch with automatic caching, TTL expiration, and manual refresh bypass.
  */
@@ -358,19 +379,22 @@ export async function fetchWithCache<T>(
     if (cached !== null && cached !== undefined) {
       return cached;
     }
-    const pending = inflightFetches.get(cacheKey);
-    if (pending) return pending as Promise<T>;
   }
+  // A forced read may share another forced read, but must not inherit stale fallback.
+  const pending = inflightFetches.get(cacheKey);
+  if (pending && (!bypass || pending.bypass)) return pending.promise as Promise<T>;
 
-  const promise = (async () => {
+  let promise!: Promise<T>;
+  promise = (async () => {
     try {
       const fresh = await fetchFn();
-      if (ttl > 0 && fresh !== null && fresh !== undefined) {
+      if (inflightFetches.get(cacheKey)?.promise === promise && ttl > 0 && fresh !== null && fresh !== undefined) {
         apiCache.set<T>(cacheKey, fresh, ttl, persistent);
       }
       return fresh;
     } catch (err) {
-      const stale = apiCache.getStale<T>(cacheKey);
+      // Explicit refresh is also used to verify roles before signing operations.
+      const stale = bypass ? null : apiCache.getStale<T>(cacheKey);
       if (stale !== null && stale !== undefined) {
         console.warn(`[fetchWithCache] fetch failed for ${cacheKey}, returning stale cache fallback:`, err);
         return stale;
@@ -379,9 +403,9 @@ export async function fetchWithCache<T>(
     }
   })();
 
-  inflightFetches.set(cacheKey, promise);
+  inflightFetches.set(cacheKey, { promise, bypass: !!bypass });
   const cleanup = () => {
-    if (inflightFetches.get(cacheKey) === promise) {
+    if (inflightFetches.get(cacheKey)?.promise === promise) {
       inflightFetches.delete(cacheKey);
     }
   };

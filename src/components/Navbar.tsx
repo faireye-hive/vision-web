@@ -51,6 +51,7 @@ import { useNavigation } from '../context/NavigationContext';
 import { LanguageDropdown } from './LanguageDropdown';
 import { SearchPreviewPopover } from './SearchPreviewPopover';
 import { UiLanguageButton, UiLanguagePicker } from './UiLanguagePicker';
+import { pollWhileVisible } from '../utils/visiblePolling';
 import { useI18n } from '../i18n/I18nContext';
 
 interface NavbarProps {
@@ -188,19 +189,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    pingNode(activeNodeUrl).then(ms => {
+    const stop = pollWhileVisible(async () => {
+      const ms = await pingNode(activeNodeUrl);
       if (isMounted) setNodePing(ms);
-    });
-
-    const interval = setInterval(() => {
-      pingNode(activeNodeUrl).then(ms => {
-        if (isMounted) setNodePing(ms);
-      });
     }, 25000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      stop();
     };
   }, [activeNodeUrl]);
 
@@ -372,7 +368,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-14 sm:h-16 gap-3 sm:gap-4">
 
           {/* Left section: Nebulosa Logo, Nav links */}
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-5 min-w-0">
+            <div className="flex shrink-0 items-center gap-2 md:gap-3 lg:gap-5">
 
             {/* Nebulosa Circular Brand Logo */}
             <button
@@ -382,7 +378,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onSortChange('hot');
                 if (onNavChange) onNavChange('discover');
               }}
-              className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
+              className="flex shrink-0 items-center gap-2.5 focus:outline-none group cursor-pointer"
               title={t('nav.home')}
             >
               <div className="relative">
@@ -397,7 +393,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="font-black text-lg tracking-tight bg-gradient-to-r from-gray-900 via-blue-950 to-gray-800 dark:from-white dark:via-blue-200 dark:to-slate-200 bg-clip-text text-transparent group-hover:from-blue-600 group-hover:to-indigo-600 transition-all duration-300">
                   Nebulosa
                 </span>
-                <span className="hidden xl:inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md border border-blue-500/20">
+                <span className="hidden 2xl:inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md border border-blue-500/20">
                   <Sparkles className="w-2.5 h-2.5" />
                   Web3
                 </span>
@@ -421,7 +417,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     id={`nav-${tab.id}-btn`}
                     onClick={() => { if (onNavChange) onNavChange(tab.id as any); }}
                     title={`${tab.label}: ${tab.desc}`}
-                    className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                       isActive
                         ? useNeutralActive
                           ? 'bg-white dark:bg-[#121829] text-slate-800 dark:text-slate-100 shadow-sm border border-gray-200/70 dark:border-slate-700/70 font-extrabold'
@@ -430,7 +426,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isActive ? (useNeutralActive ? 'text-slate-600 dark:text-slate-300' : 'text-blue-600 dark:text-blue-400') : 'text-gray-400 dark:text-slate-400'}`} />
-                    <span className="hidden lg:inline">{tab.label}</span>
+                    <span className="hidden xl:inline">{tab.label}</span>
                     {isActive && (
                       <span className={`w-1.5 h-1.5 rounded-full ${useNeutralActive ? 'bg-slate-500 dark:bg-slate-400' : 'bg-blue-600 dark:bg-blue-400 shadow-xs shadow-blue-500'}`} />
                     )}
@@ -441,14 +437,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Right section: Network Status, Theme Toggle, Stats, Search, Write, Notifications, User */}
-          <div className="flex items-center gap-1 sm:gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-1.5">
 
             {/* Live RPC Node Latency Pill on Desktop */}
             <button
               id="rpc-nodes-status-badge"
               type="button"
               onClick={() => setShowNodeMenu(!showNodeMenu)}
-              className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800 text-[11px] font-mono text-gray-600 dark:text-slate-300 transition cursor-pointer group/node"
+              className="hidden xl:flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-800 text-[11px] font-mono text-gray-600 dark:text-slate-300 transition cursor-pointer group/node"
               title="Hive RPC network status — Click to switch nodes"
             >
               <span className="relative flex h-2 w-2">
@@ -464,7 +460,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="theme-toggle-btn"
                 type="button"
                 onClick={onToggleTheme}
-                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer hidden lg:flex active:scale-95"
+                className="shrink-0 p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer hidden lg:flex active:scale-95"
                 title={isDark ? t('theme.light') : t('theme.dark')}
                 aria-label={t('theme.toggle')}
               >
@@ -480,7 +476,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="help-btn"
               onClick={onOpenStats}
-              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-xl transition hidden lg:flex active:scale-95"
+              className="shrink-0 p-2 text-gray-500 hover:text-gray-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-xl transition hidden lg:flex active:scale-95"
               title="Hive Blockchain Nodes & RPC Settings (Add Custom Nodes)"
             >
               <HelpCircle className="w-4 h-4" />
@@ -515,9 +511,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Desktop Search Pill with Live Preview Popover */}
-            <div ref={desktopSearchRef} className={`relative hidden sm:block sm:w-40 md:w-44 lg:w-56 xl:w-72 transition-all duration-200 focus-within:sm:w-44 focus-within:md:w-52 focus-within:lg:w-64 focus-within:xl:w-80 ${showSearchPopover ? 'z-[70]' : 'z-0'}`}>
+            <div ref={desktopSearchRef} className={`relative hidden min-w-24 sm:block sm:w-40 md:w-44 lg:w-56 xl:w-72 transition-all duration-200 focus-within:sm:w-44 focus-within:md:w-52 focus-within:lg:w-64 focus-within:xl:w-80 ${showSearchPopover ? 'z-[70]' : 'z-0'}`}>
               <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-                <div className="absolute left-2.5 w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-slate-400">
+                <div className="absolute start-2.5 w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-slate-400">
                   <Search className="w-3 h-3" />
                 </div>
                 <input
@@ -531,11 +527,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setShowSearchPopover(true);
                   }}
                   placeholder={t('nav.searchPlaceholder')}
-                  className="w-full pl-9 pr-14 py-1.5 text-xs bg-gray-50/90 dark:bg-slate-800/80 border border-gray-200/80 dark:border-slate-700/80 rounded-full text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-[#0c1222] transition-all duration-200 shadow-2xs"
+                  className="w-full ps-9 pe-14 py-1.5 text-xs bg-gray-50/90 dark:bg-slate-800/80 border border-gray-200/80 dark:border-slate-700/80 rounded-full text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-[#0c1222] transition-all duration-200 shadow-2xs"
                 />
                 {/* Cmd+K Keyboard Hint */}
                 {!searchInput && (
-                  <kbd className="hidden lg:inline-flex items-center gap-0.5 absolute right-2.5 text-[9px] font-mono font-semibold text-gray-400 dark:text-slate-500 bg-gray-200/60 dark:bg-slate-700/60 px-1.5 py-0.5 rounded-md pointer-events-none">
+                  <kbd className="hidden lg:inline-flex items-center gap-0.5 absolute end-2.5 text-[9px] font-mono font-semibold text-gray-400 dark:text-slate-500 bg-gray-200/60 dark:bg-slate-700/60 px-1.5 py-0.5 rounded-md pointer-events-none">
                     ⌘K
                   </kbd>
                 )}
@@ -546,7 +542,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setSearchInput('');
                       setShowSearchPopover(false);
                     }}
-                    className="absolute right-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                    className="absolute end-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -589,7 +585,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="write-btn"
               onClick={() => onOpenWrite?.()}
               title={t('nav.writeTitle')}
-              className="hidden sm:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3 sm:px-3.5 py-2 rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer relative overflow-hidden group/write"
+              className="hidden sm:flex shrink-0 items-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-3 sm:px-3.5 py-2 rounded-xl shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer relative overflow-hidden group/write"
             >
               <div className="absolute inset-0 -translate-x-full group-hover/write:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
               <Edit3 className="w-3.5 h-3.5 group-hover/write:rotate-12 transition-transform duration-200" />
@@ -602,7 +598,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="notifications-btn"
                 onClick={onOpenNotifications}
                 title={unreadNotificationsCount > 0 ? t('nav.unread', { count: unreadNotificationsCount }) : t('nav.notifications')}
-                className={`hidden sm:flex relative p-2 rounded-full border transition-all duration-200 cursor-pointer items-center justify-center active:scale-95 group/bell ${
+                className={`hidden sm:flex shrink-0 relative p-2 rounded-full border transition-all duration-200 cursor-pointer items-center justify-center active:scale-95 group/bell ${
                   unreadNotificationsCount > 0
                     ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-700 ring-2 ring-rose-400/20 shadow-xs'
                     : 'bg-white/80 dark:bg-slate-900/80 text-gray-600 dark:text-slate-300 border-gray-200/80 dark:border-slate-800 hover:border-blue-300 hover:text-blue-600'
@@ -624,7 +620,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="keychain-login-btn"
                 onClick={() => setShowLoginModal(true)}
                 title={t('nav.loginTitle')}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer group/login"
+                className="hidden sm:flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition cursor-pointer group/login"
               >
                 <Key className="w-3.5 h-3.5 group-hover/login:rotate-12 transition-transform duration-200" />
                 <span className="hidden md:inline">{t('nav.login')}</span>
@@ -632,12 +628,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <UiLanguageButton />
               </>
             ) : (
-              <div className="relative hidden sm:block">
+              <div className="relative hidden shrink-0 sm:block">
                 <button
                   id="user-avatar-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   title={`Signed in as @${currentUser.username}${unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount} unread notifications)` : ''}`}
-                  className={`flex items-center gap-2 p-1 pr-2.5 rounded-xl border transition focus:outline-none cursor-pointer active:scale-[0.98] shadow-sm group/userbtn ${
+                  className={`flex items-center gap-2 p-1 pe-2.5 rounded-xl border transition focus:outline-none cursor-pointer active:scale-[0.98] shadow-sm group/userbtn ${
                     unreadNotificationsCount > 0
                       ? 'border-rose-300 dark:border-rose-700 bg-rose-50/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 ring-2 ring-rose-400/30'
                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-sm'
@@ -678,7 +674,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {showUserMenu && (
                   <div
                     id="user-menu-dropdown"
-                    className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2.5 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+                    className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2.5 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
                   >
                     {/* Top hairline gradient */}
                     <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 pointer-events-none" />
@@ -784,7 +780,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <button
                             type="button"
                             onClick={() => { onOpenNotifications(); setShowUserMenu(false); }}
-                            className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-left transition ${unreadNotificationsCount > 0
+                            className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-start transition ${unreadNotificationsCount > 0
                               ? 'border-rose-200 bg-rose-50/80 dark:border-rose-900/60 dark:bg-rose-950/30'
                               : 'border-slate-200/80 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
                             }`}
@@ -836,9 +832,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <Link to="/chat" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Messages · Encrypted chat</Link>
                           <Link to="/lists" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">My lists · Saved posts</Link>
                           <button type="button" role="switch" aria-checked={blacklistFlair.enabled} onClick={blacklistFlair.toggle}
-                            className="col-span-2 flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-left dark:border-slate-700 dark:bg-slate-900">
+                            className="col-span-2 flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start dark:border-slate-700 dark:bg-slate-900">
                             <span><span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">Show blacklist badges</span><span className="block text-[10px] text-slate-500">Your blacklist and lists you follow</span></span>
-                            <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${blacklistFlair.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${blacklistFlair.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} /></span>
+                            <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${blacklistFlair.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}><span className={`absolute start-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${blacklistFlair.enabled ? 'translate-x-4 rtl:-translate-x-4' : 'translate-x-0'}`} /></span>
                           </button>
                           {blacklistFlair.enabled && (blacklistFlair.loading || blacklistFlair.error) && <div role="status" className="col-span-2 px-2 text-[10px] text-slate-500">{blacklistFlair.loading ? 'Loading blacklist badges…' : <>{blacklistFlair.error} <button type="button" className="underline" onClick={blacklistFlair.refresh}>Retry</button></>}</div>}
                           {onToggleTheme && (
@@ -865,7 +861,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         type="button"
                         onClick={() => { onLogout(); setShowUserMenu(false); }}
-                        className="group/logout flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        className="group/logout flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                       >
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"><LogOut className="h-4 w-4" /></span>
                         <span className="min-w-0 flex-1">
