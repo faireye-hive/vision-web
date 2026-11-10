@@ -497,11 +497,6 @@ export async function getRankedPosts(
   const isNewTab = sort === 'created';
   const cacheKey = `ranked_posts:${sort}:${cleanTag}:${cleanObserver}:${limit}:${startAuthor || ''}:${startPermlink || ''}`;
 
-  if (!isNewTab && !forceRefresh) {
-    const cached = apiCache.get<HivePost[]>(cacheKey);
-    if (cached) return cached;
-  }
-
   const params: Record<string, any> = {
     sort,
     tag: cleanTag,
@@ -517,15 +512,15 @@ export async function getRankedPosts(
     params.start_permlink = startPermlink;
   }
 
-  const result = await hiveRpcCall<HivePost[]>('bridge.get_ranked_posts', params);
-  const posts = result || [];
-
-  // Cache only non-new feeds
-  if (!isNewTab && posts.length > 0) {
-    apiCache.set(cacheKey, posts, startAuthor ? CACHE_TTL.FEED_PAGE : CACHE_TTL.FEED);
-  }
-
-  return posts;
+  return fetchWithCache(cacheKey, async () => {
+    const result = await hiveRpcCall<HivePost[]>('bridge.get_ranked_posts', params);
+    if (!Array.isArray(result)) throw new Error('Invalid ranked posts response');
+    return result;
+  }, {
+    ttl: isNewTab ? CACHE_TTL.NONE : (startAuthor ? CACHE_TTL.FEED_PAGE : CACHE_TTL.FEED),
+    bypassCache: isNewTab,
+    forceRefresh
+  });
 }
 
 /**
@@ -625,11 +620,9 @@ export async function getPost(
             observer
           });
           if (result && result.author) return result;
-          const fallback = await hiveRpcCall<HivePost>('condenser_api.get_content', [cleanAuthor, cleanPermlink]);
-          return fallback && fallback.author ? fallback : null;
-        } catch {
-          return null;
-        }
+        } catch { /* Try the compatible content API before offline fallback. */ }
+        const fallback = await hiveRpcCall<HivePost>('condenser_api.get_content', [cleanAuthor, cleanPermlink]);
+        return fallback && fallback.author ? fallback : null;
       },
       { ttl: CACHE_TTL.FEED, forceRefresh }
     );
@@ -798,11 +791,7 @@ export async function getProfile(username: string, forceRefresh: boolean = false
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        return await hiveRpcCall('bridge.get_profile', { account: cleaned });
-      } catch {
-        return null;
-      }
+      return await hiveRpcCall('bridge.get_profile', { account: cleaned });
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );
@@ -822,21 +811,18 @@ export async function getAccountPosts(
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
 
   const fetchPage = async () => {
-    try {
-      const payload: Record<string, unknown> = {
-        sort,
-        account: cleaned,
-        limit
-      };
-      if (startAuthor && startPermlink) {
-        payload.start_author = startAuthor;
-        payload.start_permlink = startPermlink;
-      }
-      const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', payload);
-      return result || [];
-    } catch {
-      return [];
+    const payload: Record<string, unknown> = {
+      sort,
+      account: cleaned,
+      limit
+    };
+    if (startAuthor && startPermlink) {
+      payload.start_author = startAuthor;
+      payload.start_permlink = startPermlink;
     }
+    const result = await hiveRpcCall<HivePost[]>('bridge.get_account_posts', payload);
+    if (!Array.isArray(result)) throw new Error('Invalid account posts response');
+    return result;
   };
 
   if (startPermlink) {
@@ -875,18 +861,15 @@ export async function listCommunities(
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<HiveCommunity[]>('bridge.list_communities', {
-          sort,
-          limit,
-          last,
-          query: query || undefined,
-          observer: ''
-        });
-        return result || [];
-      } catch {
-        return [];
-      }
+      const result = await hiveRpcCall<HiveCommunity[]>('bridge.list_communities', {
+        sort,
+        limit,
+        last,
+        query: query || undefined,
+        observer: ''
+      });
+      if (!Array.isArray(result)) throw new Error('Invalid communities response');
+      return result;
     },
     { ttl: CACHE_TTL.COMMUNITY, forceRefresh }
   );
@@ -902,15 +885,11 @@ export async function getCommunity(name: string, forceRefresh: boolean = false):
   return fetchWithCache(
     `community:${cleaned}`,
     async () => {
-      try {
-        const result = await hiveRpcCall<HiveCommunity | null>('bridge.get_community', {
-          name: cleaned,
-          observer: ''
-        });
-        return result && result.name ? result : null;
-      } catch {
-        return null;
-      }
+      const result = await hiveRpcCall<HiveCommunity | null>('bridge.get_community', {
+        name: cleaned,
+        observer: ''
+      });
+      return result && result.name ? result : null;
     },
     { ttl: CACHE_TTL.COMMUNITY, forceRefresh }
   );
@@ -926,12 +905,9 @@ export async function getAccountHistory(username: string, limit: number = 20, fo
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<any[]>('condenser_api.get_account_history', [cleaned, -1, limit]);
-        return result || [];
-      } catch {
-        return [];
-      }
+      const result = await hiveRpcCall<any[]>('condenser_api.get_account_history', [cleaned, -1, limit]);
+      if (!Array.isArray(result)) throw new Error('Invalid account history response');
+      return result;
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );
@@ -947,15 +923,12 @@ export async function getFollowing(account: string, start: string = '', limit: n
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<Array<{ following: string }>>(
-          'condenser_api.get_following',
-          [cleaned, start, 'blog', limit]
-        );
-        return (result || []).map(r => r.following);
-      } catch {
-        return [];
-      }
+      const result = await hiveRpcCall<Array<{ following: string }>>(
+        'condenser_api.get_following',
+        [cleaned, start, 'blog', limit]
+      );
+      if (!Array.isArray(result)) throw new Error('Invalid following response');
+      return result.map(r => r.following);
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );
@@ -974,18 +947,15 @@ export async function getMutedAccounts(observer: string, forceRefresh: boolean =
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<Array<{ name?: string } | string>>('bridge.get_follow_list', {
-          observer: cleaned,
-          follow_type: 'muted'
-        });
-        return (result || [])
-          .map((row) => (typeof row === 'string' ? row : row?.name || ''))
-          .map((name) => name.replace(/^@/, '').trim().toLowerCase())
-          .filter(Boolean);
-      } catch {
-        return [];
-      }
+      const result = await hiveRpcCall<Array<{ name?: string } | string>>('bridge.get_follow_list', {
+        observer: cleaned,
+        follow_type: 'muted'
+      });
+      if (!Array.isArray(result)) throw new Error('Invalid muted list response');
+      return result
+        .map((row) => (typeof row === 'string' ? row : row?.name || ''))
+        .map((name) => name.replace(/^@/, '').trim().toLowerCase())
+        .filter(Boolean);
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );
@@ -1001,12 +971,9 @@ export async function getFollowCount(account: string, forceRefresh: boolean = fa
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall('condenser_api.get_follow_count', [cleaned]);
-        return result || { follower_count: 0, following_count: 0 };
-      } catch {
-        return { follower_count: 0, following_count: 0 };
-      }
+      const result = await hiveRpcCall('condenser_api.get_follow_count', [cleaned]);
+      if (!result) throw new Error('Invalid follow count response');
+      return result;
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );
@@ -1018,21 +985,32 @@ export async function getFollowCount(account: string, forceRefresh: boolean = fa
 export async function getAccountNotifications(
   account: string,
   limit: number = 50,
-  lastId?: string
+  lastId?: string,
+  forceRefresh: boolean = false
 ): Promise<HiveNotification[]> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
   if (!cleaned) return [];
 
   try {
+    // Share the first page between the unread badge (15) and inbox (50).
+    const requestLimit = Math.max(50, limit);
     const params: { account: string; limit: number; last_id?: string } = {
       account: cleaned,
-      limit
+      limit: requestLimit
     };
     if (lastId) {
       params.last_id = lastId;
     }
-    const result = await hiveRpcCall<HiveNotification[]>('bridge.account_notifications', params);
-    return Array.isArray(result) ? result : [];
+    const result = await fetchWithCache<HiveNotification[]>(
+      `notifications:${cleaned}:${requestLimit}:${lastId || ''}`,
+      async () => {
+        const rows = await hiveRpcCall<HiveNotification[]>('bridge.account_notifications', params);
+        if (!Array.isArray(rows)) throw new Error('Invalid notifications response');
+        return rows;
+      },
+      { ttl: 30_000, forceRefresh }
+    );
+    return result.slice(0, limit);
   } catch {
     return [];
   }
@@ -1068,10 +1046,24 @@ export async function getAccountMentions(
  */
 export async function getAllFollowingWithDetails(
   account: string,
-  maxAccounts: number = 1000
+  maxAccounts: number = 1000,
+  forceRefresh: boolean = false
 ): Promise<FollowedCreatorInfo[]> {
   const cleaned = account.replace(/^@/, '').trim().toLowerCase();
   if (!cleaned) return [];
+  return fetchWithCache(`following_details:${cleaned}:${maxAccounts}`, () => fetchFollowingDetails(cleaned, maxAccounts), {
+    ttl: CACHE_TTL.ACCOUNT,
+    forceRefresh
+  });
+}
+
+/** Drop derived feeds too, so a follow/unfollow cannot revive the old list. */
+export function invalidateFollowingCache(account: string): void {
+  const cleaned = account.replace(/^@/, '').trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  apiCache.invalidatePattern(new RegExp(`^(following|following_details|followed_active_accounts|followed_root_feed|followed_comments_feed|followed_mixed_feed|follow_count):${cleaned}(?::|$)`));
+}
+
+async function fetchFollowingDetails(cleaned: string, maxAccounts: number): Promise<FollowedCreatorInfo[]> {
 
   const allUsernames: string[] = [];
   let currentStart = '';
@@ -1079,36 +1071,33 @@ export async function getAllFollowingWithDetails(
 
   while (hasMore && allUsernames.length < maxAccounts) {
     const batchLimit = 100;
-    try {
-      const result = await hiveRpcCall<Array<{ following: string }>>(
-        'condenser_api.get_following',
-        [cleaned, currentStart, 'blog', batchLimit]
-      );
-      if (!result || result.length === 0) {
-        break;
-      }
-
-      const users = result.map(r => r.following);
-      // If we provided currentStart, the first element is currentStart itself
-      const newUsers = currentStart ? users.slice(1) : users;
-
-      if (newUsers.length === 0) {
-        break;
-      }
-
-      for (const u of newUsers) {
-        if (!allUsernames.includes(u)) {
-          allUsernames.push(u);
-        }
-      }
-
-      if (users.length < batchLimit) {
-        hasMore = false;
-      } else {
-        currentStart = users[users.length - 1];
-      }
-    } catch {
+    const result = await hiveRpcCall<Array<{ following: string }>>(
+      'condenser_api.get_following',
+      [cleaned, currentStart, 'blog', batchLimit]
+    );
+    if (!Array.isArray(result)) throw new Error('Invalid following response');
+    if (result.length === 0) {
       break;
+    }
+
+    const users = result.map(r => r.following);
+    // If we provided currentStart, the first element is currentStart itself
+    const newUsers = currentStart ? users.slice(1) : users;
+
+    if (newUsers.length === 0) {
+      break;
+    }
+
+    for (const u of newUsers) {
+      if (!allUsernames.includes(u)) {
+        allUsernames.push(u);
+      }
+    }
+
+    if (users.length < batchLimit) {
+      hasMore = false;
+    } else {
+      currentStart = users[users.length - 1];
     }
   }
 
@@ -1120,50 +1109,47 @@ export async function getAllFollowingWithDetails(
 
   for (let i = 0; i < allUsernames.length; i += chunkSize) {
     const chunk = allUsernames.slice(i, i + chunkSize);
-    try {
-      const accounts = await hiveRpcCall<Array<HiveAccount & { last_post?: string }>>(
-        'condenser_api.get_accounts',
-        [chunk]
-      );
-      for (const acc of accounts || []) {
-        let lastPostTimestamp: number | undefined;
-        let lastPostDate: string | undefined;
-        let isInactive6Months = true;
+    const accounts = await hiveRpcCall<Array<HiveAccount & { last_post?: string }>>(
+      'condenser_api.get_accounts',
+      [chunk]
+    );
+    if (!Array.isArray(accounts)) throw new Error('Invalid following accounts response');
+    for (const acc of accounts || []) {
+      let lastPostTimestamp: number | undefined;
+      let lastPostDate: string | undefined;
+      let isInactive6Months = true;
 
-        if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
-          const safeStr = acc.last_post.endsWith('Z') ? acc.last_post : `${acc.last_post}Z`;
-          const t = new Date(safeStr).getTime();
-          if (!isNaN(t)) {
-            lastPostTimestamp = t;
-            lastPostDate = acc.last_post;
-            isInactive6Months = (now - t) > SIX_MONTHS_MS;
-          }
+      if (acc.last_post && acc.last_post !== '1970-01-01T00:00:00') {
+        const safeStr = acc.last_post.endsWith('Z') ? acc.last_post : `${acc.last_post}Z`;
+        const t = new Date(safeStr).getTime();
+        if (!isNaN(t)) {
+          lastPostTimestamp = t;
+          lastPostDate = acc.last_post;
+          isInactive6Months = (now - t) > SIX_MONTHS_MS;
         }
-
-        let profileData: any = {};
-        try {
-          const metaStr = acc.posting_json_metadata || acc.json_metadata;
-          if (metaStr) {
-            const parsed = JSON.parse(metaStr);
-            profileData = parsed?.profile || {};
-          }
-        } catch {}
-
-        detailsMap[acc.name] = {
-          username: acc.name,
-          lastPostDate,
-          lastPostTimestamp,
-          isInactive6Months,
-          reputation: typeof acc.reputation === 'number' ? acc.reputation : parseInt(String(acc.reputation || '0'), 10),
-          postCount: acc.post_count,
-          createdDate: acc.created,
-          name: profileData.name,
-          about: profileData.about,
-          avatarUrl: resolveHiveAvatarUrl(profileData.profile_image, acc.name, 'small')
-        };
       }
-    } catch {
-      // Chunk failed, continue
+
+      let profileData: any = {};
+      try {
+        const metaStr = acc.posting_json_metadata || acc.json_metadata;
+        if (metaStr) {
+          const parsed = JSON.parse(metaStr);
+          profileData = parsed?.profile || {};
+        }
+      } catch {}
+
+      detailsMap[acc.name] = {
+        username: acc.name,
+        lastPostDate,
+        lastPostTimestamp,
+        isInactive6Months,
+        reputation: typeof acc.reputation === 'number' ? acc.reputation : parseInt(String(acc.reputation || '0'), 10),
+        postCount: acc.post_count,
+        createdDate: acc.created,
+        name: profileData.name,
+        about: profileData.about,
+        avatarUrl: resolveHiveAvatarUrl(profileData.profile_image, acc.name, 'small')
+      };
     }
   }
 
@@ -1234,15 +1220,12 @@ export async function getSubscriptions(account: string, forceRefresh: boolean = 
   return fetchWithCache(
     cacheKey,
     async () => {
-      try {
-        const result = await hiveRpcCall<Array<[string, string, string, string]>>(
-          'bridge.list_all_subscriptions',
-          { account: cleaned }
-        );
-        return result || [];
-      } catch {
-        return [];
-      }
+      const result = await hiveRpcCall<Array<[string, string, string, string]>>(
+        'bridge.list_all_subscriptions',
+        { account: cleaned }
+      );
+      if (!Array.isArray(result)) throw new Error('Invalid subscriptions response');
+      return result;
     },
     { ttl: CACHE_TTL.ACCOUNT, forceRefresh }
   );

@@ -10,6 +10,7 @@ import {
   Clock
 } from 'lucide-react';
 import { HiveCommunity, listCommunities } from '../services/hiveApi';
+import { loadCommunityCatalog } from '../services/communityCatalog';
 import {
   categoryChoices,
   classifyCommunity,
@@ -120,8 +121,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
     }
   }, [sortOrder, category, hideSensitive]);
 
-  // Load the checked-in rank snapshot first. Hive is only queried when the user
-  // changes sort, asks for more, or explicitly searches beyond the snapshot.
+  // Sort the shared snapshot locally. Live queries are explicit user actions.
   useEffect(() => {
     let mounted = true;
     setLoading(true);
@@ -133,15 +133,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
     forceLiveReload.current = false;
 
     const load = !useLiveRefresh
-      ? fetch(`${import.meta.env.BASE_URL}data/communities-rank.json`)
-          .then((response) => {
-            if (!response.ok) throw new Error('Cached community catalog is unavailable.');
-            return response.json() as Promise<HiveCommunity[]>;
-          })
-          .then((listed) => {
-            if (!Array.isArray(listed) || listed.length === 0) throw new Error('Cached community catalog is empty.');
-            return sortCatalog(listed, sortOrder);
-          })
+      ? loadCommunityCatalog().then((listed) => sortCatalog(listed, sortOrder))
       : listCommunities(sortOrder, PAGE_SIZE, true);
 
     load

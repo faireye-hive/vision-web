@@ -69,7 +69,7 @@ export function UiLanguageButton() {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative hidden sm:block">
+    <div ref={rootRef} className="relative hidden shrink-0 sm:block">
       <button
         id="ui-language-trigger"
         type="button"
@@ -86,7 +86,7 @@ export function UiLanguageButton() {
         <div
           id="ui-language-menu"
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+          className="absolute end-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
         >
           <LanguageChoices onSelect={() => setOpen(false)} />
         </div>

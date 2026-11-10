@@ -78,7 +78,7 @@ export const FollowingManagerPage: React.FC<FollowingManagerPageProps> = ({
     setLoading(true);
     setStatusMessage(null);
     try {
-      const data = await getAllFollowingWithDetails(currentUser.username, 800);
+      const data = await getAllFollowingWithDetails(currentUser.username, 800, forceRefresh);
       setCreators(data);
     } catch (err: any) {
       setStatusMessage({

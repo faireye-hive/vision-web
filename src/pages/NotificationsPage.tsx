@@ -65,7 +65,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
     }
 
     try {
-      const items = await getAccountNotifications(currentUser.username, 50);
+      const items = await getAccountNotifications(currentUser.username, 50, undefined, isRefresh);
       setNotifications(items);
       setHasMore(items.length >= 50);
 
@@ -85,7 +85,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
   }, [currentUser?.username, onNotificationsRead]);
 
   useEffect(() => {
-    loadNotifications(true);
+    loadNotifications();
   }, [loadNotifications]);
 
   const handleLoadMore = async () => {

@@ -31,6 +31,7 @@ import {
 import { CATEGORY_DEFINITIONS } from '../data/categorySubtopics';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { getSubscriptions, HiveCommunity, hiveRpcCall, listCommunities } from '../services/hiveApi';
+import { invalidateAccountContentCache } from '../services/profileCache';
 import { listKnownLanguages } from '../utils/communityTaxonomy';
 import { markdownToSafeHtml } from '../utils/sanitize';
 import { useCommunityFeatures } from '../hooks/useCommunityFeatures';
@@ -409,6 +410,7 @@ export const WritePage: React.FC<WritePageProps> = ({
         (response) => {
           setIsSubmitting(false);
           if (response.success) {
+            invalidateAccountContentCache(currentUser.username);
             setSuccessMessage('Successfully published to the Hive blockchain!');
             Object.values(DRAFT_KEYS).forEach(removeDraft);
             setTimeout(onClose, 900);

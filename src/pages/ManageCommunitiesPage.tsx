@@ -66,9 +66,6 @@ function loadPrefs(): StoredPrefs {
   }
 }
 
-// Module-level cache to avoid N+1 redundant fetches
-const communityCache = new Map<string, HiveCommunity>();
-
 export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
   embedded = false,
   onClose,
@@ -116,17 +113,14 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
     setOwnedLoading(true);
     setLoadError(null);
 
-    getSubscriptions(account, true)
+    getSubscriptions(account, reloadKey > 0)
       .then(async (rows) => {
         const detailed: HiveCommunity[] = [];
         for (let index = 0; index < rows.length; index += 6) {
           const chunk = rows.slice(index, index + 6);
           const resolved = await Promise.all(
             chunk.map(async ([name, title]) => {
-              const cached = communityCache.get(name);
-              if (cached) return cached;
-              const full = await getCommunity(name).catch(() => null);
-              if (full) communityCache.set(name, full);
+              const full = await getCommunity(name, reloadKey > 0).catch(() => null);
               return (
                 full || {
                   id: 0,

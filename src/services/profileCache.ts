@@ -1,4 +1,5 @@
-import { HiveAccount, HivePost, HiveNotification } from './hiveApi';
+import type { HiveAccount, HivePost, HiveNotification } from './hiveApi';
+import { apiCache } from './apiCache';
 
 export interface CachedProfileData {
   account: HiveAccount | null;
@@ -13,6 +14,37 @@ export interface CachedProfileData {
 
 const MEMORY_PROFILE_CACHE = new Map<string, CachedProfileData>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache lifetime
+const MAX_PROFILES = 10;
+
+export function invalidateProfileCache(username: string): void {
+  const clean = username.replace(/^@/, '').trim().toLowerCase();
+  MEMORY_PROFILE_CACHE.delete(clean);
+  try { window.sessionStorage.removeItem(`hive_prof_${clean}`); } catch { /* Storage unavailable. */ }
+}
+
+/** Publishing or reblogging must be visible on the next visit to the profile/feed. */
+export function invalidateAccountContentCache(username: string): void {
+  const clean = username.replace(/^@/, '').trim().toLowerCase();
+  if (!clean) return;
+  invalidateProfileCache(clean);
+  apiCache.invalidate(`account:${clean}`);
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  apiCache.invalidatePattern(new RegExp(`^account_posts:[^:]+:${escaped}(?::|$)`));
+  apiCache.invalidatePattern(/^(ranked_posts|followed_root_feed|followed_comments_feed|followed_mixed_feed):/);
+}
+
+function isFresh(entry: CachedProfileData): boolean {
+  const age = Date.now() - entry?.timestamp;
+  return Number.isFinite(age) && age >= 0 && age < CACHE_TTL_MS;
+}
+
+function remember(username: string, entry: CachedProfileData): void {
+  MEMORY_PROFILE_CACHE.delete(username);
+  MEMORY_PROFILE_CACHE.set(username, entry);
+  while (MEMORY_PROFILE_CACHE.size > MAX_PROFILES) {
+    MEMORY_PROFILE_CACHE.delete(MEMORY_PROFILE_CACHE.keys().next().value!);
+  }
+}
 
 /**
  * Retrieves the cached profile snapshot for a username (instant SWR display)
@@ -23,9 +55,11 @@ export function getProfileCache(username: string): CachedProfileData | null {
 
   // 1. In-memory check (fastest)
   const inMem = MEMORY_PROFILE_CACHE.get(clean);
-  if (inMem) {
+  if (inMem && isFresh(inMem)) {
+    remember(clean, inMem);
     return inMem;
   }
+  MEMORY_PROFILE_CACHE.delete(clean);
 
   // 2. SessionStorage fallback
   try {
@@ -33,10 +67,11 @@ export function getProfileCache(username: string): CachedProfileData | null {
       const raw = window.sessionStorage.getItem(`hive_prof_${clean}`);
       if (raw) {
         const parsed: CachedProfileData = JSON.parse(raw);
-        if (Date.now() - (parsed.timestamp || 0) < CACHE_TTL_MS * 4) {
-          MEMORY_PROFILE_CACHE.set(clean, parsed);
+        if (isFresh(parsed)) {
+          remember(clean, parsed);
           return parsed;
         }
+        window.sessionStorage.removeItem(`hive_prof_${clean}`);
       }
     }
   } catch {
@@ -56,7 +91,7 @@ export function setProfileCache(
   const clean = (username || '').replace(/^@/, '').trim().toLowerCase();
   if (!clean) return;
 
-  const existing = MEMORY_PROFILE_CACHE.get(clean) || {
+  const existing = getProfileCache(clean) || {
     account: null,
     profile: null,
     blogPosts: [],
@@ -70,10 +105,11 @@ export function setProfileCache(
   const updated: CachedProfileData = {
     ...existing,
     ...data,
-    timestamp: Date.now()
+    // Updating any section must not renew the other sections in the snapshot.
+    timestamp: existing.timestamp
   };
 
-  MEMORY_PROFILE_CACHE.set(clean, updated);
+  remember(clean, updated);
 
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {

@@ -209,12 +209,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setLoadingReplies(false);
     setLoadingMentions(false);
 
-    // 2. Background Revalidation (always fetch fresh blockchain data silently)
+    // 2. Resolve through the service TTL; reopening a fresh profile shares its data.
     Promise.all([
-      getAccount(currentUser, true),
-      getProfile(currentUser, true),
-      getAccountPosts('blog', currentUser, 20, true),
-      getAccountPosts('posts', currentUser, 20, true),
+      getAccount(currentUser),
+      getProfile(currentUser),
+      getAccountPosts('blog', currentUser, 20),
+      getAccountPosts('posts', currentUser, 20),
       getAccountHistory(currentUser, 25),
       getDynamicGlobalProperties()
     ])
@@ -340,7 +340,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     let mounted = true;
-    getAccountPosts('comments', currentUser, 20, true)
+    getAccountPosts('comments', currentUser, 20)
       .then((items) => {
         if (mounted) {
           const seen = new Set<string>();
@@ -380,7 +380,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     let mounted = true;
-    getAccountPosts('replies', currentUser, 20, true)
+    getAccountPosts('replies', currentUser, 20)
       .then((items) => {
         if (mounted) {
           const seen = new Set<string>();

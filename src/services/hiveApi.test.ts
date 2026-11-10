@@ -93,3 +93,99 @@ describe('RPC URL protocol validation', () => {
     expect(getHiveNodeUrlError('not a url')).toBeTruthy();
   });
 });
+
+describe('page data caching', () => {
+  it('invalidates changed account data only after Keychain confirms a successful operation', async () => {
+    const { apiCache } = await import('./hiveApi');
+    const { setProfileCache, getProfileCache } = await import('./profileCache');
+    const { KeychainService } = await import('./keychain');
+    let success = false;
+    window.hive_keychain = {
+      requestCustomJson: (...args: any[]) => args.at(-1)({ success }),
+      requestBroadcast: (...args: any[]) => args.at(-1)({ success })
+    };
+    apiCache.set('following_details:alice:1000', ['bob']);
+    apiCache.set('following_details:carol:1000', ['bob']);
+    await KeychainService.followUser('alice', 'bob', false);
+    expect(apiCache.has('following_details:alice:1000')).toBe(true);
+    success = true;
+    await KeychainService.followUser('alice', 'bob', false);
+    expect(apiCache.has('following_details:alice:1000')).toBe(false);
+    expect(apiCache.has('following_details:carol:1000')).toBe(true);
+    apiCache.set('subscriptions:alice', [['hive-123']]);
+    await KeychainService.subscribeCommunity('alice', 'hive-123', false);
+    expect(apiCache.has('subscriptions:alice')).toBe(false);
+    setProfileCache('alice', { profile: { name: 'Old' } });
+    apiCache.set('profile:alice', { name: 'Old' });
+    apiCache.set('account:alice', { name: 'alice' });
+    await KeychainService.updateProfile('alice', { name: 'New' });
+    expect(apiCache.has('profile:alice')).toBe(false);
+    expect(apiCache.has('account:alice')).toBe(false);
+    expect(getProfileCache('alice')).toBeNull();
+  });
+
+  it('shares notification data between badge and inbox, expires it and honors manual refresh', async () => {
+    const { getAccountNotifications } = await import('./hiveApi');
+    const rows = Array.from({ length: 50 }, (_, id) => ({ id: String(id), msg: 'Activity' }));
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ result: rows }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const [badge, inbox] = await Promise.all([getAccountNotifications('alice', 15), getAccountNotifications('alice', 50)]);
+    expect(badge).toHaveLength(15); expect(inbox).toHaveLength(50);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await getAccountNotifications('alice', 50);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await getAccountNotifications('alice', 50, undefined, true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await getAccountNotifications('alice', 15);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await getAccountNotifications('bob', 15);
+    await getAccountNotifications('alice', 50, 'cursor');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('caches complete following lists, shares simultaneous loads and invalidates derived feeds after changes', async () => {
+    const { getAllFollowingWithDetails, invalidateFollowingCache, apiCache } = await import('./hiveApi');
+    const fetchMock = vi.fn(async (_url, init) => {
+      const { method } = JSON.parse(init.body);
+      const result = method === 'condenser_api.get_following'
+        ? [{ following: 'bob' }, { following: 'carol' }]
+        : [{ name: 'bob', last_post: '2026-11-09T10:00:00' }, { name: 'carol' }];
+      return { ok: true, json: async () => ({ result }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const [first, same] = await Promise.all([getAllFollowingWithDetails('alice'), getAllFollowingWithDetails('alice')]);
+    expect(first).toEqual(same); expect(first.map(row => row.username)).toEqual(['bob', 'carol']);
+    await getAllFollowingWithDetails('alice');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await getAllFollowingWithDetails('alice', 1000, true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    apiCache.set('followed_root_feed:alice:20::', ['old']);
+    apiCache.set('followed_root_feed:alice.other:20::', ['other']);
+    invalidateFollowingCache('alice');
+    expect(apiCache.has('followed_root_feed:alice:20::')).toBe(false);
+    expect(apiCache.has('followed_root_feed:alice.other:20::')).toBe(true);
+    await getAllFollowingWithDetails('alice');
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('keeps valid account posts on an RPC failure rather than caching a fake empty feed', async () => {
+    const { getAccountPosts, apiCache, CACHE_TTL } = await import('./hiveApi');
+    const posts = [{ author: 'alice', permlink: 'post', body: 'Full article' }];
+    apiCache.set('account_posts:blog:alice:20', posts, CACHE_TTL.FEED);
+    await vi.advanceTimersByTimeAsync(CACHE_TTL.FEED);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ error: { message: 'not found' } }) }));
+    await expect(getAccountPosts('blog', 'alice')).resolves.toEqual(posts);
+    expect(apiCache.has('account_posts:blog:alice:20')).toBe(false);
+  });
+
+  it('caches legitimate empty ranked feeds but always reads Created live', async () => {
+    const { getRankedPosts } = await import('./hiveApi');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ result: [] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await getRankedPosts('hot'); await getRankedPosts('hot');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await getRankedPosts('created'); await getRankedPosts('created');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
