@@ -1,4 +1,5 @@
 import { handleImageFallback } from '../utils/imageFallback';
+import { getHiveAvatarUrl } from '../utils/hiveAvatar';
 import { Link } from 'react-router-dom';
 import { useBlacklistFlair } from '../context/BlacklistFlairContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -645,7 +646,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className={`w-7 h-7 object-cover rounded-full border shadow-2xs ${
                         unreadNotificationsCount > 0 ? 'border-rose-300 ring-1 ring-rose-400' : 'border-gray-100 dark:border-slate-700 ring-1 ring-black/5'
                       }`}
-                      onError={handleImageFallback}
+                      onError={(event) => handleImageFallback(event, getHiveAvatarUrl(currentUser.username, 'small'))}
                     />
                     {unreadNotificationsCount > 0 ? (
                       <span className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -690,7 +691,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             src={currentUser.avatar}
                             alt={currentUser.username}
                             className="w-11 h-11 rounded-2xl border-2 border-white dark:border-slate-700 object-cover shadow-xs group-hover/header:scale-105 transition-transform duration-200"
-                            onError={handleImageFallback}
+                            onError={(event) => handleImageFallback(event, getHiveAvatarUrl(currentUser.username))}
                           />
                           <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>

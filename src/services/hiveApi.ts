@@ -5,9 +5,10 @@
 import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
 import { getSafeImageUrl } from '../utils/sanitize';
 import { getSmartAccountsActivity, noteAccountActivity } from './accountsCache';
-import { AVATAR_PLACEHOLDER } from '../utils/imageFallback';
+import { getHiveAvatarUrl, resolveHiveAvatarUrl } from '../utils/hiveAvatar';
 
 export { apiCache, CACHE_TTL };
+export { getHiveAvatarUrl, resolveHiveAvatarUrl };
 
 export interface HivePost {
   post_id: number;
@@ -1131,7 +1132,7 @@ export async function getAllFollowingWithDetails(
           createdDate: acc.created,
           name: profileData.name,
           about: profileData.about,
-          avatarUrl: profileData.profile_image || getHiveAvatarUrl(acc.name, 'small')
+          avatarUrl: resolveHiveAvatarUrl(profileData.profile_image, acc.name, 'small')
         };
       }
     } catch {
@@ -1264,16 +1265,6 @@ export function calculateVotingPower(vp: number, lastVoteTime: string): number {
   const regenerated = (elapsed * 2000) / 86400;
   const currentVP = Math.min(10000, vp + regenerated);
   return Math.round(currentVP / 100);
-}
-
-/**
- * Helper to get clean avatar URL via public Hive image proxy
- */
-export function getHiveAvatarUrl(username: string, size: 'small' | 'medium' | 'large' = 'medium'): string {
-  const clean = (username || '').replace(/^@/, '').trim().toLowerCase();
-  if (!clean) return AVATAR_PLACEHOLDER;
-  const direct = `https://images.ecency.com/u/${clean}/avatar/${size}`;
-  return getSafeImageUrl(direct, { width: size === 'small' ? 80 : size === 'medium' ? 200 : 400 }) || direct;
 }
 
 /**

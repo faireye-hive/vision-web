@@ -749,7 +749,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <img
-                          src={`https://images.ecency.com/u/${comm.name}/avatar/small`}
+                          src={getHiveAvatarUrl(comm.name, 'small')}
                           alt={comm.title}
                           className="w-5 h-5 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
                           onError={handleImageFallback}

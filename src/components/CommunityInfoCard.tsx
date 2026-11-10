@@ -1,4 +1,5 @@
 import { handleImageFallback } from '../utils/imageFallback';
+import { resolveHiveAvatarUrl } from '../utils/hiveAvatar';
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -104,7 +105,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
 
   // Keep the cover neutral until the community image loads.
   const coverUrl = `https://images.ecency.com/u/${community.name}/cover`;
-  const avatarUrl = community.avatar_url || `https://images.ecency.com/u/${community.name}/avatar/medium`;
+  const avatarUrl = resolveHiveAvatarUrl(community.avatar_url, community.name);
 
   // Parse rules or guidelines from description or flag_text
   const rulesText = community.description || community.flag_text || '';

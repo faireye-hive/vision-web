@@ -1,4 +1,5 @@
 import { handleImageFallback } from '../../../utils/imageFallback';
+import { getHiveAvatarUrl } from '../../../utils/hiveAvatar';
 import React from 'react';
 import { Hash, Layers, ChevronRight } from 'lucide-react';
 import { ProfileCustomStyle, BORDER_RADIUS_CLASSES } from '../profileStyleTypes';
@@ -172,7 +173,7 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <img
-                      src={`https://images.ecency.com/u/${community.name}/avatar/small`}
+                      src={getHiveAvatarUrl(community.name, 'small')}
                       alt=""
                       className="w-7 h-7 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
                       onError={handleImageFallback}
