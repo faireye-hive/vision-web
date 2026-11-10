@@ -107,7 +107,7 @@ function linkifyPlainUrls(html: string): string {
       anchor.href = parsed.href;
       anchor.target = '_blank';
       anchor.rel = 'noopener noreferrer nofollow';
-      anchor.className = 'text-blue-600 dark:text-blue-400 underline underline-offset-2 break-all';
+      anchor.className = 'snap-plain-url text-blue-600 dark:text-blue-400 underline underline-offset-2';
       anchor.textContent = rawUrl;
       fragment.append(anchor, document.createTextNode(trailing));
       cursor = start + match[0].length;

@@ -104,7 +104,7 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
         <button
           type="submit"
           disabled={!inputValue.trim()}
-          className="flex items-center gap-1 rounded-xl bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+          className="flex items-center gap-1 rounded-xl bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300"
           title="Add to blacklist"
         >
           <Plus className="w-3.5 h-3.5" />

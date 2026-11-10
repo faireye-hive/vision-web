@@ -347,6 +347,14 @@ html.dark #sanitized-post-body a:hover {
   color: #93c5fd !important;
 }
 
+/* Keep long links readable in feeds while allowing only the URL itself to wrap. */
+.snap-plain-url {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 html.dark .article-body strong,
 html.dark .article-content strong,
 html.dark #sanitized-post-body strong,
