@@ -41,6 +41,7 @@ import {
   getActiveNode,
   setActiveNode,
   pingNode,
+  getHiveNodeUrlError,
   addCustomHiveNode,
   removeCustomHiveNode
 } from '../services/hiveApi';
@@ -234,14 +235,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Ping all nodes when node menu is opened
   useEffect(() => {
+    let cancelled = false;
     if (showNodeMenu) {
       const nodes = getAllHiveNodes();
       nodes.forEach(n => {
         pingNode(n).then(ms => {
-          setPings(prev => ({ ...prev, [n]: ms }));
+          if (!cancelled) setPings(prev => ({ ...prev, [n]: ms }));
         });
       });
     }
+    return () => { cancelled = true; };
   }, [showNodeMenu]);
 
   const handleSelectNode = (node: string) => {
@@ -255,8 +258,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     setCustomNodeError(null);
     setCustomNodeSuccess(null);
     const trimmed = customNodeInput.trim().replace(/\/+$/, '');
-    if (!trimmed) {
-      setCustomNodeError('Enter an RPC URL.');
+    const urlError = getHiveNodeUrlError(trimmed);
+    if (urlError) {
+      setCustomNodeError(urlError);
       return;
     }
     setCustomNodeAdding(true);

@@ -9,6 +9,7 @@
  */
 
 import { HivePost } from './hiveApi';
+import { fetchJsonWithTimeout } from './http';
 
 export interface LanguageOption {
   code: string;
@@ -153,17 +154,12 @@ export async function getCombflowLanguages(): Promise<LanguageOption[]> {
   // 4. Cria a Promise para buscar na API apenas uma única vez
   cachedLanguagesPromise = (async () => {
     try {
-      const res = await fetch('https://combflow.net/api/languages', {
+      const data = await fetchJsonWithTimeout<{ languages?: { language: string; count: number }[] }>('https://combflow.net/api/languages', {
         headers: {
           Accept: 'application/json',
         },
       });
 
-      if (!res.ok) {
-        throw new Error(`Combflow languages HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
       if (data && Array.isArray(data.languages)) {
         // Pick top 20
         const top20 = data.languages.slice(0, 20);
@@ -233,6 +229,7 @@ export async function browseCombflowPosts(params: {
   offset?: number;
   maxAge?: string;
   category?: string;
+  signal?: AbortSignal;
 }): Promise<CombflowBrowsePost[]> {
   const {
     language,
@@ -240,6 +237,7 @@ export async function browseCombflowPosts(params: {
     offset = 0,
     maxAge = '7d',
     category,
+    signal,
   } = params;
 
   const url = new URL('https://combflow.net/api/browse');
@@ -254,17 +252,13 @@ export async function browseCombflowPosts(params: {
     url.searchParams.set('category', category.trim().toLowerCase());
   }
 
-  const res = await fetch(url.toString(), {
+  const data = await fetchJsonWithTimeout<CombflowBrowseResult>(url.toString(), {
+    signal,
     headers: {
       Accept: 'application/json',
     },
   });
 
-  if (!res.ok) {
-    throw new Error(`Combflow browse failed: HTTP ${res.status}`);
-  }
-
-  const data: CombflowBrowseResult = await res.json();
   return data.posts || [];
 }
 
@@ -274,11 +268,13 @@ export async function browseCombflowPosts(params: {
  */
 export async function fetchHiveSensePostsByIds(
   pairs: { author: string; permlink: string }[],
-  observer = ''
+  observer = '',
+  signal?: AbortSignal
 ): Promise<HivePost[]> {
   if (!pairs || pairs.length === 0) return [];
 
-  const res = await fetch('https://api.hive.blog/hivesense-api/posts/by-ids', {
+  const list = await fetchJsonWithTimeout<any[]>('https://api.hive.blog/hivesense-api/posts/by-ids', {
+    signal,
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -291,11 +287,6 @@ export async function fetchHiveSensePostsByIds(
     }),
   });
 
-  if (!res.ok) {
-    throw new Error(`HiveSense API failed with HTTP ${res.status}`);
-  }
-
-  const list: any[] = await res.json();
   if (!Array.isArray(list)) return [];
 
   // Normalize into HivePost
@@ -367,8 +358,9 @@ export async function getLanguageDiscoveryFeed(params: {
   offset?: number;
   observer?: string;
   category?: string;
+  signal?: AbortSignal;
 }): Promise<HivePost[]> {
-  const { language, limit = 20, offset = 0, observer = '', category } = params;
+  const { language, limit = 20, offset = 0, observer = '', category, signal } = params;
 
   // 1. Fetch Combflow post summaries (author & permlink)
   const combflowItems = await browseCombflowPosts({
@@ -377,6 +369,7 @@ export async function getLanguageDiscoveryFeed(params: {
     offset,
     maxAge: '7d',
     category,
+    signal,
   });
 
   if (!combflowItems || combflowItems.length === 0) {
@@ -389,7 +382,7 @@ export async function getLanguageDiscoveryFeed(params: {
     permlink: p.permlink,
   }));
 
-  const fullPosts = await fetchHiveSensePostsByIds(pairs, observer);
+  const fullPosts = await fetchHiveSensePostsByIds(pairs, observer, signal);
 
   // If HiveSense returns in order, fullPosts are ready; ensure fallback alignment
   if (fullPosts.length > 0) {
