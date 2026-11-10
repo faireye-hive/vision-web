@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { buildVideoFacadeHtml, transformVideoEmbedsInMarkdown } from './videoEmbeds';
+import { hasUrlCredentials } from './urlSafety';
 
 export const ALLOWED_IMAGE_DOMAINS = [
   'hive.blog',
@@ -107,6 +108,13 @@ function buildProxiedImageUrl(originalUrl: string): string {
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A') {
     const href = node.getAttribute('href') || '';
+    if (hasUrlCredentials(href)) {
+      node.removeAttribute('href');
+      node.removeAttribute('target');
+      node.removeAttribute('rel');
+      node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
+      return;
+    }
     const isInternalHiveRoute = href.startsWith('/post/@') || href.startsWith('/profile/@');
     if (isInternalHiveRoute) {
       node.removeAttribute('target');
@@ -215,6 +223,7 @@ function linkifyPostTextNodes(root: ParentNode): void {
         try {
           const parsed = new URL(label);
           if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+          if (hasUrlCredentials(parsed.href)) continue;
           href = parsed.href;
         } catch {
           continue;
@@ -304,6 +313,7 @@ function toInternalHivePath(href: string): string | null {
   try {
     const url = new URL(candidate);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (hasUrlCredentials(url.href)) return null;
     const host = url.hostname.toLowerCase().replace(/^www\./, '');
     const hiveFrontends = new Set(['hive.blog', 'peakd.com', 'ecency.com', 'inleo.io', 'leofinance.io', '3speak.tv']);
     if (!hiveFrontends.has(host)) return null;

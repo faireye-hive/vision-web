@@ -42,6 +42,7 @@ import { CommunityTopicsCard } from '../components/CommunityTopicsCard';
 
 interface DiscoverPageProps {
   isCommunitiesFeed?: boolean;
+  communityPage?: boolean;
   onPostsLoaded?: (posts: HivePost[]) => void;
   selectedSubTopic?: string;
   onSelectSubTopic?: (tag: string) => void;
@@ -62,7 +63,9 @@ const postDomId = (post: HivePost, index?: number) =>
 
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
-  onPostsLoaded
+  communityPage = false,
+  onPostsLoaded,
+  onClearSubTopic
 }) => {
   const { currentUser, joinedCommunities } = useAuth();
   const {
@@ -600,7 +603,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           id="discover-header-left"
           className="flex items-center flex-nowrap gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-visible py-0.5"
         >
-          {isCommunitiesFeed ? (
+          {isCommunitiesFeed && !communityPage ? (
             <div className="flex items-center gap-0.5 p-0.5 bg-gray-100/90 dark:bg-slate-800/90 rounded-xl sm:rounded-2xl border border-gray-200/50 dark:border-slate-700/50 shrink-0 shadow-inner lg:hidden">
               <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-xs whitespace-nowrap">
                 <span>Feed</span>
@@ -713,7 +716,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <span id="discover-subtopic-chip-label" className="truncate">#{communitySubTopic}</span>
               <button
                 id="discover-subtopic-chip-clear-btn"
-                onClick={() => setCommunitySubTopic('')}
+                onClick={onClearSubTopic || (() => setCommunitySubTopic(''))}
                 className="hover:text-slate-900 dark:hover:text-white font-bold ml-0.5 cursor-pointer p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0"
                 title="Clear subtopic filter"
               >
@@ -794,8 +797,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         </div>
       </div>
 
-      {isCommunitiesFeed && tag.startsWith('hive-') && <CommunityAdminButton communityName={tag} />}
-      {isCommunitiesFeed && <div className="xl:hidden"><CommunityTopicsCard communityPosts={posts} currentTag={tag} /></div>}
+      {isCommunitiesFeed && !communityPage && tag.startsWith('hive-') && <CommunityAdminButton communityName={tag} />}
+      {isCommunitiesFeed && !communityPage && <div className="xl:hidden"><CommunityTopicsCard communityPosts={posts} currentTag={tag} /></div>}
       {/* Active Category Spotlight Sub-banner */}
       {activeCategory && !isCommunitiesFeed && (
         <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-sm animate-in fade-in">

@@ -3,6 +3,7 @@ import { useSavedLists } from '../context/SavedListsContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
 import { PostCommunityLabels } from './PostCommunityLabels';
+import { CommunityLink } from './CommunityLink';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -402,17 +403,14 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             {(post.community_title || post.category) && (
               <>
                 <span id={`${uid}-community-separator`} className="text-gray-300 dark:text-slate-600">•</span>
-                <button
+                <CommunityLink
                   id={`${uid}-community-btn`}
-                  type="button"
-                  onClick={() => {
-                    if (post.community) onSelectTag(post.community);
-                    else if (post.category) onSelectTag(post.category);
-                  }}
+                  name={post.community || post.category}
+                  onSelectTag={onSelectTag}
                   className="font-semibold text-xs sm:text-xs text-blue-600 dark:text-blue-400 hover:underline truncate cursor-pointer"
                 >
                   {post.community_title || post.category}
-                </button>
+                </CommunityLink>
               </>
             )}
 

@@ -5,7 +5,6 @@ import {
   Bell,
   CheckCheck,
   RefreshCw,
-  Heart,
   MessageSquare,
   Repeat,
   UserPlus,
@@ -31,7 +30,7 @@ interface NotificationsPageProps {
   onNotificationsRead?: () => void;
 }
 
-type NotificationCategory = 'all' | 'replies' | 'votes' | 'mentions' | 'follows' | 'reblogs' | 'community';
+type NotificationCategory = 'all' | 'replies' | 'mentions' | 'follows' | 'reblogs' | 'community';
 
 export const NotificationsPage: React.FC<NotificationsPageProps> = ({
   currentUser,
@@ -154,8 +153,6 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
       case 'reply':
       case 'reply_comment':
         return 'replies';
-      case 'vote':
-        return 'votes';
       case 'mention':
         return 'mentions';
       case 'follow':
@@ -187,12 +184,6 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
           icon: MessageSquare,
           color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800',
           label: 'Reply'
-        };
-      case 'vote':
-        return {
-          icon: Heart,
-          color: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800',
-          label: 'Vote'
         };
       case 'mention':
         return {
@@ -262,7 +253,6 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
     const counts: Record<NotificationCategory, number> = {
       all: notifications.length,
       replies: 0,
-      votes: 0,
       mentions: 0,
       follows: 0,
       reblogs: 0,
@@ -349,7 +339,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
             Account Notifications
           </h1>
           <p className="mt-2 text-sm text-pink-50/90 leading-relaxed">
-            Live updates on votes, replies, mentions, and community operations on the Hive blockchain.
+            Live updates on replies, mentions, follows, and community operations on the Hive blockchain.
           </p>
         </div>
       </div>
@@ -388,25 +378,6 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                 selectedCategory === 'replies' ? 'bg-blue-700 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
               }`}>
                 {categoryCounts.replies}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setSelectedCategory('votes')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer flex-shrink-0 ${
-              selectedCategory === 'votes'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Heart className="w-3 h-3" />
-            <span>Votes</span>
-            {categoryCounts.votes > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                selectedCategory === 'votes' ? 'bg-rose-700 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
-              }`}>
-                {categoryCounts.votes}
               </span>
             )}
           </button>

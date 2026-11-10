@@ -1,7 +1,5 @@
 import { handleImageFallback } from '../utils/imageFallback';
 import { getHiveAvatarUrl } from '../utils/hiveAvatar';
-import { Link } from 'react-router-dom';
-import { useBlacklistFlair } from '../context/BlacklistFlairContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu,
@@ -14,13 +12,10 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Layers,
   Activity,
-  User as UserIcon,
   X,
   Compass,
   Key,
-  LogOut,
   ShieldCheck,
   Zap,
   Sun,
@@ -30,7 +25,6 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
-  SlidersHorizontal,
   Users,
   Rss,
   Sparkles
@@ -50,7 +44,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { useNavigation } from '../context/NavigationContext';
 import { LanguageDropdown } from './LanguageDropdown';
 import { SearchPreviewPopover } from './SearchPreviewPopover';
-import { UiLanguageButton, UiLanguagePicker } from './UiLanguagePicker';
+import { UiLanguageButton } from './UiLanguagePicker';
+import { DesktopAccountMenu } from './DesktopAccountMenu';
 import { pollWhileVisible } from '../utils/visiblePolling';
 import { useI18n } from '../i18n/I18nContext';
 
@@ -99,7 +94,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedLanguage = 'global',
   onSelectLanguage
 }) => {
-  const blacklistFlair = useBlacklistFlair();
   const { unreadCount: unreadNotificationsCount } = useNotifications();
   const { openCommunity } = useNavigation();
   const { t } = useI18n();
@@ -218,6 +212,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (showUserMenu) document.getElementById('user-avatar-btn')?.focus();
       setShowNodeMenu(false);
       setShowUserMenu(false);
     };
@@ -631,6 +626,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative hidden shrink-0 sm:block">
                 <button
                   id="user-avatar-btn"
+                  type="button"
+                  aria-expanded={showUserMenu}
+                  aria-controls={showUserMenu ? 'user-menu-dropdown' : undefined}
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   title={`Signed in as @${currentUser.username}${unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount} unread notifications)` : ''}`}
                   className={`flex items-center gap-2 p-1 pe-2.5 rounded-xl border transition focus:outline-none cursor-pointer active:scale-[0.98] shadow-sm group/userbtn ${
@@ -670,208 +668,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showUserMenu ? 'rotate-180 text-blue-500' : unreadNotificationsCount > 0 ? 'text-rose-500' : 'text-gray-400'}`} />
                 </button>
 
-                {/* User Dropdown */}
                 {showUserMenu && (
-                  <div
-                    id="user-menu-dropdown"
-                    className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2.5 z-50 text-gray-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
-                  >
-                    {/* Top hairline gradient */}
-                    <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 pointer-events-none" />
-
-                    {/* User Header Profile Card */}
-                    <div
-                      onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
-                      className="group/header p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-sm transition mb-1.5"
-                      title={t('menu.viewProfile')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <img
-                            src={currentUser.avatar}
-                            alt={currentUser.username}
-                            className="w-11 h-11 rounded-2xl border-2 border-white dark:border-slate-700 object-cover shadow-xs group-hover/header:scale-105 transition-transform duration-200"
-                            onError={(event) => handleImageFallback(event, getHiveAvatarUrl(currentUser.username))}
-                          />
-                          <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-extrabold text-gray-900 dark:text-white truncate group-hover/header:text-blue-600 dark:group-hover/header:text-blue-400 transition-colors">
-                              @{currentUser.username}
-                            </p>
-                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 opacity-0 group-hover/header:opacity-100 transition-opacity flex items-center">
-                              {t('menu.profile')} <ChevronRight className="w-3 h-3 ml-0.5" />
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${currentUser.isDemo
-                              ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-500/20'
-                              : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500/20'
-                              }`}>
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>{currentUser.isDemo ? t('menu.demo') : t('menu.keychain')}</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="max-h-[min(72vh,560px)] space-y-3 overflow-y-auto no-scrollbar py-1">
-                      <section aria-label="Shortcuts">
-                        <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                          {t('menu.quickLinks')}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => { onOpenCommunities(); setShowUserMenu(false); }}
-                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
-                          >
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-                              <Compass className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.exploreCommunities')}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onOpenManageCommunities) onOpenManageCommunities();
-                              else onOpenCommunities();
-                              setShowUserMenu(false);
-                            }}
-                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
-                          >
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-                              <Layers className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.manageCommunities')}</span>
-                          </button>
-                          {onOpenManageFollowing && (
-                            <button
-                              type="button"
-                              onClick={() => { onOpenManageFollowing(); setShowUserMenu(false); }}
-                              className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
-                            >
-                              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-                                <SlidersHorizontal className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.manageFollowing')}</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => { onOpenAccount(currentUser.username); setShowUserMenu(false); }}
-                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
-                          >
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-                              <UserIcon className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.profile')}</span>
-                          </button>
-                        </div>
-                      </section>
-
-                      {onOpenNotifications && (
-                        <section aria-label="Notifications">
-                          <button
-                            type="button"
-                            onClick={() => { onOpenNotifications(); setShowUserMenu(false); }}
-                            className={`flex w-full items-center justify-between rounded-xl border px-2.5 py-2 text-start transition ${unreadNotificationsCount > 0
-                              ? 'border-rose-200 bg-rose-50/80 dark:border-rose-900/60 dark:bg-rose-950/30'
-                              : 'border-slate-200/80 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
-                            }`}
-                          >
-                            <span className="flex min-w-0 items-center gap-2.5">
-                              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${unreadNotificationsCount > 0 ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-                                <Bell className="h-4 w-4" />
-                              </span>
-                              <span className="min-w-0">
-                                <span className={`block text-xs font-semibold ${unreadNotificationsCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'}`}>{t('menu.notifications')}</span>
-                                <span className="block truncate text-[10px] text-slate-500 dark:text-slate-400">{t('menu.notificationsHint')}</span>
-                              </span>
-                            </span>
-                            {unreadNotificationsCount > 0 ? (
-                              <span className="ml-2 shrink-0 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                                {t('menu.newCount', { count: unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount })}
-                              </span>
-                            ) : <ChevronRight className="h-4 w-4 text-slate-400" />}
-                          </button>
-                        </section>
-                      )}
-
-                      <section aria-label="Network and preferences" className="border-t border-slate-100 pt-2.5 dark:border-slate-800">
-                        <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                          {t('menu.network')}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            id="rpc-nodes-trigger"
-                            type="button"
-                            onClick={() => { setShowNodeMenu(!showNodeMenu); setShowUserMenu(false); }}
-                            className="group flex min-h-10 items-center justify-between gap-1.5 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-emerald-200 hover:bg-emerald-50/50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-900 dark:hover:bg-emerald-950/20 transition"
-                          >
-                            <span className="flex min-w-0 items-center gap-2">
-                              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><Wifi className="h-3.5 w-3.5" /></span>
-                              <span className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-200">{t('menu.rpcNodes')}</span>
-                            </span>
-                            <span className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-mono font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">{nodePing ? `${nodePing}ms` : t('menu.active')}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { onOpenStats(); setShowUserMenu(false); }}
-                            className="group flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 transition"
-                          >
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"><Activity className="h-3.5 w-3.5" /></span>
-                            <span className="truncate text-[11px] font-semibold text-slate-700 group-hover:text-blue-700 dark:text-slate-200 dark:group-hover:text-blue-300">{t('menu.chainStats')}</span>
-                          </button>
-                          <Link to="/snaps" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Nebulosa Snaps · No rewards</Link>
-                          <Link to="/chat" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Messages · Encrypted chat</Link>
-                          <Link to="/lists" onClick={() => setShowUserMenu(false)} className="col-span-2 flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">My lists · Saved posts</Link>
-                          <button type="button" role="switch" aria-checked={blacklistFlair.enabled} onClick={blacklistFlair.toggle}
-                            className="col-span-2 flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-start dark:border-slate-700 dark:bg-slate-900">
-                            <span><span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">Show blacklist badges</span><span className="block text-[10px] text-slate-500">Your blacklist and lists you follow</span></span>
-                            <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${blacklistFlair.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`}><span className={`absolute start-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${blacklistFlair.enabled ? 'translate-x-4 rtl:-translate-x-4' : 'translate-x-0'}`} /></span>
-                          </button>
-                          {blacklistFlair.enabled && (blacklistFlair.loading || blacklistFlair.error) && <div role="status" className="col-span-2 px-2 text-[10px] text-slate-500">{blacklistFlair.loading ? 'Loading blacklist badges…' : <>{blacklistFlair.error} <button type="button" className="underline" onClick={blacklistFlair.refresh}>Retry</button></>}</div>}
-                          {onToggleTheme && (
-                            <button
-                              type="button"
-                              onClick={() => { onToggleTheme(); setShowUserMenu(false); }}
-                              className="group col-span-2 flex min-h-10 items-center justify-between rounded-xl border border-slate-200/80 bg-white px-2 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 transition"
-                            >
-                              <span className="flex items-center gap-2">
-                                <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5" />}</span>
-                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{t('menu.appearance')}</span>
-                              </span>
-                              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{isDark ? t('menu.darkMode') : t('menu.lightMode')}</span>
-                            </button>
-                          )}
-                        </div>
-                        <div className="mt-2">
-                          <UiLanguagePicker />
-                        </div>
-                      </section>
-                    </div>
-
-                    <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => { onLogout(); setShowUserMenu(false); }}
-                        className="group/logout flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                      >
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"><LogOut className="h-4 w-4" /></span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-semibold">{t('menu.disconnect')}</span>
-                          <span className="block text-[10px] text-rose-500/70 dark:text-rose-400/70">{t('menu.disconnectHint')}</span>
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-rose-400 transition-transform group-hover/logout:translate-x-0.5" />
-                      </button>
-                    </div>
-                  </div>
+                  <DesktopAccountMenu
+                    user={currentUser}
+                    unreadCount={unreadNotificationsCount}
+                    nodePing={nodePing}
+                    isDark={isDark}
+                    onClose={() => setShowUserMenu(false)}
+                    onOpenProfile={() => onOpenAccount(currentUser.username)}
+                    onOpenCommunities={onOpenCommunities}
+                    onOpenManageCommunities={onOpenManageCommunities || onOpenCommunities}
+                    onOpenManageFollowing={onOpenManageFollowing}
+                    onOpenNotifications={onOpenNotifications}
+                    onOpenNodes={() => setShowNodeMenu(true)}
+                    onOpenStats={onOpenStats}
+                    onToggleTheme={onToggleTheme}
+                    onLogout={onLogout}
+                  />
                 )}
               </div>
             )}

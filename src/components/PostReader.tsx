@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
 import { PostCommunityLabels } from './PostCommunityLabels';
+import { CommunityLink } from './CommunityLink';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -265,6 +266,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
     if (destination.protocol === 'mailto:') return true;
     if (destination.protocol !== 'https:' && destination.protocol !== 'http:') {
       event.preventDefault();
+      return true;
+    }
+    if (destination.username || destination.password) {
+      event.preventDefault();
+      event.stopPropagation();
       return true;
     }
     if (destination.origin === window.location.origin || isTrustedHiveLink(destination)) return true;
@@ -1187,21 +1193,16 @@ export const PostReader: React.FC<PostReaderProps> = ({
               style={{ borderColor: profileAppearance?.accentColor ? `${profileAppearance.accentColor}35` : undefined }}
             >
               {!isComment && <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (post.community) onSelectTag(post.community);
-                    else if (post.category) onSelectTag(post.category);
-                    onClose();
-                  }}
+                <CommunityLink
+                  name={post.community || post.category || 'blog'}
+                  onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
                   className="inline-flex min-h-6 max-w-[150px] items-center gap-1 rounded-md border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60"
                   style={profileAppearance?.accentColor ? { borderColor: `${profileAppearance.accentColor}45`, color: profileAppearance.accentColor } : undefined}
                   title={`View #${primaryTagOrCommunity}`}
                 >
                   <Hash className="h-3 w-3 shrink-0" />
                   <span className="truncate capitalize">{primaryTagOrCommunity.replace(/^#/, '')}</span>
-                </button>
+                </CommunityLink>
                 {compactTags.map((tag) => (
                   <button
                     key={tag}
@@ -1361,14 +1362,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1" title={postDate.full}><Clock className="h-3 w-3" />{postDate.relative}</span>
               {(post.community_title || post.community) && (
-                <button
-                  onClick={() => { onSelectTag(post.community || post.category); onClose(); }}
+                <CommunityLink
+                  name={post.community || post.category}
+                  onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
                   className="inline-flex max-w-[130px] items-center gap-1 truncate font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                   title="View Community"
                 >
                   <Layers className="h-3 w-3 shrink-0" />
                   <span className="truncate">{post.community_title || post.community}</span>
-                </button>
+                </CommunityLink>
               )}
             </div>
           </div>
