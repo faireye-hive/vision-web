@@ -152,7 +152,8 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-hidden animate-in fade-in duration-200"
+      className="fixed inset-x-0 bottom-0 z-[110] overflow-hidden animate-in fade-in duration-200"
+      style={{ top: '4rem' }}
       aria-labelledby="shorts-filter-title"
       role="dialog"
       aria-modal="true"
@@ -163,7 +164,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
         onClick={onClose}
       />
 
-      <div className="fixed inset-x-3 bottom-3 top-auto sm:inset-y-0 sm:right-0 sm:inset-x-auto sm:bottom-auto max-w-full flex justify-center sm:justify-end">
+      <div className="fixed inset-x-3 bottom-3 max-w-full flex justify-center sm:right-0 sm:inset-x-auto sm:bottom-0 sm:justify-end" style={{ top: '4rem' }}>
         <div
           ref={drawerRef}
           onTouchStart={handleTouchStart}

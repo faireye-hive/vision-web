@@ -460,6 +460,15 @@ export function markdownToSafeHtmlWithHeadings(
     return `\u0000ESC${idx}\u0000`;
   });
 
+  // Protect plain URLs from Markdown emphasis delimiters embedded in their path
+  // (for example Reddit slugs containing underscores) before parsing italics.
+  const plainUrls: string[] = [];
+  text = text.replace(/https?:\/\/[^\s<>"']+/gi, (url) => {
+    const idx = plainUrls.length;
+    plainUrls.push(url);
+    return `\u0000PLAINURL${idx}\u0000`;
+  });
+
   // Imagens em Markdown ![alt](url)
   text = text.replace(
     /!\[([\s\S]*?)\]\((https?:\/\/[^\s\)]+)\)/gi,
@@ -558,6 +567,8 @@ export function markdownToSafeHtmlWithHeadings(
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/_(.*?)_/g, '<em>$1</em>');
+
+  text = text.replace(/\u0000PLAINURL(\d+)\u0000/g, (_match, index: string) => plainUrls[Number(index)] || '');
 
   text = text.replace(/\n\s*\n/g, '</p><p>');
   text = text.replace(/(?<!>)\n(?!<)/g, '<br />\n');
