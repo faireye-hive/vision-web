@@ -1119,13 +1119,13 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
 
       {/* ================= ERROR STATE ================= */}
       {error && (
-        <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-4 text-xs text-rose-800 flex items-start gap-3 shadow-sm">
-          <RefreshCw className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+        <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800 rounded-2xl p-4 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-3 shadow-sm">
+          <RefreshCw className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-semibold">{error}</p>
             <button
               onClick={() => loadInitialFeed(true)}
-              className="mt-2 text-rose-700 font-bold underline hover:text-rose-900"
+              className="mt-2 text-rose-700 dark:text-rose-300 font-bold underline hover:text-rose-900 dark:hover:text-rose-100"
             >
               {t('shorts.retry')}
             </button>
@@ -1145,7 +1145,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
                 <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-800" />
                 <div className="space-y-1.5 flex-1">
                   <div className="h-3.5 bg-gray-200 dark:bg-slate-800 rounded-md w-28" />
-                  <div className="h-2.5 bg-gray-100 dark:bg-slate-850 rounded-md w-16" />
+                  <div className="h-2.5 bg-gray-100 dark:bg-slate-800 rounded-md w-16" />
                 </div>
               </div>
               <div className="space-y-2">

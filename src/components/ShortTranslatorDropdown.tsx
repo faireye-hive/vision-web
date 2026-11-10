@@ -124,7 +124,7 @@ export const ShortTranslatorDropdown: React.FC<ShortTranslatorDropdownProps> = (
                   <span className="flex items-center gap-2">
                     <span className="text-sm">{lang.flag}</span>
                     <span>{lang.name}</span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 font-normal">
                       ({lang.nativeName})
                     </span>
                   </span>

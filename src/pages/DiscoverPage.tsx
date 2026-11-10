@@ -877,7 +877,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                   <div id={`discover-skeleton-avatar-${i}`} className="w-9 h-9 rounded-full bg-gray-200 dark:bg-slate-800 ring-2 ring-gray-100 dark:ring-slate-750" />
                   <div id={`discover-skeleton-author-${i}`} className="space-y-1.5">
                     <div id={`discover-skeleton-author-name-${i}`} className="w-28 h-3.5 rounded-full bg-gray-200 dark:bg-slate-800" />
-                    <div id={`discover-skeleton-author-meta-${i}`} className="w-16 h-2.5 rounded-full bg-gray-100 dark:bg-slate-850" />
+                    <div id={`discover-skeleton-author-meta-${i}`} className="w-16 h-2.5 rounded-full bg-gray-100 dark:bg-slate-800" />
                   </div>
                 </div>
                 <div className="w-16 h-5 rounded-full bg-gray-100 dark:bg-slate-800 hidden sm:block" />
@@ -887,17 +887,17 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                   id={`discover-skeleton-thumb-${i}`}
                   className={
                     useGalleryLayout
-                      ? 'w-full h-48 sm:h-64 rounded-2xl bg-gradient-to-tr from-gray-200 via-gray-100 to-gray-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800'
-                      : 'w-full sm:w-44 h-28 rounded-2xl bg-gradient-to-tr from-gray-200 via-gray-100 to-gray-200 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800 shrink-0'
+                      ? 'w-full h-48 sm:h-64 rounded-2xl bg-gradient-to-tr from-gray-200 via-gray-100 to-gray-200 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800'
+                      : 'w-full sm:w-44 h-28 rounded-2xl bg-gradient-to-tr from-gray-200 via-gray-100 to-gray-200 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 shrink-0'
                   }
                 />
                 <div id={`discover-skeleton-text-${i}`} className="flex-1 space-y-2.5 py-1">
                   <div id={`discover-skeleton-title-${i}`} className="w-4/5 h-4 rounded-md bg-gray-200 dark:bg-slate-800" />
-                  <div id={`discover-skeleton-line-1-${i}`} className="w-full h-3 rounded-md bg-gray-100 dark:bg-slate-850" />
-                  <div id={`discover-skeleton-line-2-${i}`} className="w-2/3 h-3 rounded-md bg-gray-100 dark:bg-slate-850" />
+                  <div id={`discover-skeleton-line-1-${i}`} className="w-full h-3 rounded-md bg-gray-100 dark:bg-slate-800" />
+                  <div id={`discover-skeleton-line-2-${i}`} className="w-2/3 h-3 rounded-md bg-gray-100 dark:bg-slate-800" />
                   <div className="pt-2 flex items-center gap-3">
-                    <div className="w-14 h-6 rounded-full bg-gray-100 dark:bg-slate-850" />
-                    <div className="w-12 h-6 rounded-full bg-gray-100 dark:bg-slate-850" />
+                    <div className="w-14 h-6 rounded-full bg-gray-100 dark:bg-slate-800" />
+                    <div className="w-12 h-6 rounded-full bg-gray-100 dark:bg-slate-800" />
                   </div>
                 </div>
               </div>
