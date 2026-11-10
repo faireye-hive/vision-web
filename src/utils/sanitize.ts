@@ -178,6 +178,81 @@ function sanitizeMarkup(dirtyHtml: string, generatedVideo = false): string {
   });
 }
 
+/** Add safe links to plain text nodes after sanitization, without interpreting
+ * post content as HTML or creating links inside existing links/code. */
+function linkifyPostTextNodes(root: ParentNode): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+
+  const tokenPattern = /https?:\/\/[^\s<>"']+|@[a-z][a-z0-9.-]{1,14}[a-z0-9]/gi;
+  for (const textNode of textNodes) {
+    const parent = textNode.parentElement;
+    if (!parent || parent.closest('a, code, pre, script, style')) continue;
+
+    const value = textNode.nodeValue || '';
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    let changed = false;
+    tokenPattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = tokenPattern.exec(value))) {
+      const token = match[0];
+      const start = match.index;
+      const isUrl = /^https?:\/\//i.test(token);
+      let label = token;
+      let href = '';
+
+      if (isUrl) {
+        // Keep sentence punctuation outside the clickable URL, and retain
+        // closing parentheses only when they belong to the URL itself.
+        while (/[.,!?;:]$/.test(label)) label = label.slice(0, -1);
+        while (label.endsWith(')') && (label.match(/\)/g)?.length || 0) > (label.match(/\(/g)?.length || 0)) {
+          label = label.slice(0, -1);
+        }
+        if (!label) continue;
+        try {
+          const parsed = new URL(label);
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+          href = parsed.href;
+        } catch {
+          continue;
+        }
+      } else {
+        const previous = value[start - 1] || '';
+        const next = value[start + token.length] || '';
+        // Do not turn email addresses or longer invalid usernames into links.
+        if (/[\w.+-]/.test(previous) || /[\w.-]/.test(next)) continue;
+        const username = token.slice(1).toLowerCase();
+        href = `/profile/@${encodeURIComponent(username)}`;
+      }
+
+      if (start > cursor) fragment.append(document.createTextNode(value.slice(cursor, start)));
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.textContent = label;
+      if (isUrl) {
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer nofollow';
+      }
+      fragment.append(anchor);
+      cursor = start + label.length;
+      // If punctuation was trimmed from a URL, it will be copied as plain text
+      // before processing the next token (or by the final tail below).
+      changed = true;
+      if (cursor < start + token.length) {
+        fragment.append(document.createTextNode(value.slice(cursor, start + token.length)));
+        cursor = start + token.length;
+      }
+    }
+
+    if (!changed) continue;
+    if (cursor < value.length) fragment.append(document.createTextNode(value.slice(cursor)));
+    textNode.replaceWith(fragment);
+  }
+}
+
 export function sanitizeHtml(dirtyHtml: string): string {
   return sanitizeMarkup(dirtyHtml);
 }
@@ -648,6 +723,7 @@ export function markdownToSafeHtmlWithHeadings(
     found3SpeakPlayer = true;
   });
   groupAdjacentImages(template.content);
+  linkifyPostTextNodes(template.content);
   return { html: template.innerHTML, headings };
 }
 
