@@ -192,7 +192,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                   value={wordInput}
                   onChange={(e) => setWordInput(e.target.value)}
                   placeholder="Type word or phrase (e.g. giveaway, casino)..."
-                  className="flex-1 min-w-0 px-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-850 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs"
+                  className="flex-1 min-w-0 px-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs"
                 />
                 <button
                   type="submit"
@@ -292,7 +292,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                     value={authorInput}
                     onChange={(e) => setAuthorInput(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ''))}
                     placeholder="username (e.g. spammer123)"
-                    className="w-full pl-7 pr-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-850 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs font-medium"
+                    className="w-full pl-7 pr-3.5 py-2.5 text-xs bg-gray-50 dark:bg-slate-800 rounded-2xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition shadow-2xs font-medium"
                   />
                 </div>
                 <button

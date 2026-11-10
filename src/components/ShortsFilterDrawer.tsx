@@ -218,7 +218,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
           </div>
 
           {/* Swipe Hint (Mobile) */}
-          <div className="sm:hidden px-4 py-1.5 bg-slate-50 dark:bg-slate-850/60 text-[10px] text-slate-400 dark:text-slate-500 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+          <div className="sm:hidden px-4 py-1.5 bg-slate-50 dark:bg-slate-800/60 text-[10px] text-slate-400 dark:text-slate-500 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
             <span>Swipe right or tap outside to close</span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
           </div>
@@ -317,7 +317,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                               ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-900/40 text-rose-800 dark:text-rose-200'
                               : isSelected
                               ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-900/50 text-blue-800 dark:text-blue-200'
-                              : 'bg-white dark:bg-slate-850 border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-slate-200'
+                              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-slate-200 dark:hover:border-slate-600'
                           }`}
                         >
                           <button
@@ -386,7 +386,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                       value={wordInput}
                       onChange={(e) => setWordInput(e.target.value)}
                       placeholder="e.g. giveaway, #airdrop, t.me"
-                      className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-850 transition"
+                      className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
                     />
                     <button
                       type="submit"
@@ -461,7 +461,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                           className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer flex items-center gap-1 ${
                             isAdded
                               ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 opacity-60 cursor-default'
-                              : 'bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-300'
                           }`}
                         >
                           {isAdded && <Check className="w-3 h-3 text-emerald-600" />}
@@ -491,7 +491,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                         value={authorInput}
                         onChange={(e) => setAuthorInput(e.target.value)}
                         placeholder="username"
-                        className="w-full pl-7 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-850 transition"
+                        className="w-full pl-7 pr-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 transition"
                       />
                     </div>
                     <button
@@ -565,7 +565,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 flex items-center justify-between text-xs">
+          <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs">
             <span className="text-slate-500 dark:text-slate-400">
               Preferences saved locally
             </span>

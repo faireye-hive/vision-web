@@ -31,17 +31,17 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
   return (
     <div
       id={id}
-      className="mt-3 pt-3 border-t border-gray-100/90 flex flex-col sm:flex-row sm:items-center gap-2.5"
+      className="mt-3 pt-3 border-t border-gray-100/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center gap-2.5"
     >
       {/* Category Indicator Label */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <span className="text-sm select-none" role="img" aria-label={category.label}>
           {category.icon}
         </span>
-        <span className="text-xs font-bold text-gray-800 tracking-tight whitespace-nowrap">
+        <span className="text-xs font-bold text-gray-800 dark:text-slate-100 tracking-tight whitespace-nowrap">
           {category.label}
         </span>
-        <span className="text-gray-300 select-none hidden sm:inline">|</span>
+        <span className="text-gray-300 dark:text-slate-600 select-none hidden sm:inline">|</span>
       </div>
 
       {/* Horizontal Scrollable Pills */}
@@ -50,7 +50,7 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
         <button
           type="button"
           onClick={() => scroll('left')}
-          className="hidden md:flex p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition cursor-pointer mr-1 z-10 flex-shrink-0"
+          className="hidden md:flex p-1 text-gray-400 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition cursor-pointer mr-1 z-10 flex-shrink-0"
           title="Scroll subtopics left"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
@@ -69,7 +69,7 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer flex-shrink-0 ${
               isPrimaryActive
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-gray-100 hover:bg-gray-200/90 text-gray-700'
+                : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/90 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200'
             }`}
             title={`View all posts in #${category.tag}`}
           >
@@ -87,7 +87,7 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition cursor-pointer flex-shrink-0 ${
                   isSubActive
                     ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                    : 'bg-gray-100 hover:bg-gray-200/90 text-gray-700'
+                    : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/90 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200'
                 }`}
                 title={`Filter by #${sub.tag}${sub.description ? `: ${sub.description}` : ''}`}
               >
@@ -101,7 +101,7 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
         <button
           type="button"
           onClick={() => scroll('right')}
-          className="hidden md:flex p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition cursor-pointer ml-1 z-10 flex-shrink-0"
+          className="hidden md:flex p-1 text-gray-400 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition cursor-pointer ml-1 z-10 flex-shrink-0"
           title="Scroll subtopics right"
         >
           <ChevronRight className="w-3.5 h-3.5" />
@@ -112,7 +112,7 @@ export const CategorySubtopicsBar: React.FC<CategorySubtopicsBarProps> = ({
           <button
             type="button"
             onClick={onClearCategory}
-            className="ml-1.5 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition flex-shrink-0 cursor-pointer"
+            className="ml-1.5 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white transition flex-shrink-0 cursor-pointer"
             title="Close category subtopics"
           >
             <X className="w-3.5 h-3.5" />

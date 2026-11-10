@@ -169,7 +169,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         )}
         <ChevronDown
-          className={`w-2.5 h-2.5 text-gray-400 dark:text-slate-500 transition-transform duration-150 flex-shrink-0 ${
+          className={`w-2.5 h-2.5 text-gray-400 dark:text-slate-400 transition-transform duration-150 flex-shrink-0 ${
             isOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
           }`}
         />
@@ -183,7 +183,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
             alignRight ? 'right-0' : 'left-0'
           } mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-1.5 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200`}
         >
-          <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+          <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
             Sort feed by
           </div>
 
@@ -210,7 +210,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                   className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer select-none group ${
                     isCurrent
                       ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
-                      : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100 dark:active:bg-slate-700'
                   }`}
                 >
                   <div className="flex items-start gap-2.5 min-w-0">
@@ -227,7 +227,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-400 dark:text-slate-500 font-normal line-clamp-1 mt-0.5">
+                      <p className="text-[11px] text-gray-400 dark:text-slate-400 font-normal line-clamp-1 mt-0.5">
                         {option.description}
                       </p>
                     </div>

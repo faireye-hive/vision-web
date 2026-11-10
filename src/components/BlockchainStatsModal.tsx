@@ -220,35 +220,35 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   return (
     <div 
       id="blockchain-stats-modal"
-      className="fixed inset-x-0 top-14 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:inset-0 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
+      className="fixed inset-x-0 top-14 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:inset-0 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
     >
       <div 
-        className="relative my-0 flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:my-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        className="relative my-0 flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-900/15 sm:my-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-3 sm:px-6 sm:py-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="hidden shrink-0 rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-600 sm:block">
+            <div className="hidden shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-2 text-slate-600 dark:text-slate-300 sm:block">
               <Activity className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">Hive Blockchain Network</h2>
-              <p className="truncate text-[11px] text-slate-500 sm:text-xs">Live network data and RPC tools</p>
+              <h2 className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg">Hive Blockchain Network</h2>
+              <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Live network data and RPC tools</p>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={handleManualRefresh}
-              className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white cursor-pointer"
               title="Refresh Stats & Pings"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={onClose}
-              className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 text-slate-500 dark:text-slate-400 transition hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-700 dark:hover:text-rose-300 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -256,57 +256,57 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
         </div>
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/70 p-3 space-y-5 sm:p-6 sm:space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50/70 dark:bg-slate-950/50 p-3 space-y-5 sm:p-6 sm:space-y-6">
           
           {/* Key Metric Cards */}
           {props && (
             <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-              <div className="group min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:rounded-2xl sm:p-4">
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Server className="w-3.5 h-3.5" /></span>
+              <div className="group min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md sm:rounded-2xl sm:p-4">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"><Server className="w-3.5 h-3.5" /></span>
                   <span>Head Block</span>
                 </div>
-                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 sm:mt-3 sm:text-lg">
+                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:mt-3 sm:text-lg">
                   #{props.head_block_number?.toLocaleString()}
                 </p>
-                <p className="mt-1 truncate text-xs text-slate-500">
-                  Producer <span className="font-medium text-slate-700">@{props.current_witness}</span>
+                <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                  Producer <span className="font-medium text-slate-700 dark:text-slate-200">@{props.current_witness}</span>
                 </p>
               </div>
 
-              <div className="group min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:rounded-2xl sm:p-4">
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Coins className="w-3.5 h-3.5" /></span>
+              <div className="group min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md sm:rounded-2xl sm:p-4">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"><Coins className="w-3.5 h-3.5" /></span>
                   <span>Virtual Supply</span>
                 </div>
-                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 sm:mt-3 sm:text-lg">
+                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:mt-3 sm:text-lg">
                   {props.current_supply?.split(' ')[0]}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">HIVE in circulation</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">HIVE in circulation</p>
               </div>
 
-              <div className="group min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:rounded-2xl sm:p-4">
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><DollarSign className="w-3.5 h-3.5" /></span>
+              <div className="group min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md sm:rounded-2xl sm:p-4">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"><DollarSign className="w-3.5 h-3.5" /></span>
                   <span>HBD Supply</span>
                 </div>
-                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 sm:mt-3 sm:text-lg">
+                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:mt-3 sm:text-lg">
                   {props.current_hbd_supply?.split(' ')[0]}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Savings APR <span className="font-semibold text-slate-700">{props.hbd_interest_rate / 100}%</span>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Savings APR <span className="font-semibold text-slate-700 dark:text-slate-200">{props.hbd_interest_rate / 100}%</span>
                 </p>
               </div>
 
-              <div className="group min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:rounded-2xl sm:p-4">
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Cpu className="w-3.5 h-3.5" /></span>
+              <div className="group min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md sm:rounded-2xl sm:p-4">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"><Cpu className="w-3.5 h-3.5" /></span>
                   <span>Block Time</span>
                 </div>
-                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 sm:mt-3 sm:text-lg">
+                <p className="mt-2 truncate text-base font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:mt-3 sm:text-lg">
                   {props.time ? new Date(props.time + 'Z').toLocaleTimeString() : '3 sec'}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">3s block interval · DPoS</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">3s block interval · DPoS</p>
               </div>
             </div>
           )}
@@ -314,11 +314,11 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
           {/* Public & Custom Hive RPC Nodes Manager */}
           <div className="space-y-3.5">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Server className="w-4 h-4 text-slate-500" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Server className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <span>Hive RPC Nodes ({allNodes.length})</span>
                 {customNodes.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                     {customNodes.length} custom
                   </span>
                 )}
@@ -328,7 +328,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                 {customNodes.length > 0 && (
                   <button
                     onClick={handleResetNodes}
-                    className="text-[11px] text-slate-600 hover:text-rose-700 flex items-center gap-1 transition px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-rose-200 hover:bg-rose-50 cursor-pointer"
+                    className="text-[11px] text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 flex items-center gap-1 transition px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer"
                     title="Remove all custom nodes and restore defaults"
                   >
                     <RotateCcw className="w-3 h-3" />
@@ -339,18 +339,18 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
             </div>
 
             {/* Add Custom RPC Form */}
-            <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                  <Plus className="w-3.5 h-3.5 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   <span>Add Custom Hive RPC Node</span>
                 </span>
-                <span className="text-[11px] text-slate-500">Saved in this browser</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Saved in this browser</span>
               </div>
 
               <form onSubmit={handleAddCustomNode} className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1 min-w-0">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400">
                     <Globe className="w-3.5 h-3.5" />
                   </div>
                   <input
@@ -361,13 +361,13 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                       if (nodeAddError) setNodeAddError(null);
                     }}
                     placeholder="https://your-custom-rpc.example.com"
-                    className="w-full pl-8 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 transition font-mono"
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:border-slate-400 dark:focus:border-blue-400 focus:ring-2 focus:ring-slate-200 dark:focus:ring-blue-500/30 transition font-mono"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={addingNode || !newRpcUrl.trim()}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition flex-shrink-0 cursor-pointer disabled:cursor-not-allowed shadow-sm"
+                  className="px-3.5 py-2 bg-slate-900 dark:bg-blue-600 hover:bg-slate-700 dark:hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition flex-shrink-0 cursor-pointer disabled:cursor-not-allowed shadow-sm"
                 >
                   {addingNode ? (
                     <>
@@ -384,14 +384,14 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
               </form>
 
               {nodeAddError && (
-                <div className="text-[11px] text-rose-700 flex items-center gap-1.5 pt-1 animate-in fade-in">
+                <div className="text-[11px] text-rose-700 dark:text-rose-300 flex items-center gap-1.5 pt-1 animate-in fade-in">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{nodeAddError}</span>
                 </div>
               )}
 
               {nodeAddSuccess && (
-                <div className="text-[11px] text-emerald-700 flex items-center gap-1.5 pt-1 animate-in fade-in">
+                <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 pt-1 animate-in fade-in">
                   <Check className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{nodeAddSuccess}</span>
                 </div>
@@ -411,8 +411,8 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     onClick={() => handleSelectNode(node)}
                     className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between group ${
                       isActive 
-                        ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                        ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="truncate pr-2">
@@ -421,12 +421,12 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                           {node.replace(/^https?:\/\//, '')}
                         </p>
                         {isCustom && (
-                          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold bg-slate-100 text-slate-600 border border-slate-200 flex-shrink-0">
+                          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex-shrink-0">
                             Custom
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                         {isActive ? 'Active Node (Saved)' : 'Click to activate'}
                       </p>
                     </div>
@@ -434,23 +434,23 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {ping !== undefined ? (
                         <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
-                          ping > 0 && ping < 250 ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' :
-                          ping >= 250 ? 'text-amber-700 bg-amber-50 border border-amber-200' :
-                          'text-rose-700 bg-rose-50 border border-rose-200'
+                          ping > 0 && ping < 250 ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800' :
+                          ping >= 250 ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800' :
+                          'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800'
                         }`}>
                           {ping > 0 ? `${ping}ms` : 'offline'}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-500 font-mono animate-pulse">pinging...</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono animate-pulse">pinging...</span>
                       )}
 
-                      {isActive && <Check className="w-4 h-4 text-slate-700 flex-shrink-0" />}
+                      {isActive && <Check className="w-4 h-4 text-slate-700 dark:text-slate-200 flex-shrink-0" />}
 
                       {isCustom && (
                         <button
                           type="button"
                           onClick={(e) => handleRemoveCustomNode(node, e)}
-                          className="p-1 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition ml-0.5"
+                          className="p-1 rounded text-slate-400 dark:text-slate-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition ml-0.5"
                           title="Remove custom RPC node"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -464,19 +464,19 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
           </div>
 
           {/* Client-Side RPC Caching Engine */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-slate-500" />
-                <h3 className="text-sm font-bold text-slate-900">Client-Side Cache Engine</h3>
+                <Zap className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Client-Side Cache Engine</h3>
               </div>
               <div className="flex items-center gap-2">
                 {cacheClearedMsg && (
-                  <span className="text-[10px] text-emerald-700 font-semibold animate-pulse">Cache cleared</span>
+                  <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold animate-pulse">Cache cleared</span>
                 )}
                 <button
                   onClick={handleClearCache}
-                  className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  className="px-2.5 py-1.5 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer"
                   title="Clear all stored feed & discussion caches"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -485,68 +485,68 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Protects public Hive nodes from rate limits and enables instant tab switching. Feeds, communities, and profiles are cached locally, while the <strong className="text-slate-800">"New" feed always bypasses cache to stream newly created posts live</strong>.
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Protects public Hive nodes from rate limits and enables instant tab switching. Feeds, communities, and profiles are cached locally, while the <strong className="text-slate-800 dark:text-slate-200">"New" feed always bypasses cache to stream newly created posts live</strong>.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Cache Hits</p>
-                <p className="text-base font-semibold text-slate-900 font-mono mt-0.5">{cacheStats.hits}</p>
-                <p className="text-[9px] text-slate-500">Saved RPC roundtrips</p>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Cache Hits</p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 font-mono mt-0.5">{cacheStats.hits}</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400">Saved RPC roundtrips</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Cache Misses</p>
-                <p className="text-base font-semibold text-slate-900 font-mono mt-0.5">{cacheStats.misses}</p>
-                <p className="text-[9px] text-slate-500">Live network calls</p>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Cache Misses</p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 font-mono mt-0.5">{cacheStats.misses}</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400">Live network calls</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Hit Ratio</p>
-                <p className="text-base font-semibold text-slate-900 font-mono mt-0.5">{cacheStats.hitRatio}%</p>
-                <p className="text-[9px] text-slate-500">Efficiency</p>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Hit Ratio</p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 font-mono mt-0.5">{cacheStats.hitRatio}%</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400">Efficiency</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Cached Items</p>
-                <p className="text-base font-semibold text-slate-900 font-mono mt-0.5">{cacheStats.entries}</p>
-                <p className="text-[9px] text-slate-500">Active entries</p>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Cached Items</p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100 font-mono mt-0.5">{cacheStats.entries}</p>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400">Active entries</p>
               </div>
             </div>
           </div>
 
           {/* Interactive Live Hive RPC Test Playground */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-slate-500" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <span>Live Hive RPC Query Runner</span>
               </h3>
-              <span className="text-[10px] text-slate-500 font-mono">100% Client-Side JSON-RPC 2.0</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">100% Client-Side JSON-RPC 2.0</span>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Test any Hive API call directly against the decentralized blockchain without any backend servers or credentials:
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="block text-[11px] font-mono text-slate-500 mb-1">Method</label>
+                <label className="block text-[11px] font-mono text-slate-500 dark:text-slate-400 mb-1">Method</label>
                 <input
                   type="text"
                   value={rpcMethod}
                   onChange={(e) => setRpcMethod(e.target.value)}
                   placeholder="e.g. condenser_api.get_version"
-                  className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                  className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:border-slate-400 dark:focus:border-blue-400 focus:ring-2 focus:ring-slate-200 dark:focus:ring-blue-500/30"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-slate-500 mb-1">Params (JSON Array)</label>
+                <label className="block text-[11px] font-mono text-slate-500 dark:text-slate-400 mb-1">Params (JSON Array)</label>
                 <input
                   type="text"
                   value={rpcParams}
                   onChange={(e) => setRpcParams(e.target.value)}
                   placeholder={'e.g. [] or [["hiveio"]]'}
-                  className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                  className="w-full px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:border-slate-400 dark:focus:border-blue-400 focus:ring-2 focus:ring-slate-200 dark:focus:ring-blue-500/30"
                 />
               </div>
             </div>
@@ -558,7 +558,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     setRpcMethod('condenser_api.get_version');
                     setRpcParams('[]');
                   }}
-                  className="text-[10px] text-slate-600 hover:text-slate-900 bg-white px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                  className="text-[10px] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Preset: get_version
                 </button>
@@ -567,7 +567,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                     setRpcMethod('condenser_api.get_accounts');
                     setRpcParams('[["ecency"]]');
                   }}
-                  className="text-[10px] text-slate-600 hover:text-slate-900 bg-white px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                  className="text-[10px] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Preset: get_accounts
                 </button>
@@ -577,7 +577,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
                 id="execute-rpc-btn"
                 onClick={handleExecuteRpc}
                 disabled={rpcLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold shadow-sm disabled:opacity-50 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-blue-600 hover:bg-slate-700 dark:hover:bg-blue-500 text-white text-xs font-semibold shadow-sm disabled:opacity-50 transition cursor-pointer"
               >
                 <Play className={`w-3.5 h-3.5 ${rpcLoading ? 'animate-pulse' : ''}`} />
                 <span>{rpcLoading ? 'Executing...' : 'Run RPC'}</span>
@@ -585,7 +585,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
             </div>
 
             {rpcError && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs">
                 {rpcError}
               </div>
             )}
