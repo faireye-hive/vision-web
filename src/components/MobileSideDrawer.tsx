@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Hash,
@@ -528,9 +529,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
                               className={`w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-slate-800 ${
                                 isActive ? 'ring-2 ring-blue-600' : ''
                               }`}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                              }}
+                              onError={handleImageFallback}
                             />
                             <span className="truncate">@{author}</span>
                           </div>
@@ -693,9 +692,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
                               className={`w-6 h-6 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 ${
                                 isSelected ? 'ring-2 ring-emerald-500' : ''
                               }`}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                              }}
+                              onError={handleImageFallback}
                             />
                             <div className="min-w-0">
                               <p className="truncate font-semibold leading-tight text-gray-900 dark:text-white">

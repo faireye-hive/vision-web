@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState } from 'react';
 import {
   Compass,
@@ -144,9 +145,7 @@ export const CommunityHubSpotlightCard: React.FC = () => {
               src={getHiveAvatarUrl(activeSpotlight.name, 'medium')}
               alt={activeSpotlight.title}
               className="w-10 h-10 rounded-2xl object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 border border-emerald-200/50 dark:border-emerald-800/40"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = getHiveAvatarUrl('hive', 'small');
-              }}
+              onError={handleImageFallback}
             />
             <div className="min-w-0">
               <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">

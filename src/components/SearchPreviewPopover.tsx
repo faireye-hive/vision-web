@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, User, Users, Hash, ArrowRight, Clock, X, Loader2, Sparkles } from 'lucide-react';
 import { lookupCreatorsWithPreview, CreatorPreview, listCommunities, HiveCommunity } from '../services/hiveApi';
@@ -240,9 +241,7 @@ export const SearchPreviewPopover: React.FC<SearchPreviewPopoverProps> = ({
                     src={creator.avatarUrl}
                     alt={creator.name}
                     className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-700 object-cover flex-shrink-0 border border-gray-100 dark:border-slate-700"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://images.hive.blog/u/${creator.name}/avatar/small`;
-                    }}
+                    onError={(event) => handleImageFallback(event, `https://images.hive.blog/u/${creator.name}/avatar/small`)}
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">

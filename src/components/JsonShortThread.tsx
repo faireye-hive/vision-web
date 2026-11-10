@@ -8,6 +8,7 @@ import { SnapContent } from './SnapContent';
 import { BlacklistFlair } from './BlacklistFlair';
 import { useI18n } from '../i18n/I18nContext';
 import { translateMarkdown } from '../services/translationService';
+import { handleImageFallback } from '../utils/imageFallback';
 const control = 'inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold hover:bg-cyan-50 hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 dark:hover:bg-slate-800 dark:hover:text-cyan-300 disabled:opacity-40';
 interface Props {
   reference: SnapRef; seed?: IndexedEvent; localEvents: IndexedEvent[]; refreshKey: number;
@@ -58,7 +59,7 @@ export function JsonShortThread(props: Props) {
     const children = (thread.replies.get(refKey) || []).filter(child => !hidden(child.actor));
     const timestamp = history.find(row => row.event.actor === content.actor && row.event.id === content.id)?.timestamp;
     return <div key={refKey} className={depth ? 'ml-2 border-l border-slate-200 pl-3 pt-4 dark:border-slate-700 sm:ml-4' : ''}>
-      <div className="flex flex-wrap items-center gap-2 text-sm"><Link to={`/profile/@${content.actor}`} className="flex min-w-0 items-center gap-2 font-bold hover:text-blue-500"><img src={getHiveAvatarUrl(content.actor, 'small')} alt="" loading="lazy" className="h-8 w-8 rounded-full bg-slate-100" />@{content.actor}</Link><BlacklistFlair username={content.actor} />{timestamp && <time dateTime={timestamp} className="text-[11px] text-slate-400">{new Date(timestamp).toLocaleString()}</time>}{content.channel && <span className="ml-auto max-w-full truncate text-[10px] text-slate-500">#{content.channel.split('/')[1]}</span>}</div>
+      <div className="flex flex-wrap items-center gap-2 text-sm"><Link to={`/profile/@${content.actor}`} className="flex min-w-0 items-center gap-2 font-bold hover:text-blue-500"><img src={getHiveAvatarUrl(content.actor, 'small')} alt="" loading="lazy" onError={handleImageFallback} className="h-8 w-8 rounded-full bg-slate-100" />@{content.actor}</Link><BlacklistFlair username={content.actor} />{timestamp && <time dateTime={timestamp} className="text-[11px] text-slate-400">{new Date(timestamp).toLocaleString()}</time>}{content.channel && <span className="ml-auto max-w-full truncate text-[10px] text-slate-500">#{content.channel.split('/')[1]}</span>}</div>
       {content.type === 'resnap' ? <div className="mt-3"><p className="mb-2 inline-flex items-center gap-2 text-xs font-semibold text-purple-500"><Repeat2 className="h-4 w-4" />Resnapped</p><QuotedJsonSnap reference={content.target} hidden={hidden} /></div> : <JsonSnapBody key={refKey} body={content.body} author={content.actor} permlink={content.id} />}
       <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-slate-100 pt-2 text-slate-500 dark:border-slate-800">
         <button disabled={busy || loading || !!error} aria-pressed={mine === 1} aria-label={`Like snap by @${content.actor}`} onClick={() => vote(ref, mine === 1 ? 0 : 1)} className={`${control} ${mine === 1 ? 'text-rose-500' : ''}`}><Heart className={`h-4 w-4 ${mine === 1 ? 'fill-current' : ''}`} />{votes.filter(([, value]) => value === 1).length}</button>

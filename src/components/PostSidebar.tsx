@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect } from 'react';
 import {
   Bookmark,
@@ -245,9 +246,7 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
                       alt={simPost.title}
                       loading="lazy"
                       className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-gray-100 dark:bg-slate-800 border border-gray-200/60 dark:border-slate-700"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = getHiveAvatarUrl(simPost.author, 'small');
-                      }}
+                      onError={(event) => handleImageFallback(event, getHiveAvatarUrl(simPost.author, 'small'))}
                     />
                   ) : (
                     <img

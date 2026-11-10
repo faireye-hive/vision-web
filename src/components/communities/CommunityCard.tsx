@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../../utils/imageFallback';
 import React from 'react';
 import { ArrowUpRight, Check, Plus, ShieldAlert, Users } from 'lucide-react';
 import { getHiveAvatarUrl } from '../../services/hiveApi';
@@ -41,9 +42,7 @@ export const CommunityCard: React.FC<CommunityCardProps> = ({
               alt=""
               loading="lazy"
               className="h-12 w-12 shrink-0 rounded-xl border border-slate-200/80 bg-slate-50 object-cover shadow-sm dark:border-slate-700 dark:bg-slate-800"
-              onError={(event) => {
-                (event.target as HTMLImageElement).src = getHiveAvatarUrl('hive', 'small');
-              }}
+              onError={handleImageFallback}
             />
             <span className="min-w-0">
               <span className="block line-clamp-2 text-[14px] font-bold leading-snug text-slate-900 transition group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-300">

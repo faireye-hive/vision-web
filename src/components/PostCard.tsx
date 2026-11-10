@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import { useSavedLists } from '../context/SavedListsContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
@@ -618,10 +619,7 @@ const PostCardComponent: React.FC<PostCardProps> = ({
                 alt={post.author}
                 loading="lazy"
                 className="discover_post_avatar_image w-6 h-6 rounded-full bg-gray-100 object-cover hover:opacity-90 transition"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://images.ecency.com/u/hive/avatar/small';
-                }}
+                onError={handleImageFallback}
               />
             </button>
 

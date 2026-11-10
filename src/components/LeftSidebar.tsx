@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
@@ -627,9 +628,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             className={`w-6 h-6 rounded-full object-cover bg-gray-100 dark:bg-slate-800 transition-all ${
                               isActive ? 'ring-2 ring-blue-600 scale-105' : ''
                             }`}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                            }}
+                            onError={handleImageFallback}
                           />
                           {timeBadge && !isActive && (
                             <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
@@ -753,9 +752,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           src={`https://images.ecency.com/u/${comm.name}/avatar/small`}
                           alt={comm.title}
                           className="w-5 h-5 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                          }}
+                          onError={handleImageFallback}
                         />
                         <span className="truncate">{comm.title || comm.name}</span>
                       </div>

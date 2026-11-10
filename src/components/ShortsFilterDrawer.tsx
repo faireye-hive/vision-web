@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ShieldAlert,
@@ -538,10 +539,7 @@ export const ShortsFilterDrawer: React.FC<ShortsFilterDrawerProps> = ({
                               src={getHiveAvatarUrl(author, 'small')}
                               alt={author}
                               className="w-7 h-7 rounded-full object-cover bg-slate-200 dark:bg-slate-700 flex-shrink-0"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src =
-                                  'https://images.ecency.com/u/hive/avatar/small';
-                              }}
+                              onError={handleImageFallback}
                             />
                             <span className="font-semibold text-slate-900 dark:text-white truncate">
                               @{author}

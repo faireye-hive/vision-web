@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../../../utils/imageFallback';
 import React from 'react';
 import { Hash, Layers, ChevronRight } from 'lucide-react';
 import { ProfileCustomStyle, BORDER_RADIUS_CLASSES } from '../profileStyleTypes';
@@ -174,10 +175,7 @@ export const ProfileBadgesSection: React.FC<ProfileBadgesSectionProps> = ({
                       src={`https://images.ecency.com/u/${community.name}/avatar/small`}
                       alt=""
                       className="w-7 h-7 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://images.ecency.com/u/hive/avatar/small';
-                      }}
+                      onError={handleImageFallback}
                     />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 transition">

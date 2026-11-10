@@ -13,6 +13,9 @@ export const ALLOWED_IMAGE_DOMAINS = [
   'tenor.com',
   'giphy.com',
   'giphyusercontent.com',
+  'static.klipy.com',
+  'static1.klipy.com',
+  'static2.klipy.com',
   'imgur.com',
   'ytimg.com',
   '3speak.tv',
@@ -460,15 +463,6 @@ export function markdownToSafeHtmlWithHeadings(
     return `\u0000ESC${idx}\u0000`;
   });
 
-  // Protect plain URLs from Markdown emphasis delimiters embedded in their path
-  // (for example Reddit slugs containing underscores) before parsing italics.
-  const plainUrls: string[] = [];
-  text = text.replace(/https?:\/\/[^\s<>"']+/gi, (url) => {
-    const idx = plainUrls.length;
-    plainUrls.push(url);
-    return `\u0000PLAINURL${idx}\u0000`;
-  });
-
   // Imagens em Markdown ![alt](url)
   text = text.replace(
     /!\[([\s\S]*?)\]\((https?:\/\/[^\s\)]+)\)/gi,
@@ -499,6 +493,15 @@ export function markdownToSafeHtmlWithHeadings(
   // 2ª passada: protege as tags <img>/<a> recém-geradas acima, antes do
   // negrito/itálico rodar (evita quebrar URLs com underscore, ex: vin_ales.jpg)
   text = protectRawTags(text, tagStore);
+
+  // Protect remaining plain URLs from Markdown emphasis delimiters embedded
+  // in their path. Run after Markdown images and links have been parsed.
+  const plainUrls: string[] = [];
+  text = text.replace(/https?:\/\/[^\s<>"']+/gi, (url) => {
+    const idx = plainUrls.length;
+    plainUrls.push(url);
+    return `\u0000PLAINURL${idx}\u0000`;
+  });
 
   // Markdown tables, including optional edge pipes and compact separators like |-|.
   const tableBlocks: string[] = [];

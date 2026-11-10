@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Check, Sparkles, RefreshCw, UserCheck } from 'lucide-react';
 import { HivePost, getHiveAvatarUrl, hiveRpcCall, calculateReputation } from '../services/hiveApi';
@@ -258,9 +259,7 @@ export const RecommendedUsersCard: React.FC<RecommendedUsersCardProps> = ({
                       ? 'ring-2 ring-blue-600 scale-105'
                       : 'ring-1 ring-gray-100 dark:ring-slate-800'
                   }`}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                  }}
+                  onError={handleImageFallback}
                 />
 
                 <div className="min-w-0 flex-1">

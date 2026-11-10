@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
@@ -695,9 +696,7 @@ export const FollowingManagerPage: React.FC<FollowingManagerPageProps> = ({
                         src={creator.avatarUrl || getHiveAvatarUrl(creator.username, 'small')}
                         alt={creator.username}
                         className="w-11 h-11 rounded-full object-cover bg-gray-100 dark:bg-slate-800 border border-gray-100 dark:border-slate-700"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                        }}
+                        onError={handleImageFallback}
                       />
                       {isInactiveWarning && (
                         <span

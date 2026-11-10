@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ArrowLeft,
@@ -529,9 +530,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({
                       src={getHiveAvatarUrl(actor, 'small')}
                       alt={actor}
                       className="w-10 h-10 rounded-full object-cover bg-gray-100 dark:bg-slate-800 border border-gray-100 dark:border-slate-700"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                      }}
+                      onError={handleImageFallback}
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center font-bold">
