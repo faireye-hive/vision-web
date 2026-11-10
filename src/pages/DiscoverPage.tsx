@@ -120,6 +120,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const queryGen = useRef(0);
+  const feedAbortRef = useRef<AbortController | null>(null);
   const loadedPages = useRef(1);
   const apiCursorRef = useRef<{ author: string; permlink: string } | null>(null);
   const username = currentUser?.username || '';
@@ -262,6 +263,10 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const fetchPosts = useCallback(
     async (isRefresh = false) => {
       const gen = ++queryGen.current;
+      feedAbortRef.current?.abort();
+      const controller = new AbortController();
+      feedAbortRef.current = controller;
+      setLoadingMore(false);
       loadedPages.current = 1;
       apiCursorRef.current = null;
       const actualSort = isCommunitiesFeed && sort === 'recommend' ? 'trending' : sort;
@@ -341,6 +346,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             offset: 0,
             observer: username,
             category: tag || undefined,
+            signal: controller.signal,
           });
         } else {
           fetched = await getRankedPosts(rpcSort, tag, 20, undefined, undefined, '', isRefresh);
@@ -397,6 +403,10 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
   useEffect(() => {
     fetchPosts();
+    return () => {
+      ++queryGen.current;
+      feedAbortRef.current?.abort();
+    };
   }, [fetchPosts]);
 
   const handleLoadMore = async () => {
@@ -441,6 +451,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           offset: posts.length,
           observer: username,
           category: tag || undefined,
+          signal: feedAbortRef.current?.signal,
         });
         if (gen !== queryGen.current) return;
         const rankedMore = rankPostsByCustomAlgorithm(more, actualSort, false);
@@ -493,7 +504,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       const rankedMore = rankPostsByCustomAlgorithm(more, actualSort, actualSort === 'trending' && !isCommunitiesFeed);
       setPosts((prev) => appendUniquePosts(prev, rankedMore));
     } catch (err: any) {
+      if (gen !== queryGen.current) return;
       console.error('Failed to load more discover posts:', err);
+      setError(err.message || 'Unable to load more posts. Please try again.');
     } finally {
       if (gen === queryGen.current) setLoadingMore(false);
     }
@@ -820,7 +833,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <AlertCircle className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <p id="discover-error-title" className="font-bold text-rose-900 dark:text-rose-100">Unable to fetch feed from Hive RPC</p>
+              <p id="discover-error-title" className="font-bold text-rose-900 dark:text-rose-100">Unable to load feed</p>
               <p id="discover-error-message" className="text-[11px] text-rose-700/80 dark:text-rose-300/80 truncate mt-0.5">{error}</p>
             </div>
           </div>

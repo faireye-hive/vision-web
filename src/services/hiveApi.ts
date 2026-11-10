@@ -6,6 +6,7 @@ import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
 import { getSafeImageUrl } from '../utils/sanitize';
 import { getSmartAccountsActivity, noteAccountActivity } from './accountsCache';
 import { getHiveAvatarUrl, resolveHiveAvatarUrl } from '../utils/hiveAvatar';
+import { fetchJsonWithTimeout } from './http';
 
 export { apiCache, CACHE_TTL };
 export { getHiveAvatarUrl, resolveHiveAvatarUrl };
@@ -174,6 +175,23 @@ export const DEFAULT_HIVE_NODES = [
 export const STORAGE_KEY_CUSTOM_NODES = 'nebulosa_custom_rpc_nodes';
 export const STORAGE_KEY_ACTIVE_NODE = 'nebulosa_active_rpc_node';
 
+export function getHiveNodeUrlError(nodeUrl: string): string | null {
+  if (!nodeUrl.trim()) return 'RPC node URL cannot be empty.';
+  let url: URL;
+  try {
+    url = new URL(nodeUrl);
+  } catch {
+    return 'Invalid URL format.';
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return 'RPC node URL must start with https:// or http://';
+  }
+  if (url.protocol === 'http:' && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return 'Use an HTTPS RPC URL. HTTP nodes are blocked when this app is opened over HTTPS.';
+  }
+  return null;
+}
+
 export function getCustomHiveNodes(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -181,7 +199,7 @@ export function getCustomHiveNodes(): string[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
-      ? parsed.filter((n): n is string => typeof n === 'string' && (n.startsWith('https://') || n.startsWith('http://')))
+      ? parsed.filter((n): n is string => typeof n === 'string' && !getHiveNodeUrlError(n))
       : [];
   } catch {
     return [];
@@ -234,17 +252,8 @@ export function setActiveNode(node: string) {
 
 export function addCustomHiveNode(nodeUrl: string): { success: boolean; error?: string } {
   const trimmed = nodeUrl.trim().replace(/\/+$/, '');
-  if (!trimmed) {
-    return { success: false, error: 'RPC node URL cannot be empty.' };
-  }
-  if (!trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
-    return { success: false, error: 'RPC node URL must start with https:// or http://' };
-  }
-  try {
-    new URL(trimmed);
-  } catch {
-    return { success: false, error: 'Invalid URL format.' };
-  }
+  const error = getHiveNodeUrlError(trimmed);
+  if (error) return { success: false, error };
 
   const all = getAllHiveNodes();
   if (all.includes(trimmed)) {
@@ -416,21 +425,39 @@ export async function hiveRpcCall<T = any>(
 
   const promise = performHiveRpcCall<T>(method, params, nodeUrl, timeoutMs);
   pendingRpcCalls.set(key, promise);
-  promise.finally(() => {
+  const cleanup = () => {
     if (pendingRpcCalls.get(key) === promise) {
       pendingRpcCalls.delete(key);
     }
-  });
+  };
+  void promise.then(cleanup, cleanup);
   return promise;
 }
 
+export const NODE_PING_TIMEOUT_MS = 5000;
+const pendingNodePings = new Map<string, Promise<number>>();
+
 /**
- * Measure latency of a given node in milliseconds
+ * Measure latency with one bounded request per URL across all callers.
  */
-export async function pingNode(url: string): Promise<number> {
+export function pingNode(url: string): Promise<number> {
+  if (getHiveNodeUrlError(url)) return Promise.resolve(-1);
+  const existing = pendingNodePings.get(url);
+  if (existing) return existing;
+
+  const promise = measureNodeLatency(url);
+  pendingNodePings.set(url, promise);
+  const cleanup = () => {
+    if (pendingNodePings.get(url) === promise) pendingNodePings.delete(url);
+  };
+  void promise.then(cleanup, cleanup);
+  return promise;
+}
+
+async function measureNodeLatency(url: string): Promise<number> {
   const start = performance.now();
   try {
-    const res = await fetch(url, {
+    const json = await fetchJsonWithTimeout<{ result?: unknown; error?: unknown }>(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -439,8 +466,8 @@ export async function pingNode(url: string): Promise<number> {
         method: 'condenser_api.get_version',
         params: []
       })
-    });
-    if (res.ok) {
+    }, NODE_PING_TIMEOUT_MS);
+    if (json.result && !json.error) {
       return Math.round(performance.now() - start);
     }
     return -1;

@@ -29,6 +29,7 @@ import {
   removeCustomHiveNode,
   resetHiveNodesToDefault,
   pingNode, 
+  getHiveNodeUrlError,
   hiveRpcCall,
   apiCache
 } from '../services/hiveApi';
@@ -64,6 +65,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
 
   // Ref para controlar se o ping já está em andamento e evitar duplicidade
   const isPingingRef = useRef(false);
+  const pingScanIdRef = useRef(0);
 
   useEffect(() => {
     return apiCache.subscribe((stats) => {
@@ -82,6 +84,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   const pingAllNodes = (nodesList: string[], force: boolean = false) => {
     if (isPingingRef.current && !force) return;
     isPingingRef.current = true;
+    const scanId = ++pingScanIdRef.current;
 
     Promise.all(
       nodesList.map(async (node) => {
@@ -89,6 +92,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
         return { node, ms };
       })
     ).then((results) => {
+      if (scanId !== pingScanIdRef.current) return;
       const pingMap: Record<string, number> = {};
       results.forEach(({ node, ms }) => {
         pingMap[node] = ms;
@@ -96,7 +100,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
       setNodePings((prev) => ({ ...prev, ...pingMap }));
       isPingingRef.current = false;
     }).catch(() => {
-      isPingingRef.current = false;
+      if (scanId === pingScanIdRef.current) isPingingRef.current = false;
     });
   };
 
@@ -129,8 +133,9 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
     setNodeAddError(null);
     setNodeAddSuccess(null);
     const trimmed = newRpcUrl.trim().replace(/\/+$/, '');
-    if (!trimmed) {
-      setNodeAddError('Please enter an RPC node URL.');
+    const urlError = getHiveNodeUrlError(trimmed);
+    if (urlError) {
+      setNodeAddError(urlError);
       return;
     }
 
@@ -196,7 +201,11 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
 
     // 3. Atualiza apenas as métricas gerais a cada 60s (SEM re-pingar os nós)
     const interval = setInterval(fetchStatsOnly, 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      ++pingScanIdRef.current;
+      isPingingRef.current = false;
+    };
   }, []);
 
   const handleExecuteRpc = async () => {
