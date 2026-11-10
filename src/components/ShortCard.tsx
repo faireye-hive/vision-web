@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -310,9 +311,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                 src={avatarUrl}
                 alt={snap.author}
                 className="h-8 w-8 rounded-full border border-white bg-slate-100 object-cover shadow-sm transition group-hover:ring-4 group-hover:ring-blue-500/10 dark:border-slate-900 dark:bg-slate-800"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                }}
+                onError={handleImageFallback}
               />
             </button>
             <div className="flex min-w-0 items-center gap-1.5 flex-wrap">
@@ -572,9 +571,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                           alt={reply.author}
                           className="w-7 h-7 rounded-full object-cover bg-slate-100 dark:bg-slate-800 cursor-pointer ring-2 ring-white dark:ring-slate-900"
                           onClick={() => onSelectAuthor(reply.author)}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                          }}
+                          onError={handleImageFallback}
                         />
                         <button
                           type="button"

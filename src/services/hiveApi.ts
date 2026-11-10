@@ -5,6 +5,7 @@
 import { apiCache, CACHE_TTL, fetchWithCache } from './apiCache';
 import { getSafeImageUrl } from '../utils/sanitize';
 import { getSmartAccountsActivity, noteAccountActivity } from './accountsCache';
+import { AVATAR_PLACEHOLDER } from '../utils/imageFallback';
 
 export { apiCache, CACHE_TTL };
 
@@ -1270,7 +1271,7 @@ export function calculateVotingPower(vp: number, lastVoteTime: string): number {
  */
 export function getHiveAvatarUrl(username: string, size: 'small' | 'medium' | 'large' = 'medium'): string {
   const clean = (username || '').replace(/^@/, '').trim().toLowerCase();
-  if (!clean) return 'https://images.ecency.com/u/hive/avatar/medium';
+  if (!clean) return AVATAR_PLACEHOLDER;
   const direct = `https://images.ecency.com/u/${clean}/avatar/${size}`;
   return getSafeImageUrl(direct, { width: size === 'small' ? 80 : size === 'medium' ? 200 : 400 }) || direct;
 }

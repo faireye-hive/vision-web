@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React from 'react';
 import { Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -56,9 +57,7 @@ export const SubscribedCommunitiesCard: React.FC<SubscribedCommunitiesCardProps>
                     src={comm.avatar}
                     alt={comm.title}
                     className="w-8 h-8 rounded-xl object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/small';
-                    }}
+                    onError={handleImageFallback}
                   />
                   <div className="truncate">
                     <span className="font-bold text-xs sm:text-sm text-gray-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-white truncate block">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ShieldAlert,
+  ChevronDown,
   Plus,
   X,
   EyeOff,
@@ -31,6 +32,7 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
   hiddenCount = 0
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const handleAdd = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -51,7 +53,7 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
       style={{ marginTop: '0px' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
             <ShieldAlert className="w-4 h-4" />
@@ -62,25 +64,39 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleFilter}
-          title={filterEnabled ? 'Pause spam filter' : 'Enable spam filter'}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 ${
-            filterEnabled
-              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
-              : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              filterEnabled ? 'bg-slate-600 dark:bg-slate-300' : 'bg-gray-400 dark:bg-slate-600'
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleFilter}
+            title={filterEnabled ? 'Pause spam filter' : 'Enable spam filter'}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 ${
+              filterEnabled
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
-          />
-          <span>{filterEnabled ? 'Active' : 'Off'}</span>
-        </button>
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                filterEnabled ? 'bg-slate-600 dark:bg-slate-300' : 'bg-gray-400 dark:bg-slate-600'
+              }`}
+            />
+            <span>{filterEnabled ? 'Active' : 'Off'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsCollapsed((collapsed) => !collapsed)}
+            aria-expanded={!isCollapsed}
+            aria-controls="shorts-word-filter-content"
+            aria-label={isCollapsed ? 'Expand word and spam filters' : 'Collapse word and spam filters'}
+            title={isCollapsed ? 'Expand filters' : 'Collapse filters'}
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
+          </button>
+        </div>
       </div>
 
+      {!isCollapsed && <div id="shorts-word-filter-content" className="space-y-3">
       {/* Hidden items badge */}
       {filterEnabled && hiddenCount > 0 && (
         <div className="flex items-center gap-1.5 border-y border-slate-100 py-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -182,6 +198,7 @@ export const ShortsWordFilterCard: React.FC<ShortsWordFilterCardProps> = ({
           })}
         </div>
       </div>
+      </div>}
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -461,9 +462,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                       src={currentUser.avatar}
                       alt={currentUser.username}
                       className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/20 flex-shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                      }}
+                      onError={handleImageFallback}
                     />
                     <div className="min-w-0">
                       <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate">

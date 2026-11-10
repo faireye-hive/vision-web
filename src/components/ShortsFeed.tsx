@@ -27,6 +27,7 @@ import {
   Flame
 } from 'lucide-react';
 import { HivePost, getHiveAvatarUrl } from '../services/hiveApi';
+import { AVATAR_PLACEHOLDER, handleImageFallback } from '../utils/imageFallback';
 import { CurrentUser, KeychainService } from '../services/keychain';
 import { ShortCard } from './ShortCard';
 import { useNavigation } from '../context/NavigationContext';
@@ -1308,7 +1309,8 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <img
-                  src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : 'https://images.ecency.com/u/hive/avatar/small'}
+                  src={currentUser ? getHiveAvatarUrl(currentUser.username, 'small') : AVATAR_PLACEHOLDER}
+                  onError={handleImageFallback}
                   alt={currentUser?.username || 'User'}
                   className="w-8 h-8 rounded-full object-cover"
                 />

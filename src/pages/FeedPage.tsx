@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   RefreshCw,
@@ -276,9 +277,7 @@ export const FeedPage: React.FC = () => {
               src={getHiveAvatarUrl(feedAuthor, 'medium')}
               alt={feedAuthor}
               className="w-11 h-11 rounded-full object-cover shadow-xs border border-gray-100 dark:border-slate-800"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium';
-              }}
+              onError={handleImageFallback}
             />
             <div>
               <div className="flex items-center gap-2">

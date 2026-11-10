@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState } from 'react';
 import {
   X,
@@ -334,9 +335,7 @@ export const ContentFilterModal: React.FC<ContentFilterModalProps> = ({
                           src={avatar}
                           alt={author}
                           className="w-5 h-5 rounded-full object-cover bg-gray-300 dark:bg-slate-700 ring-1 ring-gray-300 dark:ring-slate-700"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                          }}
+                          onError={handleImageFallback}
                         />
                         <span className="font-bold text-gray-900 dark:text-white">@{author}</span>
                         <button

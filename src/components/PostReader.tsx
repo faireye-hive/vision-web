@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
@@ -1236,7 +1237,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 src={getHiveAvatarUrl(parentPost?.author || post.parent_author || '', 'small')}
                 alt=""
                 className="mt-0.5 h-9 w-9 shrink-0 rounded-full bg-white object-cover ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700"
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small'; }}
+                onError={handleImageFallback}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -1315,7 +1316,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 src={avatarUrl}
                 alt={post.author}
                 className="h-8 w-8 rounded-full bg-slate-100 object-cover ring-1 ring-white shadow-sm transition group-hover:ring-blue-300 dark:bg-slate-800 dark:ring-slate-900"
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/medium'; }}
+                onError={handleImageFallback}
               />
             </button>
             {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
@@ -1806,9 +1807,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                         alt={relPost.title}
                         loading="lazy"
                         className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover flex-shrink-0 bg-gray-200 dark:bg-slate-700 group-hover:scale-102 transition-transform"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = getHiveAvatarUrl(relPost.author, 'medium');
-                        }}
+                        onError={(event) => handleImageFallback(event, getHiveAvatarUrl(relPost.author, 'medium'))}
                       />
                     ) : (
                       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-150 dark:border-blue-900/40 flex items-center justify-center flex-shrink-0">
@@ -2357,9 +2356,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
             src={avatar}
             alt={comment.author}
             className="w-6 h-6 rounded-full object-cover bg-gray-200 dark:bg-slate-700 ring-1 ring-gray-200 dark:ring-slate-700"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-            }}
+            onError={handleImageFallback}
           />
           <button
             onClick={() => onSelectAuthor(comment.author)}

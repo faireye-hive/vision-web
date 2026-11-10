@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../../utils/imageFallback';
 import React, { useRef } from 'react';
 import { Layers, Plus, Compass } from 'lucide-react';
 import { getHiveAvatarUrl } from '../../services/hiveApi';
@@ -89,9 +90,7 @@ export const CommunitiesSwipeBar: React.FC<CommunitiesSwipeBarProps> = ({
               src={getHiveAvatarUrl(comm.name, 'small')}
               alt=""
               className="w-4 h-4 rounded-md object-cover bg-gray-200 dark:bg-slate-700 flex-shrink-0"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = getHiveAvatarUrl('hive', 'small');
-              }}
+              onError={handleImageFallback}
             />
             <span className="truncate max-w-[130px] sm:max-w-[180px]">
               {comm.title || comm.name}

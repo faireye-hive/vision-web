@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useEffect, useState } from 'react';
 import { Bell, Heart, MessageSquare, Repeat, UserPlus, AtSign, X, ExternalLink } from 'lucide-react';
 import { HiveNotification, getHiveAvatarUrl } from '../services/hiveApi';
@@ -82,9 +83,7 @@ export const GhostNotificationToast: React.FC<GhostNotificationToastProps> = ({
               src={getHiveAvatarUrl(actor, 'small')}
               alt={actor}
               className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-              }}
+              onError={handleImageFallback}
             />
           ) : (
             <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">

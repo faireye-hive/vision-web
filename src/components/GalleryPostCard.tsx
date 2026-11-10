@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import { useSavedLists } from '../context/SavedListsContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
@@ -382,10 +383,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
               alt={post.author}
               loading="lazy"
               className="w-8 h-8 rounded-full bg-gray-100 object-cover ring-1 ring-blue-500/20 hover:opacity-90 transition"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src =
-                  'https://images.ecency.com/u/hive/avatar/small';
-              }}
+              onError={handleImageFallback}
             />
           </button>
 

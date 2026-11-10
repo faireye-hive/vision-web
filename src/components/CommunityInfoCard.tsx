@@ -1,3 +1,4 @@
+import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -140,9 +141,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
             src={avatarUrl}
             alt={community.title}
             className="relative z-10 h-16 w-16 rounded-2xl border-4 border-white bg-white object-cover shadow-md dark:border-slate-900 dark:bg-slate-800"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive-125125/avatar/medium';
-            }}
+            onError={handleImageFallback}
           />
         </div>
 
@@ -305,9 +304,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
                       src={getHiveAvatarUrl(user, 'small')}
                       alt={user}
                       className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.ecency.com/u/hive/avatar/small';
-                      }}
+                      onError={handleImageFallback}
                     />
                     <div className="truncate">
                       <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
