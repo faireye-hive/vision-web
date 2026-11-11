@@ -46,6 +46,7 @@ export interface GalleryPostCardProps {
   onRequireLogin?: () => void;
   onMuteAuthor?: (author: string) => void;
   onBlockWord?: (word: string) => void;
+  compact?: boolean;
 }
 
 export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
@@ -57,7 +58,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
   currentUser,
   onRequireLogin,
   onMuteAuthor,
-  onBlockWord
+  onBlockWord,
+  compact = false
 }) => {
   const rebloggedBy = getRebloggedBy(post);
 
@@ -332,7 +334,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
       data-post-index={postIndex}
       data-author={post.author}
       data-permlink={post.permlink}
-      className={`discover_gallery_post_card discover_post_card bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] sm:hover:shadow-md transition-shadow duration-200 mb-3 sm:mb-6 group flex flex-col relative ${
+      className={`discover_gallery_post_card discover_post_card bg-white dark:bg-slate-900 border border-gray-100/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-[0_1px_6px_rgba(0,0,0,0.03)] sm:hover:shadow-md transition-shadow duration-200 ${compact ? 'mb-0' : 'mb-3 sm:mb-6'} group flex flex-col relative ${
         showMoreMenu ? 'z-50' : 'z-1'
       }`}
     >
@@ -370,7 +372,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
       )}
 
       {/* Header: Author + Community + Timestamp + Bookmark & More */}
-      <div id={`${uid}-header`} className="flex items-center justify-between p-4 pb-3">
+      <div id={`${uid}-header`} className={`flex items-center justify-between ${compact ? 'h-12 min-h-12 px-3 py-2' : 'p-4 pb-3'}`}>
         <div id={`${uid}-header-left`} className="flex items-center gap-2.5 min-w-0">
           <button
             id={`${uid}-avatar-btn`}
@@ -388,12 +390,12 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             />
           </button>
 
-          <div id={`${uid}-meta`} className="min-w-0 flex items-center gap-1.5 flex-wrap text-xs sm:text-xs">
+          <div id={`${uid}-meta`} className={`min-w-0 flex items-center ${compact ? 'gap-1 flex-nowrap overflow-hidden' : 'gap-1.5 flex-wrap'} text-xs sm:text-xs`}>
             <button
               id={`${uid}-author-btn`}
               type="button"
               onClick={() => onSelectAuthor(post.author)}
-              className="font-bold text-[14px] sm:text-xs text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate cursor-pointer transition-colors"
+              className={`font-bold ${compact ? 'text-[11px]' : 'text-[14px] sm:text-xs'} text-gray-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 truncate cursor-pointer transition-colors`}
             >
               @{post.author}
             </button>
@@ -407,7 +409,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                   id={`${uid}-community-btn`}
                   name={post.community || post.category}
                   onSelectTag={onSelectTag}
-                  className="font-semibold text-xs sm:text-xs text-blue-600 dark:text-blue-400 hover:underline truncate cursor-pointer"
+                  className={`font-semibold ${compact ? 'max-w-[76px] text-[10px]' : 'text-xs sm:text-xs'} text-blue-600 dark:text-blue-400 hover:underline truncate cursor-pointer`}
                 >
                   {post.community_title || post.category}
                 </CommunityLink>
@@ -415,7 +417,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
             )}
 
             <span id={`${uid}-time-separator`} className="text-gray-300 dark:text-slate-600">•</span>
-            <span id={`${uid}-time`} className="text-xs sm:text-xs text-gray-400 dark:text-slate-500">
+            <span id={`${uid}-time`} className={`shrink-0 ${compact ? 'text-[10px]' : 'text-xs sm:text-xs'} text-gray-400 dark:text-slate-500`}>
               {formatTime(post.created)}
             </span>
           </div>
@@ -451,7 +453,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
               setShowGallery(true);
             }
           }}
-          className="relative w-full h-[220px] xs:h-[250px] sm:h-[480px] md:h-[520px] bg-slate-950/5 dark:bg-black/60 overflow-hidden cursor-pointer sm:cursor-zoom-in group/img flex items-center justify-center select-none"
+          className={`relative w-full ${compact ? 'h-36 min-h-36' : 'h-[220px] xs:h-[250px] sm:h-[480px] md:h-[520px]'} bg-slate-950/5 dark:bg-black/60 overflow-hidden cursor-pointer sm:cursor-zoom-in group/img flex items-center justify-center select-none`}
           title="Open post"
         >
           {/* Uncropped Image: Resized to fit perfectly within the reserved space */}
@@ -467,7 +469,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           />
 
           {/* Previous Card Image Button (on card itself) */}
-          {postImages.length > 1 && (
+          {!compact && postImages.length > 1 && (
             <button
               id={`${uid}-image-prev-btn`}
               type="button"
@@ -483,7 +485,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           )}
 
           {/* Next Card Image Button (on card itself) */}
-          {postImages.length > 1 && (
+          {!compact && postImages.length > 1 && (
             <button
               id={`${uid}-image-next-btn`}
               type="button"
@@ -499,7 +501,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           )}
 
           {/* Image Counter Badge */}
-          {postImages.length > 1 && (
+          {!compact && postImages.length > 1 && (
             <div
               id={`${uid}-image-counter`}
               className="absolute top-3 right-3 bg-black/65 text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1 shadow-md pointer-events-none z-10"
@@ -512,10 +514,9 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
           {/* Title directly ON the image with text-stroke/outline */}
           <div
             id={`${uid}-image-overlay`}
-            className="
+            className={`
               absolute bottom-0 inset-x-0
-              p-4 sm:p-5
-              pt-20 sm:pt-24
+              ${compact ? 'p-3 pt-12' : 'p-4 sm:p-5 pt-20 sm:pt-24'}
               bg-gradient-to-t
               from-black/95
               via-black/65
@@ -523,7 +524,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
               to-transparent
               z-10
               pointer-events-none
-            "
+            `}
           >
             <h2
               id={`${uid}-title`}
@@ -531,20 +532,19 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
                 e.stopPropagation();
                 onSelectPost(post);
               }}
-              className="
+              className={`
                 font-extrabold
                 text-white
-                text-xl sm:text-2xl
-                leading-[1.08] sm:leading-[1.1]
+                ${compact ? 'text-sm leading-tight' : 'text-xl sm:text-2xl leading-[1.08] sm:leading-[1.1]'}
                 tracking-[-0.025em]
-                line-clamp-3 sm:line-clamp-2
+                ${compact ? 'line-clamp-2' : 'line-clamp-3 sm:line-clamp-2'}
                 cursor-pointer
                 pointer-events-auto
                 break-words
                 transition-all duration-300
                 hover:text-white/95
                 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.18)]
-              "
+              `}
               style={{
                 textShadow: `
                   0 1px 1px rgba(0,0,0,0.95),
@@ -560,15 +560,15 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
 
             <p
               id={`${uid}-snippet`}
-              className="
+              className={`
                 text-white/90
                 text-sm sm:text-xs
                 line-clamp-1
                 mt-1.5
                 font-medium
                 pointer-events-none
-                hidden xs:block
-              "
+                ${compact ? 'hidden' : 'hidden xs:block'}
+              `}
               style={{
                 textShadow: '0 2px 5px rgba(0,0,0,0.9)',
               }}
@@ -581,7 +581,7 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
         <div
           id={`${uid}-no-image`}
           onClick={() => onSelectPost(post)}
-          className="w-full h-44 bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 flex items-center justify-center p-6 text-center cursor-pointer"
+          className={`w-full ${compact ? 'h-36' : 'h-44'} bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 flex items-center justify-center p-6 text-center cursor-pointer`}
         >
           <h2 id={`${uid}-no-image-title`} className="text-lg font-bold text-gray-900 dark:text-white line-clamp-2">
             {post.title}
@@ -591,8 +591,8 @@ export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
 
       <PostCommunityLabels post={post} />
       {/* Action Row: Upvote (no counts/payout), Comment (no count), Share, Read Full Post */}
-      <div id={`${uid}-actions`} className="flex items-center justify-between p-3 sm:p-4">
-        <div id={`${uid}-actions-left`} className="flex items-center gap-2.5">
+      <div id={`${uid}-actions`} className={`mt-auto flex min-h-11 items-center justify-between ${compact ? 'p-2' : 'p-3 sm:p-4'}`}>
+        <div id={`${uid}-actions-left`} className={`flex items-center ${compact ? 'gap-1' : 'gap-2.5'}`}>
           {/* Upvote Button (Simple Heart without count or money) */}
           <button
             id={`${uid}-upvote-btn`}
