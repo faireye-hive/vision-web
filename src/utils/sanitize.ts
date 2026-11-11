@@ -373,6 +373,8 @@ function convertMarkdownTables(text: string, tableStore: string[]): string {
 export interface MarkdownSanitizeOptions {
   threeSpeakThumbnails?: Record<string, string>;
   jsonMetadata?: any;
+  /** Keep consecutive images in the author's original reading flow. */
+  preserveImageFlow?: boolean;
 }
 
 function groupAdjacentImages(root: DocumentFragment): void {
@@ -732,7 +734,7 @@ export function markdownToSafeHtmlWithHeadings(
     }
     found3SpeakPlayer = true;
   });
-  groupAdjacentImages(template.content);
+  if (!options?.preserveImageFlow) groupAdjacentImages(template.content);
   linkifyPostTextNodes(template.content);
   return { html: template.innerHTML, headings };
 }

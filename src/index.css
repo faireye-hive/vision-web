@@ -115,6 +115,72 @@ html.dark [class~="dark:border-slate-700/80"] { border-color: rgb(52 58 61 / 0.8
   background: rgba(64, 70, 72, 1);
 }
 
+.post-sidebar-scroll-list {
+  max-height: clamp(8rem, 42vh, 26rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.post-sidebar-scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.post-sidebar-scroll-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.post-sidebar-scroll-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  transition: background-color 150ms ease;
+}
+
+.post-sidebar-scroll-list:hover,
+.post-sidebar-scroll-list:focus-within {
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.post-sidebar-scroll-list:hover::-webkit-scrollbar-thumb,
+.post-sidebar-scroll-list:focus-within::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  background-clip: padding-box;
+}
+
+.post-sidebar-scroll-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: padding-box;
+}
+
+html.dark .post-sidebar-scroll-list {
+  scrollbar-color: transparent transparent;
+}
+
+html.dark .post-sidebar-scroll-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  background-clip: padding-box;
+}
+
+html.dark .post-sidebar-scroll-list:hover,
+html.dark .post-sidebar-scroll-list:focus-within {
+  scrollbar-color: #475569 transparent;
+}
+
+html.dark .post-sidebar-scroll-list:hover::-webkit-scrollbar-thumb,
+html.dark .post-sidebar-scroll-list:focus-within::-webkit-scrollbar-thumb {
+  background: #475569;
+  background-clip: padding-box;
+}
+
+html.dark .post-sidebar-scroll-list::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  background-clip: padding-box;
+}
+
 /* ================= High-Contrast Article Body & Post Reading Typography ================= */
 .article-body,
 .article-content {
@@ -122,9 +188,175 @@ html.dark [class~="dark:border-slate-700/80"] { border-color: rgb(52 58 61 / 0.8
   line-height: 1.75;
 }
 
+mark.post-user-highlight {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: rgba(254, 240, 138, 0.62);
+  color: inherit;
+}
+
+html.dark mark.post-user-highlight {
+  background-color: rgba(251, 191, 36, 0.3);
+  color: inherit;
+}
+
+/* Hive posts often start with a notice or an image floated beside the text. */
+#sanitized-post-body {
+  padding-top: 1rem;
+}
+
+.article-content {
+  display: flow-root;
+  min-width: 0;
+}
+
+.article-content .pull-right,
+.article-content .pull-left {
+  max-width: min(45%, 24rem);
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.article-content .pull-right {
+  float: right;
+  margin-left: 1.25rem;
+}
+
+.article-content .pull-left {
+  float: left;
+  margin-right: 1.25rem;
+}
+
+.article-content .pull-right img,
+.article-content .pull-left img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+.article-content pre {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 1rem;
+  margin: 1.25rem 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+.article-content pre code {
+  overflow-wrap: anywhere;
+  white-space: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+.article-content .nebulosa-code-block {
+  position: relative;
+  display: flow-root;
+  max-width: 100%;
+  margin: 1.25rem 0;
+}
+
+.article-content .nebulosa-code-block > pre {
+  margin: 0;
+}
+
+.nebulosa-code-copy-button {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.68);
+  color: #475569;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  opacity: 0.72;
+}
+
+.nebulosa-code-copy-button:hover {
+  background: rgb(239 246 255 / 0.94);
+  color: #1d4ed8;
+  opacity: 1;
+}
+
+.nebulosa-code-copy-button:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+html.dark .nebulosa-code-copy-button {
+  background: rgb(30 41 59 / 0.72);
+  color: #cbd5e1;
+}
+
+html.dark .nebulosa-code-copy-button:hover {
+  background: rgb(30 58 95 / 0.96);
+  color: #dbeafe;
+  opacity: 1;
+}
+
+.nebulosa-code-copy-button[data-copied="true"] {
+  color: #059669;
+  opacity: 1;
+}
+
+html.dark .nebulosa-code-copy-button[data-copied="true"] {
+  color: #34d399;
+}
+
+.nebulosa-code-copy-button[data-copy-failed="true"] {
+  color: #e11d48;
+  opacity: 1;
+}
+
+.article-content code:not(pre code) {
+  padding: 0.1em 0.35em;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.35rem;
+  background-color: #f1f5f9;
+  color: #be123c;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .article-content .pull-right,
+  .article-content .pull-left {
+    float: none;
+    max-width: 100%;
+    margin: 0.75rem auto 1rem;
+  }
+}
+
 .article-body p,
 .article-content p {
   margin-bottom: 1.15rem;
+}
+
+.article-body hr,
+.article-content hr,
+#sanitized-post-body hr {
+  box-sizing: border-box;
+  height: 0;
+  margin-block: 1.15rem;
+  border: 0;
+  border-top: 1px solid #cbd5e1;
 }
 
 .article-body h1,
@@ -153,12 +385,27 @@ html.dark [class~="dark:border-slate-700/80"] { border-color: rgb(52 58 61 / 0.8
 .article-content a[href] {
   color: #2563eb;
   font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  letter-spacing: 0.015em;
+  text-decoration: none;
+  border-radius: 0.2rem;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 .article-body a[href]:hover,
 .article-content a[href]:hover {
   color: #1d4ed8;
+  background-color: rgba(37, 99, 235, 0.08);
+}
+
+.article-body a[href] + a[href],
+.article-content a[href] + a[href] {
+  margin-left: 0.25em;
+}
+
+.article-body a:not([href]),
+.article-content a:not([href]) {
+  color: inherit;
+  text-decoration: none;
+  cursor: text;
 }
 
 .article-body a:not([href]),
@@ -177,6 +424,21 @@ html.dark [class~="dark:border-slate-700/80"] { border-color: rgb(52 58 61 / 0.8
   border-radius: 0 0.75rem 0.75rem 0;
   font-style: italic;
   color: #334155;
+}
+
+.article-body pre,
+.article-content pre,
+#sanitized-post-body pre {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.article-body pre code,
+.article-content pre code,
+#sanitized-post-body pre code {
+  color: inherit;
+  background-color: transparent;
 }
 
 .article-body table,
@@ -408,6 +670,7 @@ html.dark .article-body a[href]:hover,
 html.dark .article-content a[href]:hover,
 html.dark #sanitized-post-body a[href]:hover {
   color: #93c5fd !important;
+  background-color: rgba(96, 165, 250, 0.12);
 }
 
 /* Keep long links readable in feeds while allowing only the URL itself to wrap. */
@@ -448,6 +711,12 @@ html.dark #sanitized-post-body blockquote {
   border-left-color: #60a5fa !important;
   background-color: rgba(30, 41, 59, 0.7) !important; /* slate-800/70 */
   color: #f1f5f9 !important;
+}
+
+html.dark .article-body hr,
+html.dark .article-content hr,
+html.dark #sanitized-post-body hr {
+  border-top-color: #475569;
 }
 
 html.dark .article-body table,
