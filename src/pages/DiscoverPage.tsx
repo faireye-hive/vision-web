@@ -11,7 +11,10 @@ import {
   LayoutGrid,
   LayoutList,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Pin,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   HivePost,
@@ -39,6 +42,8 @@ import { appendUniquePosts } from '../utils/posts';
 import { requestLogin } from '../utils/authEvents';
 import { CommunityAdminButton } from '../components/CommunityAdminButton';
 import { CommunityTopicsCard } from '../components/CommunityTopicsCard';
+import { communityPageCopy } from '../i18n/communityPage';
+import { useI18n } from '../i18n/I18nContext';
 
 interface DiscoverPageProps {
   isCommunitiesFeed?: boolean;
@@ -61,12 +66,17 @@ const postDomId = (post: HivePost, index?: number) =>
         post.first_reblogged_by ? `-reblog-${post.first_reblogged_by}` : ''
       }`.replace(/[^a-zA-Z0-9_-]/g, '_');
 
+const isPinnedCommunityPost = (post: HivePost) =>
+  post.is_pinned === true || post.is_pinned === 1 || post.stats?.is_pinned === true || post.stats?.is_pinned === 1;
+
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
   communityPage = false,
   onPostsLoaded,
   onClearSubTopic
 }) => {
+  const { locale } = useI18n();
+  const communityCopy = communityPageCopy(locale);
   const { currentUser, joinedCommunities } = useAuth();
   const {
     sort,
@@ -558,6 +568,18 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     };
   }, [posts, communitySubTopic, filterPostsList, isCommunitiesFeed]);
 
+  const { pinnedPosts, normalPosts } = useMemo(() => {
+    if (!communityPage || !isCommunitiesFeed) {
+      return { pinnedPosts: [] as HivePost[], normalPosts: displayedPosts };
+    }
+    const pinned = displayedPosts.filter(isPinnedCommunityPost);
+    return {
+      pinnedPosts: pinned,
+      normalPosts: pinned.length ? displayedPosts.filter((post) => !isPinnedCommunityPost(post)) : displayedPosts
+    };
+  }, [communityPage, isCommunitiesFeed, displayedPosts]);
+  const pinnedRailRef = useRef<HTMLDivElement>(null);
+
   const useGalleryLayout = isMobile || layoutMode === 'gallery';
 
   return (
@@ -921,10 +943,96 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           ))}
         </div>
       ) : displayedPosts.length > 0 ? (
-        <div
-          id="discover-posts-list"
-          className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}
-        >
+        <>
+          {pinnedPosts.length > 0 && (
+            <section
+              id="community-pinned-posts"
+              aria-labelledby="community-pinned-posts-title"
+              className="mb-5 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/15 sm:p-4"
+            >
+              <div className="mb-3 flex items-center gap-2 px-1">
+                <Pin className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <h2 id="community-pinned-posts-title" className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  {communityCopy.pinnedPosts}
+                </h2>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                  {pinnedPosts.length}
+                </span>
+                {pinnedPosts.length > 1 && (
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Previous pinned posts"
+                      onClick={() => pinnedRailRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
+                      className="rounded-full border border-amber-200 bg-white/80 p-1.5 text-slate-600 transition hover:bg-white dark:border-amber-900/60 dark:bg-[#101214] dark:text-slate-300 dark:hover:bg-[#1a1d20]"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next pinned posts"
+                      onClick={() => pinnedRailRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
+                      className="rounded-full border border-amber-200 bg-white/80 p-1.5 text-slate-600 transition hover:bg-white dark:border-amber-900/60 dark:bg-[#101214] dark:text-slate-300 dark:hover:bg-[#1a1d20]"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div
+                ref={pinnedRailRef}
+                className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                aria-label={communityCopy.pinnedPosts}
+              >
+                {pinnedPosts.map((post, postIndex) => {
+                  const cardIndex = displayedPosts.length + postIndex;
+                  const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
+                  return (
+                    <div
+                      key={postKey(post)}
+                      id={postDomId(post, cardIndex)}
+                      className="discover_post_item_wrapper relative flex w-[min(78vw,300px)] shrink-0 snap-start flex-col self-stretch overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#101214]"
+                    >
+                      <div className="flex items-center gap-1.5 border-b border-amber-200/80 bg-amber-100/80 px-3 py-2 text-[10px] font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                        <Pin className="h-3 w-3" aria-hidden="true" />
+                        {communityCopy.pinned}
+                      </div>
+                      {!isComment ? (
+                        <GalleryPostCard
+                          post={post}
+                          postIndex={cardIndex}
+                          onSelectPost={openPost}
+                          onSelectAuthor={handleSelectAuthor}
+                          onSelectTag={openTag}
+                          currentUser={currentUser}
+                          onRequireLogin={requestLogin}
+                          onMuteAuthor={addFilterAuthor}
+                          onBlockWord={addFilterWord}
+                          compact
+                        />
+                      ) : (
+                        <PostCard
+                          post={post}
+                          postIndex={cardIndex}
+                          onSelectPost={openPost}
+                          onSelectAuthor={handleSelectAuthor}
+                          onSelectTag={openTag}
+                          currentUser={currentUser}
+                          onRequireLogin={requestLogin}
+                          onMuteAuthor={addFilterAuthor}
+                          onBlockWord={addFilterWord}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          <div
+            id="discover-posts-list"
+            className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}
+          >
           {sort === 'recommend' && (
             <div
               id="discover-recommend-header-banner"
@@ -963,7 +1071,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             </div>
           )}
           {useGalleryLayout
-            ? displayedPosts.map((post, postIndex) => {
+            ? normalPosts.map((post, postIndex) => {
                 const isComment = Boolean(post.parent_author) || (typeof post.depth === 'number' && post.depth > 0);
                 return isComment ? (
                   <div
@@ -1003,7 +1111,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                   </div>
                 );
               })
-            : displayedPosts.map((post, postIndex) => (
+            : normalPosts.map((post, postIndex) => (
                 <div
                   key={postKey(post)}
                   id={postDomId(post, postIndex)}
@@ -1050,7 +1158,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               </button>
             </div>
           )}
-        </div>
+          </div>
+        </>
       ) : filteredOutStats.total > 0 ? (
         <div
           id="discover-filtered-empty"
