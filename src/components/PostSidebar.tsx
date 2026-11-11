@@ -1,18 +1,11 @@
-import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect } from 'react';
 import {
   Bookmark,
-  Sparkles,
   MessageSquare,
-  Clock,
-  ArrowUp,
-  FileText,
   ChevronRight,
-  User,
-  Heart,
-  ExternalLink
+  ChevronDown
 } from 'lucide-react';
-import { HivePost, getSimilarPosts, getHiveAvatarUrl, getPostThumbnail, getAccountPosts } from '../services/hiveApi';
+import { HivePost } from '../services/hiveApi';
 import { PostHeading } from '../utils/sanitize';
 
 interface PostSidebarProps {
@@ -20,22 +13,16 @@ interface PostSidebarProps {
   headings: PostHeading[];
   activeHeadingId?: string;
   onSelectHeading: (id: string) => void;
-  onSelectPost: (post: HivePost) => void;
-  onClose: () => void;
 }
 
 export const PostSidebar: React.FC<PostSidebarProps> = ({
   post,
   headings,
   activeHeadingId: externalActiveId,
-  onSelectHeading,
-  onSelectPost,
-  onClose
+  onSelectHeading
 }) => {
   const [internalActiveId, setInternalActiveId] = useState<string>('');
-  const [similarPosts, setSimilarPosts] = useState<HivePost[]>([]);
-  const [loadingSimilar, setLoadingSimilar] = useState(true);
-  const [isAuthorFallback, setIsAuthorFallback] = useState(false);
+  const [isOutlineCollapsed, setIsOutlineCollapsed] = useState(false);
 
   const activeHeadingId = externalActiveId || internalActiveId;
 
@@ -72,62 +59,38 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
   const wordCount = (post.body || '').trim().split(/\s+/).filter(Boolean).length;
   const readingTimeMinutes = Math.max(1, Math.round(wordCount / 200));
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoadingSimilar(true);
-    setIsAuthorFallback(false);
-
-    getSimilarPosts(post.author, post.permlink, controller.signal)
-      .then(async (data) => {
-        if (data && data.length > 0) {
-          setSimilarPosts(data);
-          setIsAuthorFallback(false);
-        } else {
-          // If Similar Stories failed or returned empty: fallback to author's recent posts (sort: 'posts', NOT 'blog'!)
-          const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
-          const filtered = (authorPosts || [])
-            .filter((p) => p.permlink !== post.permlink)
-            .slice(0, 4);
-          setSimilarPosts(filtered);
-          setIsAuthorFallback(true);
-        }
-      })
-      .catch(async () => {
-        // Fallback on error: fetch author's posts (sort: 'posts')
-        const authorPosts = await getAccountPosts('posts', post.author, 6).catch(() => []);
-        const filtered = (authorPosts || [])
-          .filter((p) => p.permlink !== post.permlink)
-          .slice(0, 4);
-        setSimilarPosts(filtered);
-        setIsAuthorFallback(true);
-      })
-      .finally(() => {
-        setLoadingSimilar(false);
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [post.author, post.permlink]);
-
   return (
     <div className="space-y-4 text-left">
       {/* ================= TABLE OF CONTENTS / BOOKMARKER ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800">
-        <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-3 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800">
+        <div className={`flex items-center justify-between ${isOutlineCollapsed ? '' : 'pb-3 mb-3 border-b border-gray-100 dark:border-slate-800'}`}>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <Bookmark className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <h3 className="font-bold text-xs uppercase tracking-wider text-gray-800 dark:text-slate-200">
-              Bookmarks / Outline
+              Outline
             </h3>
           </div>
-          <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
-            {readingTimeMinutes} min read
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
+              {readingTimeMinutes} min read
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOutlineCollapsed((collapsed) => !collapsed)}
+              aria-expanded={!isOutlineCollapsed}
+              aria-controls="post-sidebar-outline-content"
+              aria-label={isOutlineCollapsed ? 'Expand outline' : 'Collapse outline'}
+              title={isOutlineCollapsed ? 'Expand outline' : 'Collapse outline'}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-300"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOutlineCollapsed ? '' : 'rotate-180'}`} />
+            </button>
+          </div>
         </div>
 
+        <div id="post-sidebar-outline-content" hidden={isOutlineCollapsed}>
         {headings.length > 0 ? (
-          <nav className="space-y-1 max-h-[340px] overflow-y-auto pr-1 text-xs">
+          <nav className="post-sidebar-scroll-list space-y-1 pr-1 text-xs">
             {headings.map((h, idx) => {
               const isActive = activeHeadingId === h.id;
               const indentClass =
@@ -192,95 +155,9 @@ export const PostSidebar: React.FC<PostSidebarProps> = ({
             </button>
           </div>
         )}
-      </div>
-
-      {/* ================= SIMILAR STORIES (HIVESENSE AI) ================= */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-[0_1px_6px_rgba(0,0,0,0.03)] dark:shadow-none border border-gray-100/70 dark:border-slate-800 space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            {isAuthorFallback ? (
-              <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            )}
-            <h3 className="font-bold text-xs uppercase tracking-wider text-gray-800 dark:text-slate-200">
-              {isAuthorFallback ? `More by @${post.author}` : 'Similar Stories'}
-            </h3>
-          </div>
-          <span
-            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-              isAuthorFallback
-                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300'
-                : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300'
-            }`}
-          >
-            {isAuthorFallback ? 'Author Posts' : 'HiveSense'}
-          </span>
         </div>
-
-        {loadingSimilar ? (
-          <div className="space-y-3 py-1">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse space-y-1.5">
-                <div className="h-3.5 bg-gray-200 dark:bg-slate-700 rounded w-5/6" />
-                <div className="h-2.5 bg-gray-100 dark:bg-slate-800 rounded w-1/2" />
-              </div>
-            ))}
-          </div>
-        ) : similarPosts.length > 0 ? (
-          <div className="space-y-3">
-            {similarPosts.map((simPost) => {
-              const thumb = getPostThumbnail(simPost);
-              return (
-                <div
-                  key={`${simPost.author}/${simPost.permlink}`}
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: 'instant' });
-                    onSelectPost(simPost);
-                  }}
-                  className="group flex gap-2.5 items-start p-2 rounded-2xl hover:bg-gray-50 dark:hover:bg-slate-800/60 transition cursor-pointer"
-                >
-                  {thumb ? (
-                    <img
-                      src={thumb}
-                      alt={simPost.title}
-                      loading="lazy"
-                      className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-gray-100 dark:bg-slate-800 border border-gray-200/60 dark:border-slate-700"
-                      onError={(event) => handleImageFallback(event, getHiveAvatarUrl(simPost.author, 'small'))}
-                    />
-                  ) : (
-                    <img
-                      src={getHiveAvatarUrl(simPost.author, 'small')}
-                      alt={simPost.author}
-                      loading="lazy"
-                      className="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-gray-100 dark:bg-slate-800"
-                    />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-semibold text-xs text-gray-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-2 leading-snug">
-                      {simPost.title}
-                    </h4>
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-400 dark:text-slate-500">
-                      <span className="truncate">@{simPost.author}</span>
-                      {simPost.category && (
-                        <>
-                          <span>•</span>
-                          <span className="truncate text-blue-500 dark:text-blue-400 font-medium">#{simPost.category}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400 dark:text-slate-500 italic py-1">
-            No related stories found for this article.
-          </p>
-        )}
       </div>
+
     </div>
   );
 };
