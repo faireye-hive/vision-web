@@ -31,6 +31,7 @@ import { useShortsWordFilter } from './hooks/useShortsWordFilter';
 import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
 import { I18nProvider } from './i18n/I18nContext';
 import { COMMUNITY_NAME } from './utils/communityRoutes';
+import type { PostTextHighlight } from './components/PostReader';
 
 const SnapsPage = lazy(() => import('./pages/SnapsPage').then(m => ({ default: m.SnapsPage })));
 const CommunityPage = lazy(() => import('./pages/CommunityPage').then(m => ({ default: m.CommunityPage })));
@@ -60,6 +61,7 @@ function NebulosaApp() {
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
   const [profileReaderAppearance, setProfileReaderAppearance] = useState<ProfileReaderAppearance | null>(null);
+  const [activePostHighlights, setActivePostHighlights] = useState<{ postKey: string; items: PostTextHighlight[] }>({ postKey: '', items: [] });
 
   const handleDiscoverPostsLoaded = useCallback((loaded: HivePost[]) => {
     setDiscoverPosts(loaded);
@@ -107,12 +109,34 @@ function NebulosaApp() {
     setSelectedLanguage
   } = useNavigation();
 
+  const currentPostKey = selectedPost ? `${selectedPost.author}/${selectedPost.permlink}` : '';
+  const visiblePostHighlights = activePostHighlights.postKey === currentPostKey ? activePostHighlights.items : [];
+  const handleHighlightsChange = useCallback((postKey: string, items: PostTextHighlight[]) => {
+    setActivePostHighlights({ postKey, items });
+  }, []);
+  const handleSelectHighlightedText = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+  const handleRemoveHighlightedText = useCallback((id: string) => {
+    window.dispatchEvent(new CustomEvent('nebulosa:remove-post-highlight', {
+      detail: { postKey: currentPostKey, id }
+    }));
+  }, [currentPostKey]);
+  const handleClearHighlightedTexts = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('nebulosa:clear-post-highlights', {
+      detail: { postKey: currentPostKey }
+    }));
+  }, [currentPostKey]);
+
   const isEmbeddedCommunitiesPage = activeNav === 'communities' &&
     (standalonePage === 'explore' || standalonePage === 'manage');
   const isCommunityPage = location.pathname.startsWith('/c/');
   const isCommunityPostOpen = activeNav === 'communities' && Boolean(selectedPost) && !standalonePage;
   const isProfilePostOpen = Boolean(profileReaderAppearance && selectedPost && standalonePage === 'profile');
   const isHivePostOpenInShorts = activeNav === 'shorts' && location.pathname.startsWith('/post/') && Boolean(selectedPost) && !standalonePage;
+  const isPostReading = Boolean(selectedPost && !standalonePage &&
+    (activeNav !== 'shorts' || isHivePostOpenInShorts || isProfilePostOpen) &&
+    (activeNav !== 'communities' || isCommunityPostOpen || isProfilePostOpen));
 
   useEffect(() => {
     if (!selectedPost) setProfileReaderAppearance(null);
@@ -312,6 +336,7 @@ function NebulosaApp() {
                   currentUser={currentUser}
                   onRequireLogin={requestLogin}
                   onHeadingsExtracted={setPostHeadings}
+                  onHighlightsChange={handleHighlightsChange}
                   onSelectPost={(post) => handleSelectPost(post, true, false, 'profile')}
                 />
               </Suspense>
@@ -336,8 +361,6 @@ function NebulosaApp() {
                 post={selectedPost}
                 headings={postHeadings}
                 onSelectHeading={handleSelectHeading}
-                onSelectPost={handleSelectPost}
-                onClose={handleClosePost}
               />
             ) : <LeftSidebar
               activeNav={activeNav}
@@ -390,6 +413,7 @@ function NebulosaApp() {
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}
                     onHeadingsExtracted={setPostHeadings}
+                    onHighlightsChange={handleHighlightsChange}
                     onSelectPost={(p) => handleSelectPost(p, true, false)}
                   />
                 </Suspense>
@@ -451,6 +475,7 @@ function NebulosaApp() {
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}
                     onHeadingsExtracted={setPostHeadings}
+                    onHighlightsChange={handleHighlightsChange}
                     onSelectPost={(post) => handleSelectPost(post, true, false)}
                   />
                 </Suspense>
@@ -485,6 +510,11 @@ function NebulosaApp() {
             <RightRail
               discoverPosts={discoverPosts}
               communityPosts={communityPosts}
+              highlightedTexts={visiblePostHighlights}
+              onSelectHighlightedText={handleSelectHighlightedText}
+              onRemoveHighlightedText={handleRemoveHighlightedText}
+              onClearHighlightedTexts={handleClearHighlightedTexts}
+              isPostReading={isPostReading}
               blockedWords={shortsFilter.blockedWords}
               shortsFilterEnabled={shortsFilter.filterEnabled}
               shortsHiddenCount={shortsFilter.hiddenCount}
