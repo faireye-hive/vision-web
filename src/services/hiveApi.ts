@@ -28,6 +28,8 @@ export interface HivePost {
   root_title?: string;
   depth: number;
   children: number;
+  /** Community post pin status returned by Hive Bridge. */
+  is_pinned?: boolean | 0 | 1;
   net_rshares: number;
   is_paidout: boolean;
   payout: number;
@@ -42,6 +44,7 @@ export interface HivePost {
     gray?: boolean;
     total_votes?: number;
     flag_weight?: number;
+    is_pinned?: boolean | 0 | 1;
   };
   community?: string;
   community_title?: string;
