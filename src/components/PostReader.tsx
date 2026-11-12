@@ -34,10 +34,12 @@ import {
   Plus,
   Languages,
   Highlighter,
+  Copy,
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
-  Smile
+  Smile,
+  Unlock
 } from 'lucide-react';
 import {
   HivePost,
@@ -324,12 +326,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
     x: number;
     y: number;
     text: string;
+    scope: 'post' | 'comment';
   }>({
     visible: false,
     x: 0,
     y: 0,
-    text: ''
+    text: '',
+    scope: 'post'
   });
+  const [selectionToolResult, setSelectionToolResult] = useState('');
+  const [selectionToolError, setSelectionToolError] = useState('');
+  const [selectionToolBusy, setSelectionToolBusy] = useState(false);
 
   // Post Image Lightbox Gallery
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
@@ -602,6 +609,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Floating text selection listener (Desktop only, avoids conflicts on mobile)
   useEffect(() => {
     const handleSelection = () => {
+      // Keep the floating panel open while its account field or result controls have focus.
+      if (document.activeElement instanceof Element && document.activeElement.closest('[data-selection-toolbar]')) return;
+
       // Disallow on touch/mobile devices to preserve native context menu
       if (window.innerWidth < 768 || window.matchMedia('(pointer: coarse)').matches) {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
@@ -621,7 +631,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
       }
 
       const anchor = sel.anchorNode;
-      if (!anchor || !bodyContainerRef.current?.contains(anchor)) {
+      const focus = sel.focusNode;
+      const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
+      const postScope = Boolean(anchor && bodyContainerRef.current?.contains(anchor) && focus && bodyContainerRef.current?.contains(focus));
+      const commentBody = anchorElement?.closest('.comment-body');
+      const commentRoot = document.getElementById('comments-section');
+      const commentScope = Boolean(anchor && focus && commentBody && commentRoot?.contains(commentBody) && commentBody.contains(focus));
+      if (!anchor || (!postScope && !commentScope)) {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
         return;
       }
@@ -633,10 +649,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         setSelectionBubble({
           visible: true,
-          x: Math.max(16, Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 120)),
+          x: Math.max(12, Math.min(window.innerWidth - 372, rect.left + rect.width / 2 - 186)),
           y: Math.max(72, rect.top - 46),
-          text
+          text,
+          scope: postScope ? 'post' : 'comment'
         });
+        setSelectionToolResult('');
+        setSelectionToolError('');
       } catch {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
       }
@@ -646,6 +665,57 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => {
       document.removeEventListener('selectionchange', handleSelection);
     };
+  }, []);
+
+  // A single click on a Hive memo selects that token so the existing floating
+  // toolbar can offer Decode without making readers drag across long ciphertext.
+  useEffect(() => {
+    const handleMemoClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || event.target.closest('a, button, input, textarea, select')) return;
+      const scopeRoot = event.target.closest('#sanitized-post-body, #comments-section .comment-body');
+      if (!scopeRoot) return;
+
+      const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+      const pointRange = doc.caretRangeFromPoint?.(event.clientX, event.clientY) || null;
+      let clickedTextNode = pointRange?.startContainer.nodeType === Node.TEXT_NODE ? pointRange.startContainer as Text : null;
+      let clickOffset = pointRange?.startOffset ?? 0;
+
+      if (!clickedTextNode || !scopeRoot.contains(clickedTextNode)) {
+        const fallbackRoot = event.target.closest('p, pre, code');
+        if (!fallbackRoot || !scopeRoot.contains(fallbackRoot)) return;
+        const fallbackText = fallbackRoot.textContent?.trim() || '';
+        if (!/^#[1-9A-HJ-NP-Za-km-z]{50,}$/.test(fallbackText)) return;
+        const walker = document.createTreeWalker(fallbackRoot, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          if (node.nodeValue?.includes(fallbackText)) {
+            clickedTextNode = node;
+            clickOffset = node.nodeValue.indexOf(fallbackText);
+            break;
+          }
+        }
+      }
+      if (!clickedTextNode?.nodeValue) return;
+
+      const sourceText = clickedTextNode.nodeValue;
+      const memoPattern = /#[1-9A-HJ-NP-Za-km-z]{50,}/g;
+      let match: RegExpExecArray | null;
+      while ((match = memoPattern.exec(sourceText))) {
+        const start = match.index;
+        const end = start + match[0].length;
+        if (clickOffset < start || clickOffset > end) continue;
+        const range = document.createRange();
+        range.setStart(clickedTextNode, start);
+        range.setEnd(clickedTextNode, end);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+    };
+
+    document.addEventListener('click', handleMemoClick);
+    return () => document.removeEventListener('click', handleMemoClick);
   }, []);
 
   const handleQuoteSelection = () => {
@@ -664,7 +734,40 @@ export const PostReader: React.FC<PostReaderProps> = ({
     setSelectionBubble((prev) => ({ ...prev, visible: false }));
   };
 
+  const handleDecodeSelection = async () => {
+    const memo = selectionBubble.text.match(/#[1-9A-HJ-NP-Za-km-z]{50,}/)?.[0];
+    if (!memo) return;
+    if (!currentUser || currentUser.isDemo) {
+      onRequireLogin();
+      setSelectionToolError('Connect the Hive account that can decrypt this memo.');
+      return;
+    }
+    setSelectionToolBusy(true);
+    setSelectionToolResult('');
+    setSelectionToolError('');
+    try {
+      const response = await KeychainService.decodeMemoMessage(currentUser.username, memo);
+      if (!response.success || typeof response.result !== 'string') {
+        throw new Error(response.message || response.error || 'This account cannot decrypt the selected memo.');
+      }
+      setSelectionToolResult(response.result.replace(/^#/, ''));
+    } catch (error) {
+      setSelectionToolError(error instanceof Error ? error.message : 'This account cannot decrypt the selected memo.');
+    } finally {
+      setSelectionToolBusy(false);
+    }
+  };
+
+  const copySelectionToolResult = async () => {
+    try {
+      await copyTextToClipboard(selectionToolResult);
+    } catch {
+      setSelectionToolError('Could not copy the result to the clipboard.');
+    }
+  };
+
   const handleHighlightSelection = () => {
+    if (selectionBubble.scope !== 'post') return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) return;
 
@@ -2487,14 +2590,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
       {/* Floating Selection Action Toolbar (Desktop only) */}
       {selectionBubble.visible && (
         <div
-          className="fixed z-50 flex items-center gap-1 bg-gray-900/95 dark:bg-slate-800/95 text-white backdrop-blur-md px-2 py-1.5 rounded-2xl shadow-xl border border-white/10 animate-in fade-in zoom-in-95 duration-150"
+          data-selection-toolbar
+          className={`fixed z-50 flex max-h-[min(70vh,520px)] flex-wrap items-center gap-1 overflow-x-hidden overflow-y-auto rounded-2xl border border-white/10 bg-gray-900/95 px-2 py-1.5 text-white shadow-xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 dark:bg-slate-800/95 ${selectionToolResult || selectionToolError ? 'w-[min(360px,calc(100vw-24px))]' : 'w-fit max-w-[calc(100vw-24px)]'}`}
           style={{
             left: `${selectionBubble.x}px`,
             top: `${selectionBubble.y}px`
           }}
-          onMouseDown={(e) => e.preventDefault()}
         >
           <button
+            onMouseDown={(event) => event.preventDefault()}
             onClick={handleQuoteSelection}
             className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
             title="Quote in discussion"
@@ -2506,6 +2610,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <div className="w-px h-4 bg-white/20" />
 
           <button
+            onMouseDown={(event) => event.preventDefault()}
             onClick={handleTranslateSelection}
             className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
             title="Translate with Google Translate"
@@ -2514,16 +2619,43 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span>Translate</span>
           </button>
 
-          <div className="w-px h-4 bg-white/20" />
+          {selectionBubble.scope === 'post' && (
+            <>
+              <div className="mx-1 h-4 w-px bg-white/20" />
+              <button
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={handleHighlightSelection}
+                className="flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/15 hover:text-white cursor-pointer"
+                title="Highlight text"
+              >
+                <Highlighter className="h-3.5 w-3.5 text-amber-400" />
+                <span>Marcar</span>
+              </button>
+            </>
+          )}
 
-          <button
-            onClick={handleHighlightSelection}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
-            title="Highlight text"
-          >
-            <Highlighter className="w-3.5 h-3.5 text-amber-400" />
-            <span>Marcar</span>
-          </button>
+          {selectionBubble.text.match(/#[1-9A-HJ-NP-Za-km-z]{50,}/)?.[0] && (
+            <button
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handleDecodeSelection}
+              disabled={selectionToolBusy}
+              className="flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/15 hover:text-white disabled:opacity-60 cursor-pointer"
+              title="Decode selected Hive memo with Keychain"
+            >
+              {selectionToolBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5 text-emerald-400" />}
+              <span>Decode</span>
+            </button>
+          )}
+
+          {selectionToolError && <p role="alert" className="w-full border-t border-white/15 pt-2 text-[11px] text-rose-300">{selectionToolError}</p>}
+          {selectionToolResult && (
+            <div className="w-full space-y-2 border-t border-white/15 pt-2">
+              <textarea readOnly value={selectionToolResult} aria-label="Decoded memo text" className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-white/15 bg-black/20 p-2 text-xs text-white" />
+              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={copySelectionToolResult} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/15">
+                <Copy className="h-3.5 w-3.5" /> Copy result
+              </button>
+            </div>
+          )}
         </div>
       )}
 
