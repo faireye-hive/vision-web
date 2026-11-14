@@ -39,7 +39,8 @@ import {
   ChevronRight,
   Image as ImageIcon,
   Smile,
-  Unlock
+  Unlock,
+  LockKeyhole
 } from 'lucide-react';
 import {
   HivePost,
@@ -52,6 +53,8 @@ import {
   getPostThumbnail
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
+import { ReplySelectionTextarea } from './ReplySelectionTextarea';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
 import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
 import {
@@ -267,10 +270,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [voteLoading, setVoteLoading] = useState(false);
 
   const [newCommentBody, setNewCommentBody] = useState('');
+  const [encryptComment, setEncryptComment] = useState(false);
+  const [encryptCommentRecipient, setEncryptCommentRecipient] = useState(currentUser?.username || '');
   const [commentComposerFocused, setCommentComposerFocused] = useState(false);
   const [showCommentEmojiPicker, setShowCommentEmojiPicker] = useState(false);
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const isCommentComposerExpanded = commentComposerFocused || Boolean(newCommentBody.trim());
+  const isCommentComposerExpanded = commentComposerFocused || encryptComment || Boolean(newCommentBody.trim());
   const [quoteReplyOpen, setQuoteReplyOpen] = useState(false);
   const [quotedSelection, setQuotedSelection] = useState('');
   const [quoteReplyText, setQuoteReplyText] = useState('');
@@ -294,12 +299,19 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
   useEffect(() => {
     setNewCommentBody('');
+    setEncryptComment(false);
     setCommentComposerFocused(false);
     setShowCommentEmojiPicker(false);
     setQuoteDraftCount(0);
     setQuoteReplyOpen(false);
     setQuoteDraftReviewOpen(false);
   }, [post.author, post.permlink]);
+
+  useEffect(() => {
+    if (!encryptCommentRecipient && currentUser?.username) {
+      setEncryptCommentRecipient(currentUser.username);
+    }
+  }, [currentUser?.username, encryptCommentRecipient]);
 
   useEffect(() => {
     setCommentSort('newest');
@@ -738,7 +750,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
     const memo = selectionBubble.text.match(/#[1-9A-HJ-NP-Za-km-z]{50,}/)?.[0];
     if (!memo) return;
     if (!currentUser || currentUser.isDemo) {
-      onRequireLogin();
+      onRequireLogin?.();
       setSelectionToolError('Connect the Hive account that can decrypt this memo.');
       return;
     }
@@ -1401,19 +1413,38 @@ export const PostReader: React.FC<PostReaderProps> = ({
   };
 
   const publishCommentText = async (body: string): Promise<boolean> => {
-    if (!body.trim()) return false;
+    if (!body.trim() || commentLoading) return false;
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
+      return false;
+    }
+    if (currentUser.isDemo) {
+      alert('Demo mode is read-only. Connect with Hive Keychain to publish.');
       return false;
     }
 
     setCommentLoading(true);
     try {
+      let publishedBody = body.trim();
+      if (encryptComment) {
+        const recipient = encryptCommentRecipient.trim().replace(/^@/, '').toLowerCase();
+        if (!/^[a-z][a-z0-9.-]{2,15}$/.test(recipient)) {
+          alert('Enter a valid Hive account name to encrypt this comment.');
+          return false;
+        }
+        const encrypted = await KeychainService.encodeMemoMessage(currentUser.username, recipient, publishedBody);
+        if (!encrypted.success || typeof encrypted.result !== 'string' || !encrypted.result.startsWith('#')) {
+          alert(encrypted.message || encrypted.error || 'Hive Keychain could not encrypt this comment. Nothing was published.');
+          return false;
+        }
+        publishedBody = encrypted.result;
+      }
+
       const res = await KeychainService.postComment(
         currentUser.username,
         post.author,
         post.permlink,
-        body.trim()
+        publishedBody
       );
 
       if (res.success) {
@@ -2076,6 +2107,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
           {/* New Comment Box */}
           <form
             onSubmit={handleAddComment}
+            onFocus={() => setCommentComposerFocused(true)}
+            onBlur={(event) => {
+              if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
+              setCommentComposerFocused(false);
+              setShowCommentEmojiPicker(false);
+            }}
             className={`rounded-xl border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 ${isCommentComposerExpanded ? 'space-y-2 p-3' : 'p-1.5'}`}
           >
             {isCommentComposerExpanded && <div className="flex min-w-0 items-center gap-2">
@@ -2104,24 +2141,34 @@ export const PostReader: React.FC<PostReaderProps> = ({
               )}
             </div>}
 
-            <textarea
-              ref={commentTextareaRef}
+            <ReplySelectionTextarea
+              key={`${post.author}/${post.permlink}`}
+              textareaRef={commentTextareaRef}
               rows={isCommentComposerExpanded ? Math.min(10, Math.max(4, newCommentBody.split('\n').length)) : 1}
               value={newCommentBody}
-              onChange={(e) => setNewCommentBody(e.target.value)}
-              onFocus={() => setCommentComposerFocused(true)}
-              onBlur={() => {
-                if (!newCommentBody.trim()) {
-                  setCommentComposerFocused(false);
-                  setShowCommentEmojiPicker(false);
-                }
-              }}
+              onValueChange={setNewCommentBody}
+              memoSender={currentUser?.isDemo ? undefined : currentUser?.username}
+              defaultRecipient={currentUser?.username}
               placeholder={currentUser ? 'Write a reply...' : 'Connect Hive Keychain to reply...'}
               className={`w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950 ${isCommentComposerExpanded ? 'min-h-16 resize-y px-3 py-2' : 'h-9 min-h-0 resize-none px-2.5 py-1.5'}`}
             />
 
-            {isCommentComposerExpanded && <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Markdown supported</span>
+            {isCommentComposerExpanded && <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Markdown supported</span>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={encryptComment}
+                      onChange={(event) => setEncryptComment(event.target.checked)}
+                      disabled={commentLoading}
+                      className="accent-amber-600"
+                    />
+                    <LockKeyhole className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    Encode comment (memo)
+                  </label>
+                </div>
               <div className="relative flex items-center gap-2">
                 {showCommentEmojiPicker && (
                   <div
@@ -2163,6 +2210,25 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
                 </button>
               </div>
+              </div>
+              {encryptComment && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2 dark:border-amber-900/70 dark:bg-amber-950/20">
+                  <label htmlFor="comment-encrypt-recipient" className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    Recipient Hive account
+                    <input
+                      id="comment-encrypt-recipient"
+                      value={encryptCommentRecipient}
+                      onChange={(event) => setEncryptCommentRecipient(event.target.value)}
+                      placeholder="e.g. alice"
+                      autoComplete="off"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-normal text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </label>
+                  <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Only the recipient and accounts with the matching memo key can read the comment. The encrypted memo is published on Hive.
+                  </p>
+                </div>
+              )}
             </div>}
           </form>
           {commentSuccess && (
@@ -2846,28 +2912,50 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   // Comment translation state (free, markdown-preserved)
   const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
   const [isTranslatingComment, setIsTranslatingComment] = useState(false);
+  const [commentTargetLanguage, setCommentTargetLanguage] = useState<string>(locale);
+  const [commentTranslationMessage, setCommentTranslationMessage] = useState<string | null>(null);
   const [isCommentBodyExpanded, setIsCommentBodyExpanded] = useState(false);
 
   useEffect(() => {
     commentTranslationVersion.current++;
     setTranslatedCommentBody(null);
     setIsTranslatingComment(false);
+    setCommentTargetLanguage(locale);
+    setCommentTranslationMessage(null);
     return () => { commentTranslationVersion.current++; };
   }, [locale, comment.author, comment.permlink, comment.body]);
+
+  useEffect(() => {
+    commentTranslationVersion.current++;
+    setTranslatedCommentBody(null);
+    setCommentTranslationMessage(null);
+  }, [commentTargetLanguage]);
 
   const handleToggleTranslateComment = async () => {
     if (translatedCommentBody) {
       setTranslatedCommentBody(null);
+      setCommentTranslationMessage(null);
       return;
     }
     if (!comment.body || isTranslatingComment) return;
     const version = commentTranslationVersion.current;
     setIsTranslatingComment(true);
+    setCommentTranslationMessage(null);
     try {
-      const translated = await translateMarkdown(comment.body, locale);
-      if (version === commentTranslationVersion.current) setTranslatedCommentBody(translated);
+      const translated = await translateMarkdown(comment.body, commentTargetLanguage);
+      if (version === commentTranslationVersion.current) {
+        if (translated.trim() === comment.body.trim()) {
+          const languageName = POPULAR_TRANSLATION_LANGUAGES.find((language) => language.code === commentTargetLanguage)?.name || commentTargetLanguage;
+          setCommentTranslationMessage(`No visible change. This comment may already be in ${languageName}.`);
+        } else {
+          setTranslatedCommentBody(translated);
+        }
+      }
     } catch (err) {
       console.error('Failed to translate comment:', err);
+      if (version === commentTranslationVersion.current) {
+        setCommentTranslationMessage('Translation failed. Check your connection and try again.');
+      }
     } finally {
       if (version === commentTranslationVersion.current) setIsTranslatingComment(false);
     }
@@ -3122,7 +3210,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
               ? 'text-blue-600 dark:text-blue-400 font-bold'
               : 'text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
           }`}
-          title={translatedCommentBody ? 'Show original comment text' : 'Translate comment (Free, preserves markdown)'}
+          title={translatedCommentBody ? 'Show original comment text' : `Translate comment to ${POPULAR_TRANSLATION_LANGUAGES.find((language) => language.code === commentTargetLanguage)?.name || commentTargetLanguage} (Free, preserves markdown)`}
         >
           {isTranslatingComment ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
@@ -3131,6 +3219,17 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           )}
           <span>{translatedCommentBody ? 'Original' : 'Translate'}</span>
         </button>
+        <select
+          aria-label="Translate comment to"
+          value={commentTargetLanguage}
+          onChange={(event) => setCommentTargetLanguage(event.target.value)}
+          disabled={isTranslatingComment}
+          className="max-w-[112px] rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-600 outline-none hover:border-blue-300 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+        >
+          {POPULAR_TRANSLATION_LANGUAGES.map((language) => (
+            <option key={language.code} value={language.code}>{language.flag} {language.name}</option>
+          ))}
+        </select>
 
         {/* Child replies action */}
         {childReplies.length > 0 && (
@@ -3163,6 +3262,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           </>
         )}
       </div>
+
+      {commentTranslationMessage && (
+        <p role="status" className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+          {commentTranslationMessage}
+        </p>
+      )}
 
       {/* Mobile only: for subcomments (depth >= 1) with replies, full-width banner to open comment page */}
       {depth >= 1 && childReplies.length > 0 && (
@@ -3199,10 +3304,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
               Cancel
             </button>
           </div>
-          <textarea
+          <ReplySelectionTextarea
             rows={2}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onValueChange={setReplyText}
+            memoSender={currentUser?.isDemo ? undefined : currentUser?.username}
+            defaultRecipient={currentUser?.username}
             placeholder={`Write your reply to @${comment.author}...`}
             className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl text-xs text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-2xs"
           />

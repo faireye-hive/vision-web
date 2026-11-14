@@ -464,6 +464,128 @@ html.dark .nebulosa-code-copy-button[data-copied="true"] {
   margin: 0;
 }
 
+.article-body .nebulosa-markdown-table-fit,
+.article-content .nebulosa-markdown-table-fit {
+  overflow-x: hidden;
+}
+
+.article-body .nebulosa-markdown-table-fit table,
+.article-content .nebulosa-markdown-table-fit table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.article-body .nebulosa-markdown-table-fit th,
+.article-content .nebulosa-markdown-table-fit th,
+.article-body .nebulosa-markdown-table-fit td,
+.article-content .nebulosa-markdown-table-fit td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.article-body .nebulosa-markdown-table-3col th:first-child,
+.article-body .nebulosa-markdown-table-3col td:first-child,
+.article-content .nebulosa-markdown-table-3col th:first-child,
+.article-content .nebulosa-markdown-table-3col td:first-child { width: 80%; }
+.article-body .nebulosa-markdown-table-3col th:nth-child(2),
+.article-body .nebulosa-markdown-table-3col td:nth-child(2),
+.article-content .nebulosa-markdown-table-3col th:nth-child(2),
+.article-content .nebulosa-markdown-table-3col td:nth-child(2),
+.article-body .nebulosa-markdown-table-3col th:nth-child(3),
+.article-body .nebulosa-markdown-table-3col td:nth-child(3),
+.article-content .nebulosa-markdown-table-3col th:nth-child(3),
+.article-content .nebulosa-markdown-table-3col td:nth-child(3) { width: 10%; }
+
+.article-body .nebulosa-markdown-table-3col th,
+.article-content .nebulosa-markdown-table-3col th,
+.article-body .nebulosa-markdown-table-3col td:nth-child(2),
+.article-body .nebulosa-markdown-table-3col td:nth-child(3),
+.article-content .nebulosa-markdown-table-3col td:nth-child(2),
+.article-content .nebulosa-markdown-table-3col td:nth-child(3) {
+  padding: 0.4rem 0.45rem;
+  white-space: nowrap;
+}
+
+/* Wide Markdown tables should fit the reading column instead of requiring
+   sideways scrolling. Give text-heavy cells room while keeping number columns
+   compact, and let long identifiers wrap inside their cells. */
+.article-body .nebulosa-markdown-table-compact,
+.article-content .nebulosa-markdown-table-compact {
+  overflow-x: hidden;
+}
+
+.article-body .nebulosa-markdown-table-compact table,
+.article-content .nebulosa-markdown-table-compact table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.article-body .nebulosa-markdown-table-compact th,
+.article-content .nebulosa-markdown-table-compact th,
+.article-body .nebulosa-markdown-table-compact td,
+.article-content .nebulosa-markdown-table-compact td {
+  padding: 0.38rem 0.42rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.article-body .nebulosa-markdown-table-compact code,
+.article-content .nebulosa-markdown-table-compact code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.article-body .nebulosa-markdown-table-compact th,
+.article-content .nebulosa-markdown-table-compact th {
+  padding: 0.3rem 0.25rem;
+  font-size: 0.68rem;
+  overflow-wrap: normal;
+}
+
+.article-body .nebulosa-markdown-table-7col th:nth-child(1),
+.article-body .nebulosa-markdown-table-7col td:nth-child(1),
+.article-content .nebulosa-markdown-table-7col th:nth-child(1),
+.article-content .nebulosa-markdown-table-7col td:nth-child(1) { width: 15%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(2),
+.article-body .nebulosa-markdown-table-7col td:nth-child(2),
+.article-content .nebulosa-markdown-table-7col th:nth-child(2),
+.article-content .nebulosa-markdown-table-7col td:nth-child(2) { width: 10%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(3),
+.article-body .nebulosa-markdown-table-7col td:nth-child(3),
+.article-content .nebulosa-markdown-table-7col th:nth-child(3),
+.article-content .nebulosa-markdown-table-7col td:nth-child(3) { width: 10%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(4),
+.article-body .nebulosa-markdown-table-7col td:nth-child(4),
+.article-content .nebulosa-markdown-table-7col th:nth-child(4),
+.article-content .nebulosa-markdown-table-7col td:nth-child(4) { width: 11%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(5),
+.article-body .nebulosa-markdown-table-7col td:nth-child(5),
+.article-content .nebulosa-markdown-table-7col th:nth-child(5),
+.article-content .nebulosa-markdown-table-7col td:nth-child(5) { width: 10%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(6),
+.article-body .nebulosa-markdown-table-7col td:nth-child(6),
+.article-content .nebulosa-markdown-table-7col th:nth-child(6),
+.article-content .nebulosa-markdown-table-7col td:nth-child(6) { width: 18%; }
+.article-body .nebulosa-markdown-table-7col th:nth-child(7),
+.article-body .nebulosa-markdown-table-7col td:nth-child(7),
+.article-content .nebulosa-markdown-table-7col th:nth-child(7),
+.article-content .nebulosa-markdown-table-7col td:nth-child(7) { width: 26%; }
+
+@media (max-width: 640px) {
+  .article-body .nebulosa-markdown-table-compact th,
+  .article-content .nebulosa-markdown-table-compact th,
+  .article-body .nebulosa-markdown-table-compact td,
+  .article-content .nebulosa-markdown-table-compact td {
+    padding: 0.28rem 0.3rem;
+    font-size: 0.68rem;
+  }
+}
+
 .article-body .nebulosa-image-gallery,
 .article-content .nebulosa-image-gallery {
   width: 100%;

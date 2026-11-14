@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { CATEGORY_DEFINITIONS } from '../data/categorySubtopics';
 import { CurrentUser, KeychainService } from '../services/keychain';
+import { encodeDraftMemo } from '../services/draftMemo';
 import { getSubscriptions, getTrendingTags, HiveCommunity, hiveRpcCall, listCommunities } from '../services/hiveApi';
 import { invalidateAccountContentCache } from '../services/profileCache';
 import { listKnownLanguages } from '../utils/communityTaxonomy';
@@ -444,27 +445,15 @@ export const WritePage: React.FC<WritePageProps> = ({
   };
 
   const runSelectionEncode = async () => {
-    if (!selectedText?.text.trim() || !currentUser) return;
-    const recipient = selectionRecipient.trim().replace(/^@/, '').toLowerCase();
-    if (!/^[a-z][a-z0-9.-]{2,15}$/.test(recipient)) {
-      setSelectionError('Enter a valid Hive account name.');
-      return;
-    }
-    if (!KeychainService.isInstalled()) {
-      setSelectionError('Install Hive Keychain to encode text.');
-      return;
-    }
+    if (!selectedText?.text.trim() || selectionBusy) return;
     setSelectionBusy(true);
     setSelectionError('');
     setSelectionResult('');
     try {
-      const response = await KeychainService.encodeMemoMessage(currentUser.username, recipient, selectedText.text);
-      if (!response.success || typeof response.result !== 'string' || !response.result.startsWith('#')) {
-        throw new Error(response.message || response.error || 'Hive Keychain could not encode this text.');
-      }
-      setSelectionResult(response.result);
+      const sender = currentUser?.isDemo ? undefined : currentUser?.username;
+      setSelectionResult(await encodeDraftMemo(selectedText.text, selectionRecipient, sender));
     } catch (error) {
-      setSelectionError(error instanceof Error ? error.message : 'Hive Keychain could not encode this text.');
+      setSelectionError(error instanceof Error ? error.message : 'Could not encode this text.');
     } finally {
       setSelectionBusy(false);
     }
@@ -971,10 +960,10 @@ export const WritePage: React.FC<WritePageProps> = ({
                     Recipient Hive account
                     <input id="write-encode-recipient" value={selectionRecipient} onChange={event => setSelectionRecipient(event.target.value)} placeholder="e.g. alice" autoComplete="off" className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
                   </label>
-                  <button type="button" onClick={runSelectionEncode} disabled={selectionBusy || !currentUser || currentUser.isDemo} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
+                  <button type="button" onClick={runSelectionEncode} disabled={selectionBusy || !selectedText.text.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
                     {selectionBusy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{selectionBusy ? 'Encoding…' : 'Encode selection'}
                   </button>
-                  <p className="w-full text-[10px] text-slate-500 dark:text-slate-400">Keychain needs the recipient’s Hive account name to find their public memo key. They need the matching private memo key to decode it.</p>
+                  <p className="w-full text-[10px] text-slate-500 dark:text-slate-400">The recipient can decrypt the selected text with their private memo key.</p>
                 </div>
               )}
 

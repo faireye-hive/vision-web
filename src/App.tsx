@@ -23,7 +23,6 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileSideDrawer } from './components/MobileSideDrawer';
 
 import { HivePost } from './services/hiveApi';
-import { syncRecommendationsInBackground } from './services/recommendationService';
 import { requestLogin } from './utils/authEvents';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
@@ -106,6 +105,7 @@ function NebulosaApp() {
     showContentFilterModal,
     setShowContentFilterModal,
     selectedLanguage,
+    followsInterfaceLanguage,
     setSelectedLanguage
   } = useNavigation();
 
@@ -230,6 +230,7 @@ function NebulosaApp() {
         isDark={theme === 'dark'}
         onToggleTheme={handleToggleTheme}
         selectedLanguage={selectedLanguage}
+        followsInterfaceLanguage={activeNav === 'discover' && sort === 'recommend' ? followsInterfaceLanguage : undefined}
         onSelectLanguage={setSelectedLanguage}
       />
 

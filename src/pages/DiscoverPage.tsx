@@ -21,11 +21,7 @@ import {
   getRankedPosts,
   getCachedRankedPosts
 } from '../services/hiveApi';
-import {
-  getRecommendationsForUser,
-  subscribeRecommendationStatus,
-  RecommendationSyncStatus
-} from '../services/recommendationService';
+import { getHafRecommendedFeed } from '../services/hafFypApi';
 import { getLanguageDiscoveryFeed } from '../services/combflowApi';
 import { findCategoryByTag } from '../data/categorySubtopics';
 import { useAuth } from '../context/AuthContext';
@@ -68,6 +64,7 @@ const postDomId = (post: HivePost, index?: number) =>
 
 const isPinnedCommunityPost = (post: HivePost) =>
   post.is_pinned === true || post.is_pinned === 1 || post.stats?.is_pinned === true || post.stats?.is_pinned === 1;
+const EMPTY_POSTS: HivePost[] = [];
 
 export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   isCommunitiesFeed = false,
@@ -85,6 +82,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     setTag,
     selectedLanguage,
     setSelectedLanguage,
+    followsInterfaceLanguage,
     communitySubTopic,
     setCommunitySubTopic,
     setFeedAuthor,
@@ -127,9 +125,10 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   }, [isCommunitiesFeed, tag]);
 
   const effectiveSort = isCommunitiesFeed && sort === 'recommend' ? 'trending' : sort;
+  const isRecommended = effectiveSort === 'recommend';
 
-  const [posts, setPosts] = useState<HivePost[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loadedPosts, setPosts] = useState<HivePost[]>([]);
+  const [isFetching, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const queryGen = useRef(0);
@@ -137,40 +136,20 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   const loadedPages = useRef(1);
   const apiCursorRef = useRef<{ author: string; permlink: string } | null>(null);
   const username = currentUser?.username || '';
+  const recommendationKey = isRecommended && username ? `${username}:${selectedLanguage}` : null;
+  const [loadedRecommendationKey, setLoadedRecommendationKey] = useState<string | null>(null);
+  const changingRecommendation = recommendationKey !== null && recommendationKey !== loadedRecommendationKey;
+  const posts = changingRecommendation ? EMPTY_POSTS : loadedPosts;
+  const loading = isFetching || changingRecommendation;
 
   // Responsive mobile detection (mobile defaults to gallery mode)
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 640 : false;
   });
 
-  // Recommendation engine state & refs
   const recPageRef = useRef(1);
-  const hasMoreRecsRef = useRef(true);
-  const [recStatus, setRecStatus] = useState<RecommendationSyncStatus | null>(null);
-
-  useEffect(() => {
-    if (!username) return;
-    const unsub = subscribeRecommendationStatus((status) => {
-      if (status.account === username) {
-        setRecStatus(status);
-        if (sort === 'recommend') {
-          setPosts((currentPosts) => {
-            if (currentPosts.length === 0 && status.totalPostsFound > 0) {
-              getRecommendationsForUser(username, 1, 20).then((res) => {
-                if (res.posts.length > 0) {
-                  setPosts(res.posts);
-                  hasMoreRecsRef.current = res.hasMore;
-                  setLoading(false);
-                }
-              });
-            }
-            return currentPosts;
-          });
-        }
-      }
-    });
-    return unsub;
-  }, [username, sort]);
+  const [hasMoreRecommendations, setHasMoreRecommendations] = useState(false);
+  const [recommendationsPersonalized, setRecommendationsPersonalized] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -241,13 +220,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   };
 
   const handleTouchEnd = () => {
-    if (pullDistance >= 45) {
-      if (sort === 'recommend') {
-        fetchPosts(false);
-      } else {
-        fetchPosts(true);
-      }
-    }
+    if (pullDistance >= 45) fetchPosts(true);
     setPullDistance(0);
     touchStartYRef.current = null;
   };
@@ -286,31 +259,36 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       // Personalized Recommendation Feed branch (only for discover feed, never communities)
       if (!isCommunitiesFeed && actualSort === 'recommend') {
+        setPosts([]);
+        setError(null);
+        setHasMoreRecommendations(false);
+        recPageRef.current = 1;
         if (!username) {
-          setPosts([]);
           setLoading(false);
-          setError(null);
           return;
         }
 
         setLoading(true);
-        setError(null);
-        recPageRef.current = 1;
         try {
-          const recs = await getRecommendationsForUser(username, 1, 20);
+          const recs = await getHafRecommendedFeed(username, selectedLanguage, 1, controller.signal);
           if (gen !== queryGen.current) return;
           setPosts(recs.posts);
-          hasMoreRecsRef.current = recs.hasMore;
-        } catch (err: any) {
+          setHasMoreRecommendations(recs.hasMore);
+          setRecommendationsPersonalized(recs.personalized);
+        } catch (err) {
           if (gen !== queryGen.current) return;
           console.error('Error fetching recommendations:', err);
-          setError(err.message || 'Failed to load recommendations.');
+          setError(err instanceof Error ? err.message : 'Failed to load recommendations.');
         } finally {
-          if (gen === queryGen.current) setLoading(false);
+          if (gen === queryGen.current) {
+            setLoadedRecommendationKey(recommendationKey);
+            setLoading(false);
+          }
         }
         return;
       }
 
+      setLoadedRecommendationKey(null);
       const observer = isCommunitiesFeed ? username : '';
       let queryTag = tag;
       if (isCommunitiesFeed && !queryTag) {
@@ -405,7 +383,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         if (gen === queryGen.current) setLoading(false);
       }
     },
-    [sort, tag, isCommunitiesFeed, selectedLanguage, username]
+    [sort, tag, isCommunitiesFeed, selectedLanguage, username, recommendationKey]
   );
 
   useEffect(() => {
@@ -423,27 +401,26 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   }, [fetchPosts]);
 
   const handleLoadMore = async () => {
-    if (loadingMore || posts.length === 0) return;
+    if (loading || loadingMore || posts.length === 0) return;
     const actualSort = isCommunitiesFeed && sort === 'recommend' ? 'trending' : sort;
 
-    // Recommendation pagination (20 by 20 from IndexedDB pool)
     if (!isCommunitiesFeed && actualSort === 'recommend') {
-      if (!username || !hasMoreRecsRef.current) return;
+      const signal = feedAbortRef.current?.signal;
+      if (!username || !hasMoreRecommendations || !signal) return;
       const gen = queryGen.current;
       setLoadingMore(true);
+      setError(null);
       const nextPage = recPageRef.current + 1;
       try {
-        const moreRecs = await getRecommendationsForUser(username, nextPage, 20);
+        const moreRecs = await getHafRecommendedFeed(username, selectedLanguage, nextPage, signal);
         if (gen !== queryGen.current) return;
-        if (moreRecs.posts.length > 0) {
-          recPageRef.current = nextPage;
-          setPosts((prev) => appendUniquePosts(prev, moreRecs.posts));
-          hasMoreRecsRef.current = moreRecs.hasMore;
-        } else {
-          hasMoreRecsRef.current = false;
-        }
-      } catch (err: any) {
+        recPageRef.current = nextPage;
+        setPosts((prev) => appendUniquePosts(prev, moreRecs.posts));
+        setHasMoreRecommendations(moreRecs.hasMore);
+      } catch (err) {
+        if (gen !== queryGen.current) return;
         console.error('Failed to load more recommendations:', err);
+        setError(err instanceof Error ? err.message : 'Unable to load more recommendations.');
       } finally {
         if (gen === queryGen.current) setLoadingMore(false);
       }
@@ -675,6 +652,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <LanguageDropdown
                 id="discover-header-language-dropdown"
                 selectedLanguage={selectedLanguage}
+                followsInterfaceLanguage={isRecommended ? followsInterfaceLanguage : undefined}
                 onSelectLanguage={(langCode) => {
                   setSelectedLanguage(langCode);
                   setFeedAuthor(null);
@@ -803,7 +781,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           </button>
 
           {/* Desktop-only manual refresh button */}
-          {sort !== 'recommend' && (
+          {(!isRecommended || username) && (
             <button
               id="discover-refresh-btn"
               onClick={() => fetchPosts(true)}
@@ -848,7 +826,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       )}
 
       {/* Error banner */}
-      {error && (
+      {error && !changingRecommendation && (
         <div
           id="discover-error-banner"
           className="p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3 shadow-xs animate-in fade-in"
@@ -874,7 +852,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
 
       {/* Posts stream */}
-      {sort === 'recommend' && !username ? (
+      {isRecommended && !username ? (
         <div
           id="discover-recommend-login-prompt"
           className="relative overflow-hidden p-6 sm:p-8 text-center max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm my-4 animate-in fade-in"
@@ -891,7 +869,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               Personalized Recommendations
             </h3>
             <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-6 leading-relaxed max-w-sm mx-auto">
-              Sign in with your Hive account to unlock a feed curated specifically for you, powered by your recent upvoted posts and HiveSense AI.
+              Sign in with your Hive account to see the Recommended feed.
             </p>
             <button
               onClick={requestLogin}
@@ -1033,7 +1011,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             id="discover-posts-list"
             className={useGalleryLayout ? 'space-y-3 sm:space-y-6' : 'space-y-3 sm:space-y-4'}
           >
-          {sort === 'recommend' && (
+          {isRecommended && (
             <div
               id="discover-recommend-header-banner"
               className="px-4 py-3 sm:px-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-800 dark:text-slate-200 shadow-sm mb-3 animate-in fade-in"
@@ -1043,31 +1021,12 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="font-extrabold flex items-center gap-2">
-                    <span>HiveSense Tailored for @{username}</span>
-                    {recStatus?.isSyncing && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                        Syncing
-                      </span>
-                    )}
+                  <div className="font-extrabold">{recommendationsPersonalized ? `Recommended for @${username}` : 'Recommended on Hive'}</div>
+                  <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    {recommendationsPersonalized ? 'Powered by HAF FYP' : 'Showing global recommendations while your personalized feed is being prepared'}
                   </div>
-                  {recStatus?.isSyncing ? (
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Analyzing seed upvotes in background ({recStatus.currentSeedIndex}/{recStatus.totalSeeds || 30} seeds, {recStatus.totalPostsFound} stories found)...
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Curated from your active blockchain interactions & communities
-                    </div>
-                  )}
                 </div>
               </div>
-              {recStatus?.isSyncing && (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                </div>
-              )}
             </div>
           )}
           {useGalleryLayout
@@ -1132,13 +1091,13 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               ))}
 
           {/* Load More Button */}
-          {sort === 'recommend' && !hasMoreRecsRef.current ? null : (
+          {(!isRecommended || hasMoreRecommendations) && (
             <div id="discover-load-more-wrapper" className="text-center pt-4 pb-10">
               <button
                 id="load-more-posts-btn"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
-                title="Fetch older posts from the blockchain"
+                title={isRecommended ? 'Load more recommendations' : 'Fetch older posts from the blockchain'}
                 className="group relative inline-flex items-center gap-2.5 px-6 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-semibold shadow-sm disabled:opacity-50 transition-all duration-200 cursor-pointer active:scale-[0.98]"
               >
                 {loadingMore ? (
@@ -1197,6 +1156,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             >
               Temporarily Pause Filters
             </button>
+            {isRecommended && hasMoreRecommendations && (
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="cursor-pointer rounded-full bg-gray-100 px-5 py-2.5 text-xs font-bold text-gray-700 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {loadingMore ? 'Loading more stories...' : 'Load More Stories'}
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -1208,21 +1177,18 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             <Compass id="discover-empty-icon" className="w-7 h-7" />
           </div>
           <p id="discover-empty-text" className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 font-medium max-w-md mx-auto leading-relaxed">
-            {sort === 'recommend'
-              ? recStatus?.isSyncing
-                ? `Analyzing your recent upvotes in the background to curate stories (${recStatus.currentSeedIndex}/${recStatus.totalSeeds || 30})...`
-                : 'No recommendations found yet. Upvote positive root posts on Hive to receive personalized recommendations.'
-              : selectedLanguage !== 'global'
-              ? 'No recent posts found for this language filter.'
-              : 'No posts found in this feed.'}
+            {isRecommended
+              ? (selectedLanguage === 'global' ? 'No recommendations are available yet.' : 'No recommendations match this language.')
+              : (selectedLanguage === 'global' ? 'No posts found in this feed.' : 'No recent posts found for this language filter.')}
           </p>
-          {sort === 'recommend' ? (
-            recStatus?.isSyncing && (
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-semibold pt-1">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Syncing recommendation queue quietly...</span>
-              </div>
-            )
+          {isRecommended ? (
+            <button
+              type="button"
+              onClick={() => selectedLanguage === 'global' ? void fetchPosts(true) : setSelectedLanguage('global')}
+              className="cursor-pointer rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+            >
+              {selectedLanguage === 'global' ? 'Refresh Feed' : 'Show All Languages'}
+            </button>
           ) : (
             <button
               id="discover-empty-reset-btn"
