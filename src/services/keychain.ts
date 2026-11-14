@@ -439,7 +439,7 @@ export class KeychainService {
   }
 
   static async encodeMemoMessage(username: string, receiver: string, plaintext: string): Promise<KeychainResponse> {
-    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    // Keychain authorizes this local encryption. Publishing is a separate operation.
     if (!this.isInstalled() || !window.hive_keychain?.requestEncodeMessage) return { success: false, error: 'Hive Keychain with memo encryption support is required.' };
     return new Promise(resolve => {
       try { window.hive_keychain!.requestEncodeMessage!(username, receiver, `#${plaintext}`, 'Memo', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }

@@ -26,7 +26,7 @@ const SORT_OPTIONS = [
     label: 'Recommend',
     icon: Compass,
     iconColor: 'text-slate-500 dark:text-slate-400',
-    description: 'Personalized feed based on your upvoted posts & HiveSense',
+    description: 'Stories ranked for your Hive account',
     badge: 'Smart',
   },
   {
