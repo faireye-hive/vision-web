@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { CommunityUserFlair } from './CommunityUserFlair';
 import { PostCommunityLabels } from './PostCommunityLabels';
+import { CommunityLink } from './CommunityLink';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -33,9 +34,13 @@ import {
   Plus,
   Languages,
   Highlighter,
+  Copy,
   ChevronLeft,
   ChevronRight,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Smile,
+  Unlock,
+  LockKeyhole
 } from 'lucide-react';
 import {
   HivePost,
@@ -48,6 +53,8 @@ import {
   getPostThumbnail
 } from '../services/hiveApi';
 import { KeychainService, CurrentUser } from '../services/keychain';
+import { ReplySelectionTextarea } from './ReplySelectionTextarea';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { markdownToSafeHtmlWithHeadings, markdownToSafeHtml, PostHeading } from '../utils/sanitize';
 import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
 import {
@@ -74,6 +81,49 @@ function isTrustedHiveLink(url: URL): boolean {
     (TRUSTED_HIVE_LINK_HOSTS.some((domain) => host === domain || host === `www.${domain}`) || host === 'play.3speak.tv');
 }
 
+function createCopyIcon(copied = false): SVGSVGElement {
+  const namespace = 'http://www.w3.org/2000/svg';
+  const icon = document.createElementNS(namespace, 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('width', '18');
+  icon.setAttribute('height', '18');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke', 'currentColor');
+  icon.setAttribute('stroke-width', '2');
+  icon.setAttribute('stroke-linecap', 'round');
+  icon.setAttribute('stroke-linejoin', 'round');
+  icon.setAttribute('aria-hidden', 'true');
+
+  if (copied) {
+    const path = document.createElementNS(namespace, 'path');
+    path.setAttribute('d', 'm20 6-11 11-5-5');
+    icon.append(path);
+  } else {
+    const rect = document.createElementNS(namespace, 'rect');
+    rect.setAttribute('width', '14');
+    rect.setAttribute('height', '14');
+    rect.setAttribute('x', '8');
+    rect.setAttribute('y', '8');
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('ry', '2');
+    const path = document.createElementNS(namespace, 'path');
+    path.setAttribute('d', 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2');
+    icon.append(rect, path);
+  }
+
+  return icon;
+}
+
+function unwrapHighlightMarks(marks: HTMLElement[]): void {
+  marks.forEach((mark) => {
+    const parent = mark.parentNode;
+    if (!parent) return;
+    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+    mark.remove();
+    parent.normalize();
+  });
+}
+
 interface PostReaderProps {
   post: HivePost;
   onClose: () => void;
@@ -83,8 +133,14 @@ interface PostReaderProps {
   onRequireLogin?: () => void;
   onHeadingsExtracted?: (headings: PostHeading[]) => void;
   onActiveHeadingChange?: (id: string) => void;
+  onHighlightsChange?: (postKey: string, highlights: PostTextHighlight[]) => void;
   onSelectPost?: (post: HivePost) => void;
   profileAppearance?: ProfileReaderAppearance | null;
+}
+
+export interface PostTextHighlight {
+  id: string;
+  text: string;
 }
 
 /**
@@ -174,6 +230,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
   onRequireLogin,
   onHeadingsExtracted,
   onActiveHeadingChange,
+  onHighlightsChange,
   onSelectPost,
   profileAppearance
 }) => {
@@ -195,9 +252,48 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const [voteLoading, setVoteLoading] = useState(false);
 
   const [newCommentBody, setNewCommentBody] = useState('');
+  const [encryptComment, setEncryptComment] = useState(false);
+  const [encryptCommentRecipient, setEncryptCommentRecipient] = useState(currentUser?.username || '');
+  const [commentComposerFocused, setCommentComposerFocused] = useState(false);
+  const [showCommentEmojiPicker, setShowCommentEmojiPicker] = useState(false);
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const isCommentComposerExpanded = commentComposerFocused || encryptComment || Boolean(newCommentBody.trim());
+  const [quoteReplyOpen, setQuoteReplyOpen] = useState(false);
+  const [quotedSelection, setQuotedSelection] = useState('');
+  const [quoteReplyText, setQuoteReplyText] = useState('');
+  const [quoteDraftCount, setQuoteDraftCount] = useState(0);
+  const [quoteDraftReviewOpen, setQuoteDraftReviewOpen] = useState(false);
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentSuccess, setCommentSuccess] = useState(false);
   const [commentSort, setCommentSort] = useState<'newest' | 'oldest'>('newest');
+
+  useEffect(() => {
+    if (!quoteReplyOpen && !quoteDraftReviewOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !commentLoading) {
+        setQuoteReplyOpen(false);
+        setQuoteDraftReviewOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [quoteReplyOpen, quoteDraftReviewOpen, commentLoading]);
+
+  useEffect(() => {
+    setNewCommentBody('');
+    setEncryptComment(false);
+    setCommentComposerFocused(false);
+    setShowCommentEmojiPicker(false);
+    setQuoteDraftCount(0);
+    setQuoteReplyOpen(false);
+    setQuoteDraftReviewOpen(false);
+  }, [post.author, post.permlink]);
+
+  useEffect(() => {
+    if (!encryptCommentRecipient && currentUser?.username) {
+      setEncryptCommentRecipient(currentUser.username);
+    }
+  }, [currentUser?.username, encryptCommentRecipient]);
 
   useEffect(() => {
     setCommentSort('newest');
@@ -224,16 +320,22 @@ export const PostReader: React.FC<PostReaderProps> = ({
     x: number;
     y: number;
     text: string;
+    scope: 'post' | 'comment';
   }>({
     visible: false,
     x: 0,
     y: 0,
-    text: ''
+    text: '',
+    scope: 'post'
   });
+  const [selectionToolResult, setSelectionToolResult] = useState('');
+  const [selectionToolError, setSelectionToolError] = useState('');
+  const [selectionToolBusy, setSelectionToolBusy] = useState(false);
 
   // Post Image Lightbox Gallery
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [highlightedTexts, setHighlightedTexts] = useState<PostTextHighlight[]>([]);
 
   const handleContentLink = useCallback((event: React.MouseEvent<HTMLDivElement>): boolean => {
     if (!(event.target instanceof Element)) return false;
@@ -267,6 +369,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
       event.preventDefault();
       return true;
     }
+    if (destination.username || destination.password) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     if (destination.origin === window.location.origin || isTrustedHiveLink(destination)) return true;
 
     event.preventDefault();
@@ -282,6 +389,48 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Handle image clicks inside article body to open the gallery
   const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
+    const copyCodeButton = target.closest<HTMLButtonElement>('[data-copy-code]');
+    if (copyCodeButton && bodyContainerRef.current?.contains(copyCodeButton)) {
+      e.preventDefault();
+      e.stopPropagation();
+      const codeBlock = copyCodeButton.closest('.nebulosa-code-block')?.querySelector('pre');
+      const code = codeBlock?.querySelector('code')?.textContent ?? codeBlock?.textContent ?? '';
+
+      void copyTextToClipboard(code).then(() => {
+        copyCodeButton.dataset.copied = 'true';
+        copyCodeButton.replaceChildren(createCopyIcon(true));
+        copyCodeButton.setAttribute('aria-label', 'Code duplicated');
+        window.setTimeout(() => {
+          if (!copyCodeButton.isConnected) return;
+          delete copyCodeButton.dataset.copied;
+          copyCodeButton.replaceChildren(createCopyIcon());
+          copyCodeButton.setAttribute('aria-label', 'Duplicate code block');
+        }, 1800);
+      }).catch(() => {
+        copyCodeButton.dataset.copyFailed = 'true';
+        copyCodeButton.setAttribute('aria-label', 'Code could not be duplicated');
+        window.setTimeout(() => {
+          if (!copyCodeButton.isConnected) return;
+          delete copyCodeButton.dataset.copyFailed;
+          copyCodeButton.setAttribute('aria-label', 'Duplicate code block');
+        }, 1800);
+      });
+      return;
+    }
+
+    const clickedHighlight = target.closest<HTMLElement>('mark[data-post-highlight-id]');
+    if (clickedHighlight && !target.closest('a, button') && window.getSelection()?.isCollapsed) {
+      const id = clickedHighlight.dataset.postHighlightId;
+      const groupMarks = Array.from(bodyContainerRef.current?.querySelectorAll<HTMLElement>('mark[data-post-highlight-id]') || [])
+        .filter((mark) => mark.dataset.postHighlightId === id);
+      unwrapHighlightMarks(groupMarks);
+      const nextHighlights = highlightedTexts.filter((item) => item.id !== id);
+      setHighlightedTexts(nextHighlights);
+      onHighlightsChange?.(`${post.author}/${post.permlink}`, nextHighlights);
+      setSelectionBubble((prev) => ({ ...prev, visible: false }));
+      return;
+    }
+
     const thumbnailButton = target.closest('[data-gallery-select]') as HTMLButtonElement | null;
     if (thumbnailButton && bodyContainerRef.current?.contains(thumbnailButton)) {
       const gallery = thumbnailButton.closest('.nebulosa-image-gallery');
@@ -338,7 +487,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
         setGalleryIndex(idx !== -1 ? idx : 0);
       }
     }
-  }, [handleContentLink]);
+  }, [handleContentLink, highlightedTexts, onHighlightsChange, post.author, post.permlink]);
 
   useEffect(() => {
     const container = bodyContainerRef.current;
@@ -454,6 +603,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
   // Floating text selection listener (Desktop only, avoids conflicts on mobile)
   useEffect(() => {
     const handleSelection = () => {
+      // Keep the floating panel open while its account field or result controls have focus.
+      if (document.activeElement instanceof Element && document.activeElement.closest('[data-selection-toolbar]')) return;
+
       // Disallow on touch/mobile devices to preserve native context menu
       if (window.innerWidth < 768 || window.matchMedia('(pointer: coarse)').matches) {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
@@ -473,7 +625,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
       }
 
       const anchor = sel.anchorNode;
-      if (!anchor || !bodyContainerRef.current?.contains(anchor)) {
+      const focus = sel.focusNode;
+      const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
+      const postScope = Boolean(anchor && bodyContainerRef.current?.contains(anchor) && focus && bodyContainerRef.current?.contains(focus));
+      const commentBody = anchorElement?.closest('.comment-body');
+      const commentRoot = document.getElementById('comments-section');
+      const commentScope = Boolean(anchor && focus && commentBody && commentRoot?.contains(commentBody) && commentBody.contains(focus));
+      if (!anchor || (!postScope && !commentScope)) {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
         return;
       }
@@ -485,10 +643,13 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
         setSelectionBubble({
           visible: true,
-          x: Math.max(16, Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 120)),
+          x: Math.max(12, Math.min(window.innerWidth - 372, rect.left + rect.width / 2 - 186)),
           y: Math.max(72, rect.top - 46),
-          text
+          text,
+          scope: postScope ? 'post' : 'comment'
         });
+        setSelectionToolResult('');
+        setSelectionToolError('');
       } catch {
         setSelectionBubble((prev) => (prev.visible ? { ...prev, visible: false } : prev));
       }
@@ -500,32 +661,64 @@ export const PostReader: React.FC<PostReaderProps> = ({
     };
   }, []);
 
+  // A single click on a Hive memo selects that token so the existing floating
+  // toolbar can offer Decode without making readers drag across long ciphertext.
+  useEffect(() => {
+    const handleMemoClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || event.target.closest('a, button, input, textarea, select')) return;
+      const scopeRoot = event.target.closest('#sanitized-post-body, #comments-section .comment-body');
+      if (!scopeRoot) return;
+
+      const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+      const pointRange = doc.caretRangeFromPoint?.(event.clientX, event.clientY) || null;
+      let clickedTextNode = pointRange?.startContainer.nodeType === Node.TEXT_NODE ? pointRange.startContainer as Text : null;
+      let clickOffset = pointRange?.startOffset ?? 0;
+
+      if (!clickedTextNode || !scopeRoot.contains(clickedTextNode)) {
+        const fallbackRoot = event.target.closest('p, pre, code');
+        if (!fallbackRoot || !scopeRoot.contains(fallbackRoot)) return;
+        const fallbackText = fallbackRoot.textContent?.trim() || '';
+        if (!/^#[1-9A-HJ-NP-Za-km-z]{50,}$/.test(fallbackText)) return;
+        const walker = document.createTreeWalker(fallbackRoot, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          if (node.nodeValue?.includes(fallbackText)) {
+            clickedTextNode = node;
+            clickOffset = node.nodeValue.indexOf(fallbackText);
+            break;
+          }
+        }
+      }
+      if (!clickedTextNode?.nodeValue) return;
+
+      const sourceText = clickedTextNode.nodeValue;
+      const memoPattern = /#[1-9A-HJ-NP-Za-km-z]{50,}/g;
+      let match: RegExpExecArray | null;
+      while ((match = memoPattern.exec(sourceText))) {
+        const start = match.index;
+        const end = start + match[0].length;
+        if (clickOffset < start || clickOffset > end) continue;
+        const range = document.createRange();
+        range.setStart(clickedTextNode, start);
+        range.setEnd(clickedTextNode, end);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+    };
+
+    document.addEventListener('click', handleMemoClick);
+    return () => document.removeEventListener('click', handleMemoClick);
+  }, []);
+
   const handleQuoteSelection = () => {
     if (!selectionBubble.text) return;
-    const quoteLines = selectionBubble.text
-      .split('\n')
-      .map((line) => `> ${line}`)
-      .join('\n');
-    const quoteFormatted = `${quoteLines}\n\n`;
-
-    setNewCommentBody((prev) => {
-      return prev ? `${prev.trim()}\n\n${quoteFormatted}` : quoteFormatted;
-    });
-
+    setQuotedSelection(selectionBubble.text.trim());
+    setQuoteReplyText('');
+    setQuoteReplyOpen(true);
     setSelectionBubble((prev) => ({ ...prev, visible: false }));
     window.getSelection()?.removeAllRanges();
-
-    const commentSection = document.getElementById('comments-section');
-    if (commentSection) {
-      commentSection.scrollIntoView({ behavior: 'smooth' });
-      setTimeout(() => {
-        const textarea = commentSection.querySelector('textarea');
-        if (textarea) {
-          textarea.focus();
-          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-        }
-      }, 400);
-    }
   };
 
   const handleTranslateSelection = () => {
@@ -535,32 +728,145 @@ export const PostReader: React.FC<PostReaderProps> = ({
     setSelectionBubble((prev) => ({ ...prev, visible: false }));
   };
 
+  const handleDecodeSelection = async () => {
+    const memo = selectionBubble.text.match(/#[1-9A-HJ-NP-Za-km-z]{50,}/)?.[0];
+    if (!memo) return;
+    if (!currentUser || currentUser.isDemo) {
+      onRequireLogin?.();
+      setSelectionToolError('Connect the Hive account that can decrypt this memo.');
+      return;
+    }
+    setSelectionToolBusy(true);
+    setSelectionToolResult('');
+    setSelectionToolError('');
+    try {
+      const response = await KeychainService.decodeMemoMessage(currentUser.username, memo);
+      if (!response.success || typeof response.result !== 'string') {
+        throw new Error(response.message || response.error || 'This account cannot decrypt the selected memo.');
+      }
+      setSelectionToolResult(response.result.replace(/^#/, ''));
+    } catch (error) {
+      setSelectionToolError(error instanceof Error ? error.message : 'This account cannot decrypt the selected memo.');
+    } finally {
+      setSelectionToolBusy(false);
+    }
+  };
+
+  const copySelectionToolResult = async () => {
+    try {
+      await copyTextToClipboard(selectionToolResult);
+    } catch {
+      setSelectionToolError('Could not copy the result to the clipboard.');
+    }
+  };
+
   const handleHighlightSelection = () => {
+    if (selectionBubble.scope !== 'post') return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) return;
 
     try {
       const range = sel.getRangeAt(0);
-      const mark = document.createElement('mark');
-      mark.className = 'bg-amber-200/90 dark:bg-amber-400/35 text-gray-900 dark:text-amber-100 rounded px-1 py-0.5 shadow-2xs transition-colors';
-      mark.style.backgroundColor = 'rgba(254, 240, 138, 0.85)';
+      const contentRoot = bodyContainerRef.current;
+      if (!contentRoot) return;
 
-      try {
-        range.surroundContents(mark);
-      } catch {
-        const contents = range.extractContents();
-        mark.appendChild(contents);
-        range.insertNode(mark);
+      const selectedMarks = Array.from(contentRoot.querySelectorAll<HTMLElement>('mark[data-post-highlight-id]'))
+        .filter((mark) => {
+          try { return range.intersectsNode(mark); } catch { return false; }
+        });
+
+      if (selectedMarks.length > 0) {
+        const removedIds = new Set(selectedMarks.map((mark) => mark.dataset.postHighlightId).filter(Boolean));
+        const groupMarks = Array.from(contentRoot.querySelectorAll<HTMLElement>('mark[data-post-highlight-id]'))
+          .filter((mark) => removedIds.has(mark.dataset.postHighlightId));
+        unwrapHighlightMarks(groupMarks);
+        const nextHighlights = highlightedTexts.filter((item) => !removedIds.has(item.id));
+        setHighlightedTexts(nextHighlights);
+        onHighlightsChange?.(`${post.author}/${post.permlink}`, nextHighlights);
+        setSelectionBubble((prev) => ({ ...prev, visible: false }));
+        sel.removeAllRanges();
+        return;
       }
+
+      const selectedText = sel.toString().trim();
+      if (!selectedText) return;
+      const id = `post-highlight-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const walker = document.createTreeWalker(contentRoot, NodeFilter.SHOW_TEXT);
+      const selectedTextNodes: Text[] = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode as Text;
+        const parent = node.parentElement;
+        if (!parent || parent.closest('script, style, button, textarea, select, option, .nebulosa-code-copy-button')) continue;
+        try {
+          if (range.intersectsNode(node)) selectedTextNodes.push(node);
+        } catch {
+          // Ignore text nodes detached while the article is being refreshed.
+        }
+      }
+
+      const segments = selectedTextNodes.map((node) => ({
+        node,
+        start: node === range.startContainer ? range.startOffset : 0,
+        end: node === range.endContainer ? range.endOffset : node.length
+      })).filter((segment) => segment.end > segment.start);
+
+      if (segments.length === 0) return;
+
+      segments.forEach((segment, index) => {
+        const mark = document.createElement('mark');
+        mark.className = 'post-user-highlight';
+        mark.dataset.postHighlightId = id;
+        if (index === 0) mark.id = id;
+
+        const segmentRange = document.createRange();
+        segmentRange.setStart(segment.node, segment.start);
+        segmentRange.setEnd(segment.node, segment.end);
+        segmentRange.surroundContents(mark);
+      });
+      const nextHighlights = [...highlightedTexts, { id, text: selectedText }];
+      setHighlightedTexts(nextHighlights);
+      onHighlightsChange?.(`${post.author}/${post.permlink}`, nextHighlights);
     } catch {
-      try {
-        document.execCommand('hiliteColor', false, '#fef08a');
-      } catch {}
+      // A selection crossing unsupported DOM boundaries cannot be safely marked.
     }
 
     setSelectionBubble((prev) => ({ ...prev, visible: false }));
     sel.removeAllRanges();
   };
+
+  useEffect(() => {
+    const currentPostKey = `${post.author}/${post.permlink}`;
+    const handleRemove = (event: Event) => {
+      const { postKey, id } = (event as CustomEvent<{ postKey?: string; id?: string }>).detail || {};
+      if (postKey !== currentPostKey || !id) return;
+
+      const root = bodyContainerRef.current;
+      if (!root) return;
+      const marks = Array.from(root.querySelectorAll<HTMLElement>('mark[data-post-highlight-id]'))
+        .filter((mark) => mark.dataset.postHighlightId === id);
+      unwrapHighlightMarks(marks);
+      const next = highlightedTexts.filter((item) => item.id !== id);
+      setHighlightedTexts(next);
+      onHighlightsChange?.(currentPostKey, next);
+    };
+    const handleClear = (event: Event) => {
+      const { postKey } = (event as CustomEvent<{ postKey?: string }>).detail || {};
+      if (postKey !== currentPostKey) return;
+
+      const root = bodyContainerRef.current;
+      if (!root) return;
+      unwrapHighlightMarks(Array.from(root.querySelectorAll<HTMLElement>('mark[data-post-highlight-id]')));
+      setHighlightedTexts([]);
+      onHighlightsChange?.(currentPostKey, []);
+    };
+
+    window.addEventListener('nebulosa:remove-post-highlight', handleRemove);
+    window.addEventListener('nebulosa:clear-post-highlights', handleClear);
+    return () => {
+      window.removeEventListener('nebulosa:remove-post-highlight', handleRemove);
+      window.removeEventListener('nebulosa:clear-post-highlights', handleClear);
+    };
+  }, [post.author, post.permlink, highlightedTexts, onHighlightsChange]);
 
   const onCloseRef = React.useRef(onClose);
   useEffect(() => {
@@ -769,7 +1075,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const { html: safeHtmlContent, headings } = useMemo(() => {
     return markdownToSafeHtmlWithHeadings(activeBodyContent, {
       threeSpeakThumbnails,
-      jsonMetadata: currentPost.json_metadata
+      jsonMetadata: currentPost.json_metadata,
+      preserveImageFlow: true
     });
   }, [activeBodyContent, threeSpeakThumbnails, currentPost.json_metadata]);
 
@@ -831,6 +1138,40 @@ export const PostReader: React.FC<PostReaderProps> = ({
   const displayedSafeHtmlContent = isScamAlertCommentPost
     ? disableExternalCommentLinks(safeHtmlContent)
     : safeHtmlContent;
+
+  useEffect(() => {
+    setHighlightedTexts([]);
+    onHighlightsChange?.(`${post.author}/${post.permlink}`, []);
+  }, [post.author, post.permlink, displayedSafeHtmlContent, onHighlightsChange]);
+
+  useEffect(() => {
+    const container = bodyContainerRef.current;
+    if (!container) return;
+
+    container.querySelectorAll<HTMLPreElement>('pre').forEach((pre) => {
+      if (pre.closest('.nebulosa-code-block')) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'nebulosa-code-block';
+      const copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'nebulosa-code-copy-button';
+      copyButton.dataset.copyCode = 'true';
+      copyButton.append(createCopyIcon());
+      copyButton.setAttribute('aria-label', 'Duplicate code block');
+
+      pre.parentNode?.insertBefore(wrapper, pre);
+      wrapper.append(pre, copyButton);
+    });
+
+    return () => {
+      container.querySelectorAll<HTMLElement>('.nebulosa-code-block').forEach((wrapper) => {
+        const pre = wrapper.querySelector('pre');
+        if (pre) wrapper.replaceWith(pre);
+      });
+    };
+  }, [displayedSafeHtmlContent]);
+
   const isPeakSnap = useMemo(() => {
     if (!isComment) return false;
     const pAuthor = post.parent_author?.toLowerCase() || '';
@@ -1053,35 +1394,108 @@ export const PostReader: React.FC<PostReaderProps> = ({
     }
   };
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCommentBody.trim()) return;
+  const publishCommentText = async (body: string): Promise<boolean> => {
+    if (!body.trim() || commentLoading) return false;
     if (!currentUser) {
       if (onRequireLogin) onRequireLogin();
-      return;
+      return false;
+    }
+    if (currentUser.isDemo) {
+      alert('Demo mode is read-only. Connect with Hive Keychain to publish.');
+      return false;
     }
 
     setCommentLoading(true);
     try {
+      let publishedBody = body.trim();
+      if (encryptComment) {
+        const recipient = encryptCommentRecipient.trim().replace(/^@/, '').toLowerCase();
+        if (!/^[a-z][a-z0-9.-]{2,15}$/.test(recipient)) {
+          alert('Enter a valid Hive account name to encrypt this comment.');
+          return false;
+        }
+        const encrypted = await KeychainService.encodeMemoMessage(currentUser.username, recipient, publishedBody);
+        if (!encrypted.success || typeof encrypted.result !== 'string' || !encrypted.result.startsWith('#')) {
+          alert(encrypted.message || encrypted.error || 'Hive Keychain could not encrypt this comment. Nothing was published.');
+          return false;
+        }
+        publishedBody = encrypted.result;
+      }
+
       const res = await KeychainService.postComment(
         currentUser.username,
         post.author,
         post.permlink,
-        newCommentBody.trim()
+        publishedBody
       );
 
       if (res.success) {
         setCommentSuccess(true);
-        setNewCommentBody('');
         setTimeout(() => setCommentSuccess(false), 4000);
         fetchDiscussion(true);
+        return true;
       } else {
         alert(res.message || 'Could not post comment via Keychain');
+        return false;
       }
     } catch (err: any) {
       alert(err.message || 'Comment broadcast failed');
+      return false;
     } finally {
       setCommentLoading(false);
+    }
+  };
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (await publishCommentText(newCommentBody)) {
+      setNewCommentBody('');
+      setCommentComposerFocused(false);
+      setShowCommentEmojiPicker(false);
+      setQuoteDraftCount(0);
+    }
+  };
+
+  const insertCommentEmoji = (emoji: string) => {
+    const textarea = commentTextareaRef.current;
+    const start = textarea?.selectionStart ?? newCommentBody.length;
+    const end = textarea?.selectionEnd ?? start;
+    const nextBody = `${newCommentBody.slice(0, start)}${emoji}${newCommentBody.slice(end)}`;
+    const nextCursor = start + emoji.length;
+    setNewCommentBody(nextBody);
+    setCommentComposerFocused(true);
+    setShowCommentEmojiPicker(false);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const handleAddQuoteToDraft = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quotedSelection.trim() || !quoteReplyText.trim()) return;
+
+    const formattedQuote = quotedSelection
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n');
+    const quoteReply = `${formattedQuote}\n\n${quoteReplyText.trim()}`;
+    setNewCommentBody((draft) => draft.trim() ? `${draft.trim()}\n\n\n${quoteReply}` : quoteReply);
+    setQuoteDraftCount((count) => count + 1);
+    setQuoteReplyOpen(false);
+    setQuotedSelection('');
+    setQuoteReplyText('');
+  };
+
+  const handlePublishQuoteDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (await publishCommentText(newCommentBody)) {
+      setNewCommentBody('');
+      setCommentComposerFocused(false);
+      setShowCommentEmojiPicker(false);
+      setQuoteDraftCount(0);
+      setQuoteDraftReviewOpen(false);
+      window.setTimeout(scrollToComments, 350);
     }
   };
 
@@ -1187,27 +1601,22 @@ export const PostReader: React.FC<PostReaderProps> = ({
               style={{ borderColor: profileAppearance?.accentColor ? `${profileAppearance.accentColor}35` : undefined }}
             >
               {!isComment && <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (post.community) onSelectTag(post.community);
-                    else if (post.category) onSelectTag(post.category);
-                    onClose();
-                  }}
-                  className="inline-flex min-h-6 max-w-[150px] items-center gap-1 rounded-md border border-blue-200 bg-blue-50/70 px-2 py-0.5 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60"
+                <CommunityLink
+                  name={post.community || post.category || 'blog'}
+                  onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
+                  className="inline-flex min-h-7 max-w-[150px] items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-blue-300 hover:bg-blue-100 hover:shadow dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:border-blue-800 dark:hover:bg-blue-950/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900"
                   style={profileAppearance?.accentColor ? { borderColor: `${profileAppearance.accentColor}45`, color: profileAppearance.accentColor } : undefined}
                   title={`View #${primaryTagOrCommunity}`}
                 >
                   <Hash className="h-3 w-3 shrink-0" />
                   <span className="truncate capitalize">{primaryTagOrCommunity.replace(/^#/, '')}</span>
-                </button>
+                </CommunityLink>
                 {compactTags.map((tag) => (
                   <button
                     key={tag}
                     type="button"
                     onClick={() => { onSelectTag(tag); onClose(); }}
-                    className="inline-flex min-h-6 max-w-[120px] items-center gap-1 rounded-md border border-slate-200 bg-slate-50/80 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:bg-slate-800"
+                    className="inline-flex min-h-7 max-w-[120px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm transition duration-150 hover:-translate-y-px hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 hover:shadow dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:border-blue-800 dark:hover:bg-blue-950/40 dark:hover:text-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900"
                     title={`View #${tag}`}
                   >
                     <Hash className="h-3 w-3 shrink-0 text-slate-400" />
@@ -1361,14 +1770,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1" title={postDate.full}><Clock className="h-3 w-3" />{postDate.relative}</span>
               {(post.community_title || post.community) && (
-                <button
-                  onClick={() => { onSelectTag(post.community || post.category); onClose(); }}
+                <CommunityLink
+                  name={post.community || post.category}
+                  onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
                   className="inline-flex max-w-[130px] items-center gap-1 truncate font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                   title="View Community"
                 >
                   <Layers className="h-3 w-3 shrink-0" />
                   <span className="truncate">{post.community_title || post.community}</span>
-                </button>
+                </CommunityLink>
               )}
             </div>
           </div>
@@ -1677,8 +2087,17 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </div>
 
           {/* New Comment Box */}
-          <form onSubmit={handleAddComment} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 space-y-2">
-            <div className="flex min-w-0 items-center gap-2">
+          <form
+            onSubmit={handleAddComment}
+            onFocus={() => setCommentComposerFocused(true)}
+            onBlur={(event) => {
+              if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
+              setCommentComposerFocused(false);
+              setShowCommentEmojiPicker(false);
+            }}
+            className={`rounded-xl border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 ${isCommentComposerExpanded ? 'space-y-2 p-3' : 'p-1.5'}`}
+          >
+            {isCommentComposerExpanded && <div className="flex min-w-0 items-center gap-2">
               {currentUser ? (
                 <>
                   <img
@@ -1702,35 +2121,104 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   </div>
                 </>
               )}
-            </div>
+            </div>}
 
-            <textarea
-              rows={2}
+            <ReplySelectionTextarea
+              key={`${post.author}/${post.permlink}`}
+              textareaRef={commentTextareaRef}
+              rows={isCommentComposerExpanded ? Math.min(10, Math.max(4, newCommentBody.split('\n').length)) : 1}
               value={newCommentBody}
-              onChange={(e) => setNewCommentBody(e.target.value)}
-              placeholder={currentUser ? 'Write your response in Markdown...' : 'Connect Hive Keychain in the top menu to comment...'}
-              className="min-h-16 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950"
+              onValueChange={setNewCommentBody}
+              memoSender={currentUser?.isDemo ? undefined : currentUser?.username}
+              defaultRecipient={currentUser?.username}
+              placeholder={currentUser ? 'Write a reply...' : 'Connect Hive Keychain to reply...'}
+              className={`w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950 ${isCommentComposerExpanded ? 'min-h-16 resize-y px-3 py-2' : 'h-9 min-h-0 resize-none px-2.5 py-1.5'}`}
             />
 
-            {commentSuccess && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Comment published successfully to the Hive blockchain!</span>
+            {isCommentComposerExpanded && <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">Markdown supported</span>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={encryptComment}
+                      onChange={(event) => setEncryptComment(event.target.checked)}
+                      disabled={commentLoading}
+                      className="accent-amber-600"
+                    />
+                    <LockKeyhole className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    Encode comment (memo)
+                  </label>
+                </div>
+              <div className="relative flex items-center gap-2">
+                {showCommentEmojiPicker && (
+                  <div
+                    role="group"
+                    aria-label="Choose an emoji"
+                    className="absolute bottom-full right-0 z-30 mb-2 grid w-52 grid-cols-7 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+                  >
+                    {['😀', '😂', '😊', '😍', '🥰', '😎', '🤔', '🙌', '👏', '👍', '❤️', '🔥', '🎉', '🙏', '😢', '😮', '💯', '✨', '🤗', '👀', '💙'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => insertCommentEmoji(emoji)}
+                        aria-label={`Insert ${emoji}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-lg transition hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShowCommentEmojiPicker((open) => !open)}
+                  aria-label="Open emoji selector"
+                  aria-expanded={showCommentEmojiPicker}
+                  title="Insert emoji"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-amber-300"
+                >
+                  <Smile className="h-4 w-4" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={commentLoading || !newCommentBody.trim()}
+                  className="flex h-8 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
+                </button>
               </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Markdown supported</span>
-              <button
-                type="submit"
-                disabled={commentLoading || !newCommentBody.trim()}
-                className="flex h-8 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{commentLoading ? 'Signing...' : 'Post Reply'}</span>
-              </button>
-            </div>
+              </div>
+              {encryptComment && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2 dark:border-amber-900/70 dark:bg-amber-950/20">
+                  <label htmlFor="comment-encrypt-recipient" className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    Recipient Hive account
+                    <input
+                      id="comment-encrypt-recipient"
+                      value={encryptCommentRecipient}
+                      onChange={(event) => setEncryptCommentRecipient(event.target.value)}
+                      placeholder="e.g. alice"
+                      autoComplete="off"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-normal text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  </label>
+                  <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Only the recipient and accounts with the matching memo key can read the comment. The encrypted memo is published on Hive.
+                  </p>
+                </div>
+              )}
+            </div>}
           </form>
+          {commentSuccess && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Comment published successfully to the Hive blockchain!</span>
+            </div>
+          )}
 
           {/* Comment List */}
           {sortedComments.length > 0 ? (
@@ -1851,6 +2339,170 @@ export const PostReader: React.FC<PostReaderProps> = ({
         )}
 
       </div>
+
+      {/* ================= QUOTE REPLY MODAL ================= */}
+      {quoteReplyOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-5"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !commentLoading) setQuoteReplyOpen(false);
+          }}
+        >
+          <form
+            onSubmit={handleAddQuoteToDraft}
+            className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quote-reply-title"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Quote className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <h3 id="quote-reply-title" className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                  Reply to quote
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuoteReplyOpen(false)}
+                disabled={commentLoading}
+                aria-label="Close quote reply"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <blockquote className="max-h-32 overflow-y-auto rounded-xl border-l-4 border-blue-400 bg-blue-50/70 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:border-blue-500 dark:bg-slate-800/70 dark:text-slate-200">
+              {quotedSelection}
+            </blockquote>
+
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Your reply</span>
+              <textarea
+                autoFocus
+                rows={4}
+                value={quoteReplyText}
+                onChange={(event) => setQuoteReplyText(event.target.value)}
+                placeholder="Write your response to this quote..."
+                className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950"
+              />
+            </label>
+
+            {!currentUser && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Connect Hive Keychain to publish your reply.
+              </p>
+            )}
+
+            <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+              This will be added to the reply field below. You can collect more quotes before posting.
+            </p>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setQuoteReplyOpen(false)}
+                disabled={commentLoading}
+                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!quoteReplyText.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add to draft
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {quoteDraftCount > 0 && !quoteDraftReviewOpen && (
+        <button
+          type="button"
+          onClick={() => setQuoteDraftReviewOpen(true)}
+          className="fixed bottom-44 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-blue-700 shadow-lg backdrop-blur-md transition hover:bg-blue-50 dark:border-blue-900 dark:bg-slate-800/95 dark:text-blue-300 dark:hover:bg-slate-800 sm:bottom-40 sm:right-7"
+          aria-label={`Review quote draft with ${quoteDraftCount} ${quoteDraftCount === 1 ? 'quote' : 'quotes'}`}
+        >
+          <Quote className="h-3.5 w-3.5" />
+          <span>Quote draft · {quoteDraftCount}</span>
+        </button>
+      )}
+
+      {quoteDraftReviewOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-5"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !commentLoading) setQuoteDraftReviewOpen(false);
+          }}
+        >
+          <form
+            onSubmit={handlePublishQuoteDraft}
+            className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quote-draft-title"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Quote className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <h3 id="quote-draft-title" className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                  Quote reply draft ({quoteDraftCount})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuoteDraftReviewOpen(false)}
+                disabled={commentLoading}
+                aria-label="Close quote draft"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Review or edit your collected quotes and replies</span>
+              <textarea
+                autoFocus
+                rows={9}
+                value={newCommentBody}
+                onChange={(event) => setNewCommentBody(event.target.value)}
+                className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-800 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-950"
+              />
+            </label>
+
+            {!currentUser && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Connect Hive Keychain to publish this reply.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setQuoteDraftReviewOpen(false)}
+                disabled={commentLoading}
+                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Keep editing later
+              </button>
+              <button
+                type="submit"
+                disabled={commentLoading || !newCommentBody.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {commentLoading ? 'Signing…' : 'Post Reply'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ================= TIP MODAL ================= */}
       {showTipModal && (
@@ -1986,14 +2638,15 @@ export const PostReader: React.FC<PostReaderProps> = ({
       {/* Floating Selection Action Toolbar (Desktop only) */}
       {selectionBubble.visible && (
         <div
-          className="fixed z-50 flex items-center gap-1 bg-gray-900/95 dark:bg-slate-800/95 text-white backdrop-blur-md px-2 py-1.5 rounded-2xl shadow-xl border border-white/10 animate-in fade-in zoom-in-95 duration-150"
+          data-selection-toolbar
+          className={`fixed z-50 flex max-h-[min(70vh,520px)] flex-wrap items-center gap-1 overflow-x-hidden overflow-y-auto rounded-2xl border border-white/10 bg-gray-900/95 px-2 py-1.5 text-white shadow-xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 dark:bg-slate-800/95 ${selectionToolResult || selectionToolError ? 'w-[min(360px,calc(100vw-24px))]' : 'w-fit max-w-[calc(100vw-24px)]'}`}
           style={{
             left: `${selectionBubble.x}px`,
             top: `${selectionBubble.y}px`
           }}
-          onMouseDown={(e) => e.preventDefault()}
         >
           <button
+            onMouseDown={(event) => event.preventDefault()}
             onClick={handleQuoteSelection}
             className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
             title="Quote in discussion"
@@ -2005,6 +2658,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
           <div className="w-px h-4 bg-white/20" />
 
           <button
+            onMouseDown={(event) => event.preventDefault()}
             onClick={handleTranslateSelection}
             className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
             title="Translate with Google Translate"
@@ -2013,16 +2667,43 @@ export const PostReader: React.FC<PostReaderProps> = ({
             <span>Translate</span>
           </button>
 
-          <div className="w-px h-4 bg-white/20" />
+          {selectionBubble.scope === 'post' && (
+            <>
+              <div className="mx-1 h-4 w-px bg-white/20" />
+              <button
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={handleHighlightSelection}
+                className="flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/15 hover:text-white cursor-pointer"
+                title="Highlight text"
+              >
+                <Highlighter className="h-3.5 w-3.5 text-amber-400" />
+                <span>Marcar</span>
+              </button>
+            </>
+          )}
 
-          <button
-            onClick={handleHighlightSelection}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-white/15 text-xs font-semibold transition cursor-pointer text-slate-100 hover:text-white"
-            title="Highlight text"
-          >
-            <Highlighter className="w-3.5 h-3.5 text-amber-400" />
-            <span>Marcar</span>
-          </button>
+          {selectionBubble.text.match(/#[1-9A-HJ-NP-Za-km-z]{50,}/)?.[0] && (
+            <button
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handleDecodeSelection}
+              disabled={selectionToolBusy}
+              className="flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/15 hover:text-white disabled:opacity-60 cursor-pointer"
+              title="Decode selected Hive memo with Keychain"
+            >
+              {selectionToolBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5 text-emerald-400" />}
+              <span>Decode</span>
+            </button>
+          )}
+
+          {selectionToolError && <p role="alert" className="w-full border-t border-white/15 pt-2 text-[11px] text-rose-300">{selectionToolError}</p>}
+          {selectionToolResult && (
+            <div className="w-full space-y-2 border-t border-white/15 pt-2">
+              <textarea readOnly value={selectionToolResult} aria-label="Decoded memo text" className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-white/15 bg-black/20 p-2 text-xs text-white" />
+              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={copySelectionToolResult} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/15">
+                <Copy className="h-3.5 w-3.5" /> Copy result
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2213,28 +2894,50 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
   // Comment translation state (free, markdown-preserved)
   const [translatedCommentBody, setTranslatedCommentBody] = useState<string | null>(null);
   const [isTranslatingComment, setIsTranslatingComment] = useState(false);
+  const [commentTargetLanguage, setCommentTargetLanguage] = useState<string>(locale);
+  const [commentTranslationMessage, setCommentTranslationMessage] = useState<string | null>(null);
   const [isCommentBodyExpanded, setIsCommentBodyExpanded] = useState(false);
 
   useEffect(() => {
     commentTranslationVersion.current++;
     setTranslatedCommentBody(null);
     setIsTranslatingComment(false);
+    setCommentTargetLanguage(locale);
+    setCommentTranslationMessage(null);
     return () => { commentTranslationVersion.current++; };
   }, [locale, comment.author, comment.permlink, comment.body]);
+
+  useEffect(() => {
+    commentTranslationVersion.current++;
+    setTranslatedCommentBody(null);
+    setCommentTranslationMessage(null);
+  }, [commentTargetLanguage]);
 
   const handleToggleTranslateComment = async () => {
     if (translatedCommentBody) {
       setTranslatedCommentBody(null);
+      setCommentTranslationMessage(null);
       return;
     }
     if (!comment.body || isTranslatingComment) return;
     const version = commentTranslationVersion.current;
     setIsTranslatingComment(true);
+    setCommentTranslationMessage(null);
     try {
-      const translated = await translateMarkdown(comment.body, locale);
-      if (version === commentTranslationVersion.current) setTranslatedCommentBody(translated);
+      const translated = await translateMarkdown(comment.body, commentTargetLanguage);
+      if (version === commentTranslationVersion.current) {
+        if (translated.trim() === comment.body.trim()) {
+          const languageName = POPULAR_TRANSLATION_LANGUAGES.find((language) => language.code === commentTargetLanguage)?.name || commentTargetLanguage;
+          setCommentTranslationMessage(`No visible change. This comment may already be in ${languageName}.`);
+        } else {
+          setTranslatedCommentBody(translated);
+        }
+      }
     } catch (err) {
       console.error('Failed to translate comment:', err);
+      if (version === commentTranslationVersion.current) {
+        setCommentTranslationMessage('Translation failed. Check your connection and try again.');
+      }
     } finally {
       if (version === commentTranslationVersion.current) setIsTranslatingComment(false);
     }
@@ -2489,7 +3192,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
               ? 'text-blue-600 dark:text-blue-400 font-bold'
               : 'text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
           }`}
-          title={translatedCommentBody ? 'Show original comment text' : 'Translate comment (Free, preserves markdown)'}
+          title={translatedCommentBody ? 'Show original comment text' : `Translate comment to ${POPULAR_TRANSLATION_LANGUAGES.find((language) => language.code === commentTargetLanguage)?.name || commentTargetLanguage} (Free, preserves markdown)`}
         >
           {isTranslatingComment ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
@@ -2498,6 +3201,17 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           )}
           <span>{translatedCommentBody ? 'Original' : 'Translate'}</span>
         </button>
+        <select
+          aria-label="Translate comment to"
+          value={commentTargetLanguage}
+          onChange={(event) => setCommentTargetLanguage(event.target.value)}
+          disabled={isTranslatingComment}
+          className="max-w-[112px] rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-600 outline-none hover:border-blue-300 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+        >
+          {POPULAR_TRANSLATION_LANGUAGES.map((language) => (
+            <option key={language.code} value={language.code}>{language.flag} {language.name}</option>
+          ))}
+        </select>
 
         {/* Child replies action */}
         {childReplies.length > 0 && (
@@ -2530,6 +3244,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
           </>
         )}
       </div>
+
+      {commentTranslationMessage && (
+        <p role="status" className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+          {commentTranslationMessage}
+        </p>
+      )}
 
       {/* Mobile only: for subcomments (depth >= 1) with replies, full-width banner to open comment page */}
       {depth >= 1 && childReplies.length > 0 && (
@@ -2566,10 +3286,12 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
               Cancel
             </button>
           </div>
-          <textarea
+          <ReplySelectionTextarea
             rows={2}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onValueChange={setReplyText}
+            memoSender={currentUser?.isDemo ? undefined : currentUser?.username}
+            defaultRecipient={currentUser?.username}
             placeholder={`Write your reply to @${comment.author}...`}
             className="w-full p-2.5 bg-white dark:bg-slate-900 rounded-xl text-xs text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-2xs"
           />

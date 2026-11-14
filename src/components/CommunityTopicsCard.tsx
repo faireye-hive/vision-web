@@ -7,13 +7,18 @@ import { useCommunityFeatures } from '../hooks/useCommunityFeatures';
 interface CommunityTopicsCardProps {
   communityPosts: HivePost[];
   currentTag: string;
+  onSelectTopic?: (topic: string) => void;
+  title?: string;
 }
 
 export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
   communityPosts,
-  currentTag
+  currentTag,
+  onSelectTopic,
+  title = 'Topics in this feed'
 }) => {
   const { communitySubTopic, setCommunitySubTopic } = useNavigation();
+  const selectTopic = onSelectTopic || setCommunitySubTopic;
   const { data } = useCommunityFeatures(currentTag.startsWith('hive-') ? currentTag : '');
   // Extract topics from loaded community posts. Frequency is used only to order
   // discovery chips; no post or engagement counts are shown in the interface.
@@ -65,12 +70,12 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
           <div className="rounded-lg bg-slate-100 p-1.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             <Hash className="h-3.5 w-3.5" />
           </div>
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Topics in this feed</h3>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">{title}</h3>
         </div>
 
         {communitySubTopic && (
           <button
-            onClick={() => setCommunitySubTopic('')}
+            onClick={() => selectTopic('')}
             className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
           >
             <X className="w-3 h-3" />
@@ -94,9 +99,9 @@ export const CommunityTopicsCard: React.FC<CommunityTopicsCardProps> = ({
               aria-pressed={isSelected}
               onClick={() => {
                 if (isSelected) {
-                  setCommunitySubTopic('');
+                  selectTopic('');
                 } else {
-                  setCommunitySubTopic(name);
+                  selectTopic(name);
                 }
               }}
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${

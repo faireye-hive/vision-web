@@ -1,9 +1,11 @@
 import { legacySnapsRedirect } from '../utils/snapsRoutes';
+import { communityNameFromPath, communityPath, COMMUNITY_NAME } from '../utils/communityRoutes';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HivePost, getPost, NON_POST_PERMLINKS } from '../services/hiveApi';
 import { PostHeading } from '../utils/sanitize';
 import { useAuth } from './AuthContext';
+import { useI18n } from '../i18n/I18nContext';
 
 export type NavTab = 'feed' | 'discover' | 'shorts' | 'communities';
 export type SortOption = 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
@@ -26,6 +28,7 @@ export interface NavigationContextType {
   handleSelectAuthor: (author: string) => void;
   selectedLanguage: string;
   setSelectedLanguage: (lang: string) => void;
+  followsInterfaceLanguage: boolean;
   standalonePage: StandalonePage | null;
   profileUser: string | null;
   openStandalonePage: (page: StandalonePage, user?: string) => void;
@@ -65,6 +68,7 @@ const NavigationContext = createContext<NavigationContextType | undefined>(undef
 
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
+  const { locale } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -77,7 +81,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [tag, setTagState] = useState<string>('');
   const [feedAuthor, setFeedAuthor] = useState<string | null>(null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('global');
+  const [languagePreference, setSelectedLanguage] = useState('auto');
+  const followsInterfaceLanguage = sort === 'recommend' && languagePreference === 'auto';
+  const selectedLanguage = languagePreference === 'auto'
+    ? (followsInterfaceLanguage ? locale : 'global')
+    : languagePreference;
 
   const [standalonePage, setStandalonePage] = useState<StandalonePage | null>(null);
   const [profileUser, setProfileUser] = useState<string | null>(null);
@@ -215,7 +223,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Community path: /c/:community
     if (pathname.startsWith('/c/')) {
-      const comm = decodeURIComponent(pathname.replace(/^\/c\//, '').replace(/\/+$/, '').trim().toLowerCase());
+      const comm = communityNameFromPath(pathname);
       setActiveNav('communities');
       setTagState(comm);
       tagRef.current = comm;
@@ -423,7 +431,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   const openCommunity = useCallback((communityName: string) => {
     const clean = communityName.trim().toLowerCase();
-    setTag(clean);
+    if (!COMMUNITY_NAME.test(clean)) return;
+    setTagState(clean);
+    tagRef.current = clean;
     setActiveNav('communities');
     setStandalonePage(null);
     setSelectedPost(null);
@@ -431,7 +441,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (sort === 'recommend') {
       setSortState('trending');
     }
-    navigate(`/c/${clean}`);
+    feedScrollPositionRef.current = 0;
+    navigate(communityPath(clean), { state: { communityLanding: true } });
+    window.scrollTo({ top: 0 });
   }, [navigate, sort]);
 
   const openStandalonePage = useCallback((page: StandalonePage, user?: string) => {
@@ -641,6 +653,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     handleSelectAuthor,
     selectedLanguage,
     setSelectedLanguage,
+    followsInterfaceLanguage,
     standalonePage,
     profileUser,
     openStandalonePage,
@@ -682,6 +695,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     authorFeedMode,
     handleSelectAuthor,
     selectedLanguage,
+    followsInterfaceLanguage,
     standalonePage,
     profileUser,
     openStandalonePage,

@@ -23,15 +23,17 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileSideDrawer } from './components/MobileSideDrawer';
 
 import { HivePost } from './services/hiveApi';
-import { syncRecommendationsInBackground } from './services/recommendationService';
 import { requestLogin } from './utils/authEvents';
 import { ThemeMode, getInitialTheme, applyTheme } from './utils/theme';
 import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
 import { useShortsWordFilter } from './hooks/useShortsWordFilter';
 import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
 import { I18nProvider } from './i18n/I18nContext';
+import { COMMUNITY_NAME } from './utils/communityRoutes';
+import type { PostTextHighlight } from './components/PostReader';
 
 const SnapsPage = lazy(() => import('./pages/SnapsPage').then(m => ({ default: m.SnapsPage })));
+const CommunityPage = lazy(() => import('./pages/CommunityPage').then(m => ({ default: m.CommunityPage })));
 const ShortsPage = lazy(() => import('./pages/ShortsPage').then((m) => ({ default: m.ShortsPage })));
 const WritePage = lazy(() => import('./pages/WritePage').then((m) => ({ default: m.WritePage })));
 const FollowingManagerPage = lazy(() => import('./pages/FollowingManagerPage').then((m) => ({ default: m.FollowingManagerPage })));
@@ -58,6 +60,7 @@ function NebulosaApp() {
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
   const [profileReaderAppearance, setProfileReaderAppearance] = useState<ProfileReaderAppearance | null>(null);
+  const [activePostHighlights, setActivePostHighlights] = useState<{ postKey: string; items: PostTextHighlight[] }>({ postKey: '', items: [] });
 
   const handleDiscoverPostsLoaded = useCallback((loaded: HivePost[]) => {
     setDiscoverPosts(loaded);
@@ -102,14 +105,38 @@ function NebulosaApp() {
     showContentFilterModal,
     setShowContentFilterModal,
     selectedLanguage,
+    followsInterfaceLanguage,
     setSelectedLanguage
   } = useNavigation();
 
+  const currentPostKey = selectedPost ? `${selectedPost.author}/${selectedPost.permlink}` : '';
+  const visiblePostHighlights = activePostHighlights.postKey === currentPostKey ? activePostHighlights.items : [];
+  const handleHighlightsChange = useCallback((postKey: string, items: PostTextHighlight[]) => {
+    setActivePostHighlights({ postKey, items });
+  }, []);
+  const handleSelectHighlightedText = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+  const handleRemoveHighlightedText = useCallback((id: string) => {
+    window.dispatchEvent(new CustomEvent('nebulosa:remove-post-highlight', {
+      detail: { postKey: currentPostKey, id }
+    }));
+  }, [currentPostKey]);
+  const handleClearHighlightedTexts = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('nebulosa:clear-post-highlights', {
+      detail: { postKey: currentPostKey }
+    }));
+  }, [currentPostKey]);
+
   const isEmbeddedCommunitiesPage = activeNav === 'communities' &&
     (standalonePage === 'explore' || standalonePage === 'manage');
+  const isCommunityPage = location.pathname.startsWith('/c/');
   const isCommunityPostOpen = activeNav === 'communities' && Boolean(selectedPost) && !standalonePage;
   const isProfilePostOpen = Boolean(profileReaderAppearance && selectedPost && standalonePage === 'profile');
   const isHivePostOpenInShorts = activeNav === 'shorts' && location.pathname.startsWith('/post/') && Boolean(selectedPost) && !standalonePage;
+  const isPostReading = Boolean(selectedPost && !standalonePage &&
+    (activeNav !== 'shorts' || isHivePostOpenInShorts || isProfilePostOpen) &&
+    (activeNav !== 'communities' || isCommunityPostOpen || isProfilePostOpen));
 
   useEffect(() => {
     if (!selectedPost) setProfileReaderAppearance(null);
@@ -151,29 +178,16 @@ function NebulosaApp() {
 
   // Scroll restoration when closing a post. Shorts keeps its own offset:
   // this global restore is 0 for that tab and was pulling the list back to the top.
+  // Community landings start at their header; closing a post restores its own offset.
   useEffect(() => {
-    if (activeNav === 'shorts') return;
+    if (activeNav === 'shorts' || isCommunityPage) return;
     if (!selectedPost && !standalonePage) {
       const timer = setTimeout(() => {
         restoreScrollPosition();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [selectedPost, standalonePage, restoreScrollPosition, activeNav]);
-
-  // Personalized Recommendation background sync:
-  // Starts silently in background the first time the user opens the app each day.
-  // Cached in IndexedDB with 24h TTL, zero API spam or overload.
-  useEffect(() => {
-    if (currentUser?.username) {
-      // Fire-and-forget in background; service internally guards against TTL and concurrent runs
-      syncRecommendationsInBackground(currentUser.username, false).catch((err) => {
-        console.warn('[App] Background recommendation sync check failed:', err);
-      });
-    }
-  }, [currentUser?.username]);
-
-
+  }, [selectedPost, standalonePage, restoreScrollPosition, activeNav, isCommunityPage]);
 
   return (
     <div className="app-shell min-h-screen flex flex-col bg-transparent text-[var(--reading-text,#1e293b)] transition-colors duration-200">
@@ -202,6 +216,7 @@ function NebulosaApp() {
         isDark={theme === 'dark'}
         onToggleTheme={handleToggleTheme}
         selectedLanguage={selectedLanguage}
+        followsInterfaceLanguage={activeNav === 'discover' && sort === 'recommend' ? followsInterfaceLanguage : undefined}
         onSelectLanguage={setSelectedLanguage}
       />
 
@@ -209,6 +224,7 @@ function NebulosaApp() {
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-1 sm:px-6 py-2 sm:py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
+        {isCommunityPage && <CommunityPage key={location.pathname} />}
         {standalonePage === 'snaps' && <SnapsPage />}
         {standalonePage === 'chat' && <ChatPage />}
         {standalonePage === 'lists' && <SavedListsPage />}
@@ -307,6 +323,7 @@ function NebulosaApp() {
                   currentUser={currentUser}
                   onRequireLogin={requestLogin}
                   onHeadingsExtracted={setPostHeadings}
+                  onHighlightsChange={handleHighlightsChange}
                   onSelectPost={(post) => handleSelectPost(post, true, false, 'profile')}
                 />
               </Suspense>
@@ -315,7 +332,7 @@ function NebulosaApp() {
         )}
 
         {/* ================= RESPONSIVE THREE-COLUMN LAYOUT ================= */}
-        <div
+        {!isCommunityPage && <div
           className={`${isProfilePostOpen
             ? 'mx-auto grid w-full max-w-[980px] grid-cols-1 items-start justify-center gap-5 rounded-3xl p-1 sm:p-4'
             : 'grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,824px)_300px] items-start justify-center gap-5'
@@ -331,8 +348,6 @@ function NebulosaApp() {
                 post={selectedPost}
                 headings={postHeadings}
                 onSelectHeading={handleSelectHeading}
-                onSelectPost={handleSelectPost}
-                onClose={handleClosePost}
               />
             ) : <LeftSidebar
               activeNav={activeNav}
@@ -342,7 +357,8 @@ function NebulosaApp() {
               onSortChange={(s) => setSort(s)}
               currentTag={tag}
               onSelectTag={(t) => {
-                setTag(t);
+                if (activeNav === 'communities' && COMMUNITY_NAME.test(t)) openCommunity(t);
+                else setTag(t);
                 setFeedAuthor(null);
               }}
               onSelectAuthor={handleSelectAuthor}
@@ -384,6 +400,7 @@ function NebulosaApp() {
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}
                     onHeadingsExtracted={setPostHeadings}
+                    onHighlightsChange={handleHighlightsChange}
                     onSelectPost={(p) => handleSelectPost(p, true, false)}
                   />
                 </Suspense>
@@ -445,6 +462,7 @@ function NebulosaApp() {
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}
                     onHeadingsExtracted={setPostHeadings}
+                    onHighlightsChange={handleHighlightsChange}
                     onSelectPost={(post) => handleSelectPost(post, true, false)}
                   />
                 </Suspense>
@@ -479,6 +497,11 @@ function NebulosaApp() {
             <RightRail
               discoverPosts={discoverPosts}
               communityPosts={communityPosts}
+              highlightedTexts={visiblePostHighlights}
+              onSelectHighlightedText={handleSelectHighlightedText}
+              onRemoveHighlightedText={handleRemoveHighlightedText}
+              onClearHighlightedTexts={handleClearHighlightedTexts}
+              isPostReading={isPostReading}
               blockedWords={shortsFilter.blockedWords}
               shortsFilterEnabled={shortsFilter.filterEnabled}
               shortsHiddenCount={shortsFilter.hiddenCount}
@@ -488,7 +511,7 @@ function NebulosaApp() {
               onToggleShortsFilter={shortsFilter.toggleEnabled}
             />
           </aside>
-        </div>
+        </div>}
       </main>
 
       {/* Blockchain Stats Modal */}

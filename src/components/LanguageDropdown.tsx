@@ -18,6 +18,7 @@ interface LanguageDropdownProps {
   onSelectLanguage: (langCode: string) => void;
   id?: string;
   iconOnly?: boolean;
+  followsInterfaceLanguage?: boolean;
 }
 
 export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
@@ -25,6 +26,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
   onSelectLanguage,
   id = 'discover-language-dropdown',
   iconOnly = false,
+  followsInterfaceLanguage,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,7 +119,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
-          title={`Language: ${currentOption.name}. Click to change language.`}
+          title={`Content language: ${currentOption.name}${followsInterfaceLanguage ? ' (app language)' : ''}. Click to change.`}
           className={`p-2 rounded-full transition cursor-pointer relative flex items-center justify-center ${
             selectedLanguage !== 'global'
               ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
@@ -141,7 +143,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
-          title={`Language filter: currently ${currentOption.name}. Click to change language.`}
+          title={`Language filter: currently ${currentOption.name}${followsInterfaceLanguage ? ' (app language)' : ''}. Click to change language.`}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
             selectedLanguage !== 'global'
               ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 shadow-xs'
@@ -197,6 +199,19 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
             )}
           </div>
 
+          {followsInterfaceLanguage !== undefined && !searchQuery && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={followsInterfaceLanguage}
+              onClick={() => handleSelect('auto')}
+              className="mb-1 flex w-full items-center justify-between gap-2 rounded-xl p-2 text-left text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <span>Follow app language</span>
+              {followsInterfaceLanguage && <Check className="h-3.5 w-3.5 shrink-0" />}
+            </button>
+          )}
+
           {/* Option: Global */}
           {(!searchQuery || 'global'.includes(searchQuery.toLowerCase())) && (
             <div className="mb-1 pb-1 border-b border-gray-100 dark:border-slate-800">
@@ -246,7 +261,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar pr-0.5">
             {filteredLanguages.length > 0 ? (
               filteredLanguages.map((lang) => {
-                const isCurrent = selectedLanguage.toLowerCase() === lang.code.toLowerCase();
+                const isCurrent = !followsInterfaceLanguage && selectedLanguage.toLowerCase() === lang.code.toLowerCase();
 
                 return (
                   <button

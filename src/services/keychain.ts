@@ -439,7 +439,7 @@ export class KeychainService {
   }
 
   static async encodeMemoMessage(username: string, receiver: string, plaintext: string): Promise<KeychainResponse> {
-    if (this.isDemoSession()) return this.demoReadOnlyResponse();
+    // Keychain authorizes this local encryption. Publishing is a separate operation.
     if (!this.isInstalled() || !window.hive_keychain?.requestEncodeMessage) return { success: false, error: 'Hive Keychain with memo encryption support is required.' };
     return new Promise(resolve => {
       try { window.hive_keychain!.requestEncodeMessage!(username, receiver, `#${plaintext}`, 'Memo', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }
@@ -449,7 +449,7 @@ export class KeychainService {
 
   static async decodeMemoMessage(username: string, ciphertext: string): Promise<KeychainResponse> {
     if (this.isDemoSession()) return this.demoReadOnlyResponse();
-    if (!/^#[1-9A-HJ-NP-Za-km-z]{100,}$/.test(ciphertext)) return { success: false, error: 'Invalid encrypted memo.' };
+    if (!/^#[1-9A-HJ-NP-Za-km-z]{50,}$/.test(ciphertext)) return { success: false, error: 'Invalid encrypted memo.' };
     if (!this.isInstalled() || !window.hive_keychain?.requestVerifyKey) return { success: false, error: 'Hive Keychain with your private memo key is required.' };
     return new Promise(resolve => {
       try { window.hive_keychain!.requestVerifyKey!(username, ciphertext, 'Memo', response => resolve(response || { success: false, error: 'No response from Keychain.' })); }

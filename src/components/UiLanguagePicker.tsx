@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Check, Languages } from 'lucide-react';
 import { UI_LOCALES, UiLocale } from '../i18n/messages';
 import { useI18n } from '../i18n/I18nContext';
@@ -41,7 +41,22 @@ function LanguageChoices({ onSelect }: { onSelect?: (locale: UiLocale) => void }
 }
 
 /** Inline choices for an already open menu. */
-export function UiLanguagePicker({ onSelect }: { onSelect?: (locale: UiLocale) => void }) {
+export function UiLanguagePicker({ onSelect, compact = false }: { onSelect?: (locale: UiLocale) => void; compact?: boolean }) {
+  const { locale, setLocale, t } = useI18n();
+  const selectId = useId();
+  if (compact) return (
+    <div className="flex min-h-8 items-center gap-2.5 px-2 py-1 text-xs font-medium">
+      <Languages className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+      <label htmlFor={selectId} className="flex-1">{t('menu.language')}</label>
+      <select id={selectId} value={locale} title={t('menu.languageHint')} onChange={(event) => {
+        const value = event.target.value as UiLocale;
+        setLocale(value);
+        onSelect?.(value);
+      }} className="min-w-0 max-w-[55%] rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+        {UI_LOCALES.map((item) => <option key={item.code} value={item.code}>{item.native}</option>)}
+      </select>
+    </div>
+  );
   return <LanguageChoices onSelect={onSelect} />;
 }
 
