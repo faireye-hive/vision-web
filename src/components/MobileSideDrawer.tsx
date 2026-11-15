@@ -676,8 +676,7 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
                       return (
                         <div
                           key={comm.name}
-                          onClick={() => handleSelectCommunity(comm.name)}
-                          className={`flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer border ${
+                          className={`flex items-center justify-between rounded-xl border pe-2 text-xs transition ${
                             isSelected
                               ? 'bg-emerald-100 dark:bg-emerald-950/70 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold shadow-2xs'
                               : isFav
@@ -685,24 +684,28 @@ export const MobileSideDrawer: React.FC<MobileSideDrawerProps> = ({
                               : 'bg-white dark:bg-slate-800/80 border-gray-150 dark:border-slate-700/80 text-gray-700 dark:text-slate-300 hover:bg-gray-50'
                           }`}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCommunity(comm.name)}
+                            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl p-2 text-start focus-visible:outline-2 focus-visible:outline-blue-500"
+                          >
                             <img
                               src={getHiveAvatarUrl(comm.name, 'small')}
-                              alt={comm.title}
+                              alt=""
                               className={`w-6 h-6 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0 ${
                                 isSelected ? 'ring-2 ring-emerald-500' : ''
                               }`}
                               onError={handleImageFallback}
                             />
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold leading-tight text-gray-900 dark:text-white">
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold leading-tight text-gray-900 dark:text-white">
                                 {comm.title}
-                              </p>
-                              <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
+                              </span>
+                              <span className="block truncate text-[10px] text-gray-400 dark:text-slate-500">
                                 {comm.name}
-                              </p>
-                            </div>
-                          </div>
+                              </span>
+                            </span>
+                          </button>
 
                           <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                             {isSelected && (

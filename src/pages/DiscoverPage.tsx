@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw,
   X,
@@ -7,7 +8,6 @@ import {
   ShieldAlert,
   EyeOff,
   Compass,
-  Layers,
   LayoutGrid,
   LayoutList,
   Sparkles,
@@ -74,13 +74,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 }) => {
   const { locale } = useI18n();
   const communityCopy = communityPageCopy(locale);
-  const { currentUser, joinedCommunities } = useAuth();
+  const { locale, t } = useI18n();
+  const navigate = useNavigate();
+  const communityCopy = communityPageCopy(locale);
+  const { currentUser } = useAuth();
   const {
     sort,
     setSort,
     tag,
     setTag,
-    selectedLanguage,
+    selectedLanguage: discoveryLanguage,
     setSelectedLanguage,
     followsInterfaceLanguage,
     communitySubTopic,
@@ -89,12 +92,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     handleSelectAuthor,
     handleSelectPost,
     openContentFilterModal,
-    setActiveNav,
     feedLayoutMode,
     setFeedLayoutMode,
-    openCommunitiesModal,
-    openManageCommunitiesModal
+    openCommunitiesModal
   } = useNavigation();
+  const selectedLanguage = isRecommended ? locale : discoveryLanguage;
 
   const [communityLayout, setCommunityLayout] = useState<'list' | 'gallery'>(() => {
     try { return localStorage.getItem('nebulosa_communities_layout') === 'list' ? 'list' : 'gallery'; } catch { return 'gallery'; }
@@ -106,11 +108,6 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
     try { localStorage.setItem('nebulosa_communities_layout', mode); } catch {}
   };
 
-  const joinedCount = useMemo(
-    () => Object.values(joinedCommunities || {}).filter(Boolean).length,
-    [joinedCommunities]
-  );
-
   const {
     config: contentFilterConfig,
     addFilterWord,
@@ -120,9 +117,9 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   } = useContentFilter();
 
   const activeCategory = useMemo(() => {
-    if (isCommunitiesFeed || !tag) return undefined;
+    if (isCommunitiesFeed || isRecommended || !tag) return undefined;
     return findCategoryByTag(tag);
-  }, [isCommunitiesFeed, tag]);
+  }, [isCommunitiesFeed, isRecommended, tag]);
 
   const effectiveSort = isCommunitiesFeed && sort === 'recommend' ? 'trending' : sort;
   const isRecommended = effectiveSort === 'recommend';
@@ -235,16 +232,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
   }, [handleSelectPost]);
 
   const openTag = useCallback((nextTag: string) => {
-    setTag(nextTag);
-    setFeedAuthor(null);
-  }, [setTag, setFeedAuthor]);
-
-  // Ensure communities feed never uses recommend sort
-  useEffect(() => {
-    if (isCommunitiesFeed && sort === 'recommend') {
-      setSort('trending');
+    if (isCommunitiesFeed) {
+      setCommunitySubTopic(nextTag);
+    } else if (isRecommended) {
+      navigate(`/tag/${encodeURIComponent(nextTag)}`);
+      window.scrollTo({ top: 0 });
+    } else {
+      setTag(nextTag);
+      setFeedAuthor(null);
     }
-  }, [isCommunitiesFeed, sort, setSort]);
+  }, [isCommunitiesFeed, isRecommended, navigate, setCommunitySubTopic, setTag, setFeedAuthor]);
 
   const fetchPosts = useCallback(
     async (isRefresh = false) => {
@@ -255,7 +252,12 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       setLoadingMore(false);
       loadedPages.current = 1;
       apiCursorRef.current = null;
-      const actualSort = isCommunitiesFeed && sort === 'recommend' ? 'trending' : sort;
+      if (needsLogin) {
+        setPosts([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
 
       // Personalized Recommendation Feed branch (only for discover feed, never communities)
       if (!isCommunitiesFeed && actualSort === 'recommend') {
@@ -268,6 +270,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           return;
         }
 
+        setLoading(true);
         setLoading(true);
         try {
           const recs = await getHafRecommendedFeed(username, selectedLanguage, 1, controller.signal);
@@ -290,24 +293,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       setLoadedRecommendationKey(null);
       const observer = isCommunitiesFeed ? username : '';
-      let queryTag = tag;
-      if (isCommunitiesFeed && !queryTag) {
-        queryTag = observer ? 'my' : 'hive-125125';
-      }
-
-      const rpcSort = (actualSort === 'recommend' ? 'trending' : actualSort) as
-        | 'trending'
-        | 'hot'
-        | 'created'
-        | 'payout'
-        | 'muted'
-        | 'promoted';
-
       let hasCached = false;
-      if (!isRefresh && rpcSort !== 'created' && (isCommunitiesFeed || selectedLanguage === 'global')) {
+      if (!isRefresh && sort !== 'created' && (isCommunitiesFeed || selectedLanguage === 'global')) {
         const cached = getCachedRankedPosts(
-          rpcSort,
-          isCommunitiesFeed ? queryTag : tag,
+          sort,
+          queryTag,
           20,
           undefined,
           undefined,
@@ -315,7 +305,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         );
         if (cached && cached.length > 0) {
           rememberCursor(cached);
-          setPosts(rankPostsByCustomAlgorithm(cached, actualSort, actualSort === 'trending' && !isCommunitiesFeed));
+          setPosts(rankPostsByCustomAlgorithm(cached, sort, sort === 'trending' && !isCommunitiesFeed));
           hasCached = true;
         }
       }
@@ -329,7 +319,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         let fetched: HivePost[] = [];
 
         if (isCommunitiesFeed) {
-          fetched = await getRankedPosts(rpcSort, queryTag, 20, undefined, undefined, observer, isRefresh);
+          fetched = await getRankedPosts(sort, queryTag, 20, undefined, undefined, observer, isRefresh);
         } else if (selectedLanguage !== 'global') {
           fetched = await getLanguageDiscoveryFeed({
             language: selectedLanguage,
@@ -340,11 +330,11 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             signal: controller.signal,
           });
         } else {
-          fetched = await getRankedPosts(rpcSort, tag, 20, undefined, undefined, '', isRefresh);
+          fetched = await getRankedPosts(sort, tag, 20, undefined, undefined, '', isRefresh);
 
           // Trending keeps walking Hive pages until 20 posts have 10+ comments.
           // The cursor stays on API order, not the re-ranked list.
-          if (actualSort === 'trending') {
+          if (sort === 'trending') {
             let qualifying = (fetched || []).filter(qualifiesForTrending);
             let attempts = 0;
             while (qualifying.length < 20 && fetched.length > 0 && attempts < 4) {
@@ -372,8 +362,8 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
         rememberCursor(fetched || []);
         setPosts(rankPostsByCustomAlgorithm(
           fetched || [],
-          actualSort,
-          actualSort === 'trending' && !isCommunitiesFeed
+          sort,
+          sort === 'trending' && !isCommunitiesFeed
         ));
       } catch (err: any) {
         if (gen !== queryGen.current) return;
@@ -444,7 +434,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           signal: feedAbortRef.current?.signal,
         });
         if (gen !== queryGen.current) return;
-        const rankedMore = rankPostsByCustomAlgorithm(more, actualSort, false);
+        const rankedMore = rankPostsByCustomAlgorithm(more, sort, false);
         setPosts((prev) => appendUniquePosts(prev, rankedMore));
         return;
       }
@@ -452,29 +442,16 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       const cursor = apiCursorRef.current;
       if (!cursor) return;
       const observer = isCommunitiesFeed ? username : '';
-      let queryTag = tag;
-      if (isCommunitiesFeed && !queryTag) {
-        queryTag = observer ? 'my' : 'hive-125125';
-      }
-
-      const rpcSort = (actualSort === 'recommend' ? 'trending' : actualSort) as
-        | 'trending'
-        | 'hot'
-        | 'created'
-        | 'payout'
-        | 'muted'
-        | 'promoted';
-
       let more = await getRankedPosts(
-        rpcSort,
-        isCommunitiesFeed ? queryTag : tag,
+        sort,
+        queryTag,
         20,
         cursor.author,
         cursor.permlink,
         observer
       );
 
-      if (actualSort === 'trending' && !isCommunitiesFeed) {
+      if (sort === 'trending' && !isCommunitiesFeed) {
         let qualifying = more.filter(qualifiesForTrending);
         let attempts = 0;
         while (qualifying.length < 10 && more.length > 0 && attempts < 3) {
@@ -491,7 +468,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
 
       if (gen !== queryGen.current) return;
       rememberCursor(more);
-      const rankedMore = rankPostsByCustomAlgorithm(more, actualSort, actualSort === 'trending' && !isCommunitiesFeed);
+      const rankedMore = rankPostsByCustomAlgorithm(more, sort, sort === 'trending' && !isCommunitiesFeed);
       setPosts((prev) => appendUniquePosts(prev, rankedMore));
     } catch (err: any) {
       if (gen !== queryGen.current) return;
@@ -632,23 +609,17 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               </button>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
-              <Sparkles className="w-3 h-3" />
-            </div>
+            <SortDropdown
+              id="discover-header-sort-dropdown"
+              currentSort={sort}
+              onSortChange={setSort}
+              iconOnly
+            />
           )}
 
-          {/* Sort Selector */}
-          <SortDropdown
-            id="discover-header-sort-dropdown"
-            currentSort={effectiveSort}
-            onSortChange={(newSort) => setSort(newSort)}
-            hideRecommend={isCommunitiesFeed}
-            iconOnly={true}
-          />
-
           {/* Language Selector (Hidden on mobile, present on desktop) */}
-          {!isCommunitiesFeed && (
-            <div id="discover-header-language-wrapper" className="hidden sm:inline-block shrink-0 overflow-visible">
+          {!isCommunitiesFeed && !isRecommended && (
+            <div id="discover-header-language-wrapper" className="hidden shrink-0 overflow-visible sm:inline-block">
               <LanguageDropdown
                 id="discover-header-language-dropdown"
                 selectedLanguage={selectedLanguage}
@@ -662,7 +633,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           )}
 
           {/* Category Dropdown */}
-          {!isCommunitiesFeed && (
+          {!isCommunitiesFeed && !isRecommended && (
             <CategoryDropdown
               id="discover-header-category-dropdown"
               currentCategory={activeCategory}
@@ -687,7 +658,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
           )}
 
           {/* Active Tag Filter Chip */}
-          {tag && !activeCategory && !isCommunitiesFeed && (
+          {tag && !activeCategory && !isCommunitiesFeed && !isRecommended && (
             <div
               id="discover-tag-chip"
               className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-xs font-semibold shrink-0 max-w-[95px] sm:max-w-[130px] animate-in fade-in"
@@ -854,7 +825,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
       {/* Posts stream */}
       {isRecommended && !username ? (
         <div
-          id="discover-recommend-login-prompt"
+          id="feed-login-prompt"
           className="relative overflow-hidden p-6 sm:p-8 text-center max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm my-4 animate-in fade-in"
         >
           {/* Subtle ambient blur orb */}
@@ -866,7 +837,7 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
               <Sparkles className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">
-              Personalized Recommendations
+              {t(isRecommended ? 'feed.forYou' : 'feed.myCommunities')}
             </h3>
             <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-6 leading-relaxed max-w-sm mx-auto">
               Sign in with your Hive account to see the Recommended feed.
@@ -1193,14 +1164,22 @@ export const DiscoverPage: React.FC<DiscoverPageProps> = ({
             <button
               id="discover-empty-reset-btn"
               onClick={() => {
-                setTag('');
-                setSelectedLanguage('global');
-                setFeedAuthor(null);
-                setActiveNav('discover');
+                if (isCommunitiesFeed) {
+                  if (communityPage || tag || communitySubTopic) void fetchPosts(true);
+                  else openCommunitiesModal();
+                } else if (tag || selectedLanguage !== 'global') {
+                  setTag('');
+                  setSelectedLanguage('global');
+                  setFeedAuthor(null);
+                } else {
+                  void fetchPosts(true);
+                }
               }}
               className="px-4 py-2.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-semibold transition shadow-sm cursor-pointer active:scale-[0.98]"
             >
-              {selectedLanguage !== 'global' ? 'Reset to Global Feed' : 'Refresh Feed'}
+              {isCommunitiesFeed && !communityPage && !tag && !communitySubTopic
+                ? 'Explore Communities'
+                : !isCommunitiesFeed && selectedLanguage !== 'global' ? 'Reset to Global Feed' : 'Refresh Feed'}
             </button>
           )}
         </div>

@@ -23,9 +23,7 @@ import { requestLogin } from '../utils/authEvents';
 
 export interface ManageCommunitiesPageProps {
   embedded?: boolean;
-  onClose: () => void;
   onSwitchToExplore: () => void;
-  onSwitchToFeed?: () => void;
   onSelectCommunity: (communityName: string) => void;
   joinedCommunities: Record<string, boolean>;
   onToggleJoinCommunity: (communityName: string) => Promise<string | null> | string | null;
@@ -68,9 +66,7 @@ function loadPrefs(): StoredPrefs {
 
 export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
   embedded = false,
-  onClose,
   onSwitchToExplore,
-  onSwitchToFeed,
   onSelectCommunity,
   joinedCommunities,
   onToggleJoinCommunity,
@@ -261,17 +257,8 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
       {/* Top Switcher Navigation */}
       <CommunitiesTabNav
         currentTab="manage"
-        onSelectTab={(tab) => {
-          if (tab === 'feed') {
-            if (onSwitchToFeed) onSwitchToFeed();
-            else onClose();
-          } else if (tab === 'explore') {
-            onSwitchToExplore();
-          }
-        }}
+        onSelectTab={(tab) => { if (tab === 'explore') onSwitchToExplore(); }}
         joinedCount={joinedCount}
-        onBack={onSwitchToFeed || onClose}
-        showBack={true}
         mobileOnly={embedded}
       />
 

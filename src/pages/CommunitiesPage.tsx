@@ -4,7 +4,6 @@ import { ManageCommunitiesPage } from './ManageCommunitiesPage';
 
 export interface CommunitiesPageProps {
   mode: 'explore' | 'manage';
-  onClose: () => void;
   onSwitchMode: (mode: 'explore' | 'manage') => void;
   onSelectCommunity: (communityName: string) => void;
   joinedCommunities: Record<string, boolean>;
@@ -24,7 +23,6 @@ export { ManageCommunitiesPage } from './ManageCommunitiesPage';
  */
 export const CommunitiesPage: React.FC<CommunitiesPageProps> = ({
   mode,
-  onClose,
   onSwitchMode,
   onSelectCommunity,
   joinedCommunities,
@@ -34,9 +32,7 @@ export const CommunitiesPage: React.FC<CommunitiesPageProps> = ({
   if (mode === 'manage') {
     return (
       <ManageCommunitiesPage
-        onClose={onClose}
         onSwitchToExplore={() => onSwitchMode('explore')}
-        onSwitchToFeed={onClose}
         onSelectCommunity={onSelectCommunity}
         joinedCommunities={joinedCommunities}
         onToggleJoinCommunity={onToggleJoinCommunity}
@@ -47,9 +43,7 @@ export const CommunitiesPage: React.FC<CommunitiesPageProps> = ({
 
   return (
     <ExploreCommunitiesPage
-      onClose={onClose}
       onSwitchToManage={() => onSwitchMode('manage')}
-      onSwitchToFeed={onClose}
       onSelectCommunity={onSelectCommunity}
       joinedCommunities={joinedCommunities}
       onToggleJoinCommunity={onToggleJoinCommunity}

@@ -1,3 +1,4 @@
+import type { SortOption } from '../context/NavigationContext';
 import { handleImageFallback } from '../utils/imageFallback';
 import { getHiveAvatarUrl } from '../utils/hiveAvatar';
 import React, { useState, useEffect, useRef } from 'react';
@@ -50,8 +51,8 @@ import { pollWhileVisible } from '../utils/visiblePolling';
 import { useI18n } from '../i18n/I18nContext';
 
 interface NavbarProps {
-  currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  currentSort: SortOption;
+  onSortChange: (sort: SortOption) => void;
   currentTag: string;
   onTagChange: (tag: string) => void;
   onOpenAccount: (username: string) => void;
@@ -414,19 +415,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                     id={`nav-${tab.id}-btn`}
                     onClick={() => { if (onNavChange) onNavChange(tab.id as any); }}
                     title={`${tab.label}: ${tab.desc}`}
-                    className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 lg:px-3 py-1.5 rounded-xl border border-transparent text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                       isActive
                         ? useNeutralActive
-                          ? 'bg-white dark:bg-[#121829] text-slate-800 dark:text-slate-100 shadow-sm border border-gray-200/70 dark:border-slate-700/70 font-extrabold'
-                          : 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-sm border border-blue-200/80 dark:border-blue-900/70 font-bold'
+                          ? 'bg-white dark:bg-[#121829] text-slate-800 dark:text-slate-100 shadow-sm border-gray-200/70 dark:border-slate-700/70'
+                          : 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-sm border-blue-200/80 dark:border-blue-900/70'
                         : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
                     }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isActive ? (useNeutralActive ? 'text-slate-600 dark:text-slate-300' : 'text-blue-600 dark:text-blue-400') : 'text-gray-400 dark:text-slate-400'}`} />
                     <span className="hidden xl:inline">{tab.label}</span>
-                    {isActive && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${useNeutralActive ? 'bg-slate-500 dark:bg-slate-400' : 'bg-blue-600 dark:bg-blue-400 shadow-xs shadow-blue-500'}`} />
-                    )}
+                    <span
+                      aria-hidden="true"
+                      className={`w-1.5 h-1.5 flex-shrink-0 rounded-full ${
+                        isActive
+                          ? useNeutralActive
+                            ? 'bg-slate-500 dark:bg-slate-400'
+                            : 'bg-blue-600 dark:bg-blue-400 shadow-xs shadow-blue-500'
+                          : 'opacity-0'
+                      }`}
+                    />
                   </button>
                 );
               })}
