@@ -1,5 +1,6 @@
 import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw,
   X,
@@ -35,6 +36,7 @@ import { requestLogin } from '../utils/authEvents';
 
 export const FeedPage: React.FC = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const {
     feedAuthor,
     setFeedAuthor,
@@ -45,8 +47,7 @@ export const FeedPage: React.FC = () => {
     openAuthorProfile,
     openContentFilterModal,
     openFollowingManager,
-    setActiveNav,
-    setTag
+    handleNavChange
   } = useNavigation();
 
   const {
@@ -142,10 +143,10 @@ export const FeedPage: React.FC = () => {
   }, [handleSelectPost]);
 
   const openTag = useCallback((nextTag: string) => {
-    setTag(nextTag);
-    setActiveNav('discover');
     setFeedAuthor(null);
-  }, [setTag, setActiveNav, setFeedAuthor]);
+    navigate(`/tag/${encodeURIComponent(nextTag)}`);
+    window.scrollTo({ top: 0 });
+  }, [navigate, setFeedAuthor]);
 
   // Fetch feed posts
   const fetchPosts = useCallback(
@@ -541,7 +542,7 @@ export const FeedPage: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setActiveNav('discover')}
+            onClick={() => handleNavChange('discover')}
             className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-sm cursor-pointer"
           >
             Explore Discover Feed
@@ -568,7 +569,7 @@ export const FeedPage: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setActiveNav('discover')}
+            onClick={() => handleNavChange('discover')}
             className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-sm cursor-pointer"
           >
             Explore Discover Feed
