@@ -1,3 +1,4 @@
+import type { SortOption } from '../context/NavigationContext';
 import { handleImageFallback } from '../utils/imageFallback';
 import { getHiveAvatarUrl } from '../utils/hiveAvatar';
 import { Link } from 'react-router-dom';
@@ -52,8 +53,8 @@ export interface MobileBottomNavProps {
   onClosePost?: () => void;
   onOpenLogin?: () => void;
   onLogout?: () => void;
-  currentSort?: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange?: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  currentSort?: SortOption;
+  onSortChange?: (sort: SortOption) => void;
   currentTag?: string;
   onSelectTag?: (tag: string) => void;
   onOpenFilters?: () => void;
@@ -352,9 +353,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                         ? t('shorts.hot')
                         : currentSort === 'payout'
                           ? t('mobile.payout')
-                          : currentSort === 'recommend'
-                            ? t('sidebar.recommended')
-                            : currentSort})
+                          : currentSort})
                 </span>
               )}
             </span>
