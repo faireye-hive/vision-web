@@ -558,13 +558,29 @@ export function stripResolvedSnapUrls(body: string, urls: string[]): string {
   if (typeof body !== 'string') return '';
   const exact = new Set(urls.filter(Boolean));
   const keys = new Set(urls.filter(Boolean).map(imageIdentity));
-  let next = body.replace(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/gi, (full, url: string) => {
-    return exact.has(url) || keys.has(imageIdentity(url)) ? '' : full;
+  const imageNames = new Set(urls.map((url) => {
+    try {
+      return decodeURIComponent(new URL(url).pathname.split('/').pop() || '').toLowerCase();
+    } catch {
+      return '';
+    }
+  }).filter(Boolean));
+  const isResolved = (url: string) => {
+    if (exact.has(url) || keys.has(imageIdentity(url))) return true;
+    // Hive image uploads can store a relative filename in Markdown while
+    // json_metadata.image contains the full images.hive.blog URL.
+    if (/^image-\d+-[a-z0-9_.-]+\.(?:jpe?g|png|gif|webp|svg)$/i.test(url)) {
+      return imageNames.has(url.toLowerCase());
+    }
+    return false;
+  };
+  let next = body.replace(/!\[[^\]]*\]\(([^\s)]+)\)/gi, (full, url: string) => {
+    return isResolved(url) ? '' : full;
   });
   next = next.replace(/https?:\/\/[^\s<>"')\]]+/gi, (found) => {
     const clean = found.replace(/[),.;]+$/, '');
     const tail = found.slice(clean.length);
-    if (exact.has(found) || exact.has(clean) || keys.has(imageIdentity(clean))) return '';
+    if (isResolved(found) || isResolved(clean)) return '';
     return clean + tail;
   });
   return next.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -580,6 +596,7 @@ export function extractSnapImages(
   threeSpeakThumbnails?: Record<string, string>
 ): string[] {
   const images: string[] = [];
+  const metadataImages: string[] = [];
   const seen = new Set<string>();
   const push = (url: string) => {
     const key = imageIdentity(url);
@@ -595,6 +612,7 @@ export function extractSnapImages(
       if (Array.isArray(meta.image)) {
         meta.image.forEach((img: any) => {
           if (typeof img === 'string' && img.startsWith('http')) {
+            metadataImages.push(img);
             push(img);
           }
         });
@@ -604,11 +622,28 @@ export function extractSnapImages(
     }
   }
 
-  // 2. Regex for markdown images: ![alt](url)
-  const mdRegex = /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/gi;
-  let match;
+  // 2. Markdown image URLs. Hive uploaders sometimes store only the image
+  // filename in the body and keep the canonical URL in json_metadata.image.
+  const mdRegex = /!\[[^\]]*\]\(([^\s)]+)\)/gi;
+  let match: RegExpExecArray | null;
   while ((match = mdRegex.exec(body)) !== null) {
-    if (match[1]) push(match[1]);
+    const reference = match[1];
+    if (!reference) continue;
+    if (/^https?:\/\//i.test(reference)) {
+      push(reference);
+      continue;
+    }
+
+    const safeHiveFilename = /^image-\d+-[a-z0-9_.-]+\.(?:jpe?g|png|gif|webp|svg)$/i.test(reference);
+    if (!safeHiveFilename) continue;
+    const metadataMatch = metadataImages.find((url) => {
+      try {
+        return decodeURIComponent(new URL(url).pathname.split('/').pop() || '').toLowerCase() === reference.toLowerCase();
+      } catch {
+        return false;
+      }
+    });
+    push(metadataMatch || `https://images.hive.blog/1536x0/${encodeURIComponent(reference)}`);
   }
 
   // 3. Regex for raw image URLs ending in jpg, jpeg, png, gif, webp
