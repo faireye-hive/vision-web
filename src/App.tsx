@@ -2,7 +2,7 @@ import { SavedListsProvider } from './context/SavedListsContext';
 import { SavedListsPicker } from './components/SavedListsPicker';
 import { BlacklistFlairProvider } from './context/BlacklistFlairContext';
 import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, useLocation } from 'react-router-dom';
+import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarksProvider } from './context/BookmarksContext';
 import { ContentFilterProvider, useContentFilter } from './context/ContentFilterContext';
@@ -10,6 +10,7 @@ import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { NotificationsProvider, useNotifications } from './context/NotificationsContext';
 
 // First-screen pages stay eager. The rest load when the route opens.
+import { FeedSectionNav } from './components/FeedSectionNav';
 import { FeedPage } from './pages/FeedPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 
@@ -56,6 +57,7 @@ function RouteFallback() {
 
 function NebulosaApp() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, login, logout, joinedCommunities, toggleJoinCommunity, followingUsersList } = useAuth();
   const [communityPosts, setCommunityPosts] = useState<HivePost[]>([]);
   const [discoverPosts, setDiscoverPosts] = useState<HivePost[]>([]);
@@ -72,6 +74,7 @@ function NebulosaApp() {
   const {
     activeNav,
     handleNavChange,
+    feedSection,
     sort,
     setSort,
     tag,
@@ -286,39 +289,6 @@ function NebulosaApp() {
           />
         )}
 
-        {standalonePage === 'explore' && !isEmbeddedCommunitiesPage && (
-          <ExploreCommunitiesPage
-            onClose={closeStandalonePage}
-            onSwitchToManage={() => openStandalonePage('manage')}
-            onSwitchToFeed={() => {
-              closeStandalonePage();
-              handleNavChange('communities');
-            }}
-            joinedCommunities={joinedCommunities}
-            onToggleJoinCommunity={toggleJoinCommunity}
-            account={currentUser?.username || null}
-            onSelectCommunity={(communityName) => {
-              openCommunity(communityName);
-            }}
-          />
-        )}
-
-        {standalonePage === 'manage' && !isEmbeddedCommunitiesPage && (
-          <ManageCommunitiesPage
-            onClose={closeStandalonePage}
-            onSwitchToExplore={() => openStandalonePage('explore')}
-            onSwitchToFeed={() => {
-              closeStandalonePage();
-              handleNavChange('communities');
-            }}
-            joinedCommunities={joinedCommunities}
-            onToggleJoinCommunity={toggleJoinCommunity}
-            account={currentUser?.username || null}
-            onSelectCommunity={(communityName) => {
-              openCommunity(communityName);
-            }}
-          />
-        )}
         </Suspense>
 
         {isProfilePostOpen && selectedPost && (
@@ -365,8 +335,7 @@ function NebulosaApp() {
               />
             ) : <LeftSidebar
               activeNav={activeNav}
-              communitiesSection={standalonePage === 'explore' || standalonePage === 'manage' ? standalonePage : 'feed'}
-              onNavChange={handleNavChange}
+              communitiesSection={standalonePage === 'manage' ? 'manage' : 'explore'}
               currentSort={sort}
               onSortChange={(s) => setSort(s)}
               currentTag={tag}
@@ -399,6 +368,7 @@ function NebulosaApp() {
 
           {/* Center Main Screen Feed Area */}
           <section className="min-w-0 flex-1">
+            {activeNav === 'feed' && !selectedPost && !standalonePage && <FeedSectionNav horizontal />}
             {selectedPost && !standalonePage && (activeNav !== 'shorts' || isProfilePostOpen || isHivePostOpenInShorts) && (activeNav !== 'communities' || isProfilePostOpen) ? (
               <div className="min-w-0 animate-in fade-in duration-150">
                 <Suspense fallback={<RouteFallback />}>
@@ -408,8 +378,19 @@ function NebulosaApp() {
                     onClose={handleClosePost}
                     onSelectAuthor={handleSelectAuthor}
                     onSelectTag={(t) => {
-                      setTag(t);
-                      handleClosePost();
+                      if (activeNav === 'feed') {
+                        if (feedSection === 'communities') {
+                          const params = new URLSearchParams({ tab: 'communities', topic: t });
+                          if (tag) params.set('tag', tag);
+                          navigate(`/feed?${params}`);
+                        } else {
+                          navigate(`/tag/${encodeURIComponent(t)}`);
+                        }
+                        window.scrollTo({ top: 0 });
+                      } else {
+                        setTag(t);
+                        handleClosePost();
+                      }
                     }}
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}
@@ -421,7 +402,11 @@ function NebulosaApp() {
               </div>
             ) : (
               <>
-                {activeNav === 'feed' && <FeedPage />}
+                {activeNav === 'feed' && !standalonePage && feedSection === 'for-you' && <DiscoverPage isRecommended />}
+                {activeNav === 'feed' && !standalonePage && feedSection === 'following' && <FeedPage />}
+                {activeNav === 'feed' && !standalonePage && feedSection === 'communities' && (
+                  <DiscoverPage isCommunitiesFeed onPostsLoaded={handleCommunityPostsLoaded} />
+                )}
                 {activeNav === 'discover' && <DiscoverPage onPostsLoaded={handleDiscoverPostsLoaded} />}
               </>
             )}
@@ -430,9 +415,7 @@ function NebulosaApp() {
                 <Suspense fallback={<RouteFallback />}>
                   <ExploreCommunitiesPage
                     embedded
-                    onClose={closeStandalonePage}
                     onSwitchToManage={() => openStandalonePage('manage')}
-                    onSwitchToFeed={closeStandalonePage}
                     joinedCommunities={joinedCommunities}
                     onToggleJoinCommunity={toggleJoinCommunity}
                     account={currentUser?.username || null}
@@ -446,23 +429,13 @@ function NebulosaApp() {
                 <Suspense fallback={<RouteFallback />}>
                   <ManageCommunitiesPage
                     embedded
-                    onClose={closeStandalonePage}
                     onSwitchToExplore={() => openStandalonePage('explore')}
-                    onSwitchToFeed={closeStandalonePage}
                     joinedCommunities={joinedCommunities}
                     onToggleJoinCommunity={toggleJoinCommunity}
                     account={currentUser?.username || null}
                     onSelectCommunity={openCommunity}
                   />
                 </Suspense>
-              </div>
-            )}
-            {activeNav === 'communities' && (
-              <div className={isEmbeddedCommunitiesPage || isCommunityPostOpen ? 'hidden' : ''} aria-hidden={isEmbeddedCommunitiesPage || isCommunityPostOpen}>
-                <DiscoverPage
-                  isCommunitiesFeed={true}
-                  onPostsLoaded={handleCommunityPostsLoaded}
-                />
               </div>
             )}
             {isCommunityPostOpen && !isProfilePostOpen && (
@@ -584,7 +557,7 @@ function NebulosaApp() {
 
       {/* Mobile Swipe-from-Edge Drawer for Trending Topics, Followed Creators & Subscribed Communities */}
       <MobileSideDrawer
-        activeNav={activeNav}
+        activeNav={activeNav === 'feed' && feedSection === 'communities' ? 'communities' : activeNav}
         tag={tag}
         setTag={setTag}
         sort={sort}
@@ -594,7 +567,7 @@ function NebulosaApp() {
         followingUsersList={followingUsersList}
         openFollowingManager={openFollowingManager}
         discoverPosts={discoverPosts}
-        disabled={Boolean(selectedPost || (standalonePage && !isEmbeddedCommunitiesPage) || activeNav === 'shorts')}
+        disabled={Boolean(selectedPost || (standalonePage && !isEmbeddedCommunitiesPage) || activeNav === 'shorts' || (activeNav === 'feed' && feedSection === 'for-you'))}
         joinedCommunities={joinedCommunities}
         onOpenCommunities={openCommunitiesModal}
         onOpenManageCommunities={openManageCommunitiesModal}
