@@ -55,7 +55,7 @@ const ThemeHeader: React.FC<ThemeProps> = ({
     <header className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-[#111827]">
       <div className="relative h-32 overflow-hidden bg-slate-900 sm:h-40 lg:h-44">
         {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-indigo-950 to-slate-950" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#151719] via-[#101214] to-[#070809]" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
       </div>
@@ -632,9 +632,9 @@ export const defaultTheme: ProfileTheme = {
   },
   dark: {
     ...DEFAULT_PROFILE_STYLE,
-    backgroundColor: '#0a0f1d',
-    cardBackgroundColor: '#161b2e',
-    headerBackgroundColor: '#0a0f1d',
+    backgroundColor: '#101214',
+    cardBackgroundColor: '#070809',
+    headerBackgroundColor: '#070809',
     textColor: '#f8fafc',
     textSecondaryColor: '#94a3b8',
     accentColor: '#3b82f6'

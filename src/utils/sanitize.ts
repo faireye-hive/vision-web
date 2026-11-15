@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { buildVideoFacadeHtml, transformVideoEmbedsInMarkdown } from './videoEmbeds';
+import { hasUrlCredentials } from './urlSafety';
 
 export const ALLOWED_IMAGE_DOMAINS = [
   'hive.blog',
@@ -107,7 +108,21 @@ function buildProxiedImageUrl(originalUrl: string): string {
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A') {
     const href = node.getAttribute('href') || '';
-    const isInternalHiveRoute = href.startsWith('/post/@') || href.startsWith('/profile/@');
+    if (hasUrlCredentials(href)) {
+      node.removeAttribute('href');
+      node.removeAttribute('target');
+      node.removeAttribute('rel');
+      node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
+      return;
+    }
+    // Hive renders post-body links as relative routes such as /@author or
+    // /@author/permlink. Resolve those to this app's routes so they work from
+    // localhost and stay inside the reader instead of navigating to a
+    // nonexistent local /@author page.
+    const internalHivePath = toInternalHivePath(href);
+    if (internalHivePath) node.setAttribute('href', internalHivePath);
+    const isInternalHiveRoute = Boolean(internalHivePath) ||
+      href.startsWith('/post/@') || href.startsWith('/profile/@');
     if (isInternalHiveRoute) {
       node.removeAttribute('target');
       node.removeAttribute('rel');
@@ -163,6 +178,8 @@ export interface PostHeading {
 
 const CONTENT_CLASSES = new Set([
   'article-content', 'nebulosa-centered-block', 'nebulosa-markdown-table-scroll',
+  'nebulosa-markdown-table-fit', 'nebulosa-markdown-table-compact',
+  'nebulosa-markdown-table-3col', 'nebulosa-markdown-table-7col',
   'text-left', 'text-center', 'text-right', 'text-justify', 'my-2', 'pull-left', 'pull-right'
 ]);
 
@@ -215,6 +232,7 @@ function linkifyPostTextNodes(root: ParentNode): void {
         try {
           const parsed = new URL(label);
           if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+          if (hasUrlCredentials(parsed.href)) continue;
           href = parsed.href;
         } catch {
           continue;
@@ -304,6 +322,7 @@ function toInternalHivePath(href: string): string | null {
   try {
     const url = new URL(candidate);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (hasUrlCredentials(url.href)) return null;
     const host = url.hostname.toLowerCase().replace(/^www\./, '');
     const hiveFrontends = new Set(['hive.blog', 'peakd.com', 'ecency.com', 'inleo.io', 'leofinance.io', '3speak.tv']);
     if (!hiveFrontends.has(host)) return null;
@@ -321,6 +340,18 @@ function splitMarkdownTableRow(line: string): string[] {
   if (row.startsWith('|')) row = row.slice(1);
   if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
   return row.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+}
+
+function renderMarkdownTableCell(cell: string): string {
+  // Escape post-authored HTML first, then enable the same basic inline
+  // emphasis that the rest of the Markdown renderer supports. Protected
+  // inline-code and raw-tag placeholders survive for restoration later.
+  return escapeHtmlEntities(cell)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/_(.+?)_/g, '<em>$1</em>');
 }
 
 function convertMarkdownTables(text: string, tableStore: string[]): string {
@@ -347,12 +378,16 @@ function convertMarkdownTables(text: string, tableStore: string[]): string {
       index += 1;
     }
 
-    const headHtml = headers.map((cell) => `<th>${escapeHtmlEntities(cell)}</th>`).join('');
+    const headHtml = headers.map((cell) => `<th>${renderMarkdownTableCell(cell)}</th>`).join('');
     const bodyHtml = rows.map((row) => {
-      const cells = headers.map((_header, cellIndex) => `<td>${escapeHtmlEntities(row[cellIndex] || '')}</td>`).join('');
+      const cells = headers.map((_header, cellIndex) => `<td>${renderMarkdownTableCell(row[cellIndex] || '')}</td>`).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
-    const tableHtml = `<div class="nebulosa-markdown-table-scroll"><table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
+    const fitClass = headers.length >= 2 ? ' nebulosa-markdown-table-fit' : '';
+    const compactClass = headers.length >= 6 ? ' nebulosa-markdown-table-compact' : '';
+    const threeColumnClass = headers.length === 3 ? ' nebulosa-markdown-table-3col' : '';
+    const sevenColumnClass = headers.length === 7 ? ' nebulosa-markdown-table-7col' : '';
+    const tableHtml = `<div class="nebulosa-markdown-table-scroll${fitClass}${compactClass}${threeColumnClass}${sevenColumnClass}"><table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
     const tableIndex = tableStore.push(tableHtml) - 1;
     output.push(`\u0000TABLE${tableIndex}\u0000`);
   }
@@ -363,6 +398,8 @@ function convertMarkdownTables(text: string, tableStore: string[]): string {
 export interface MarkdownSanitizeOptions {
   threeSpeakThumbnails?: Record<string, string>;
   jsonMetadata?: any;
+  /** Keep consecutive images in the author's original reading flow. */
+  preserveImageFlow?: boolean;
 }
 
 function groupAdjacentImages(root: DocumentFragment): void {
@@ -552,7 +589,11 @@ export function markdownToSafeHtmlWithHeadings(
   );
 
   // Markdown links: web URLs, bare domains and Hive @author/permlink routes.
-  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label: string, rawHref: string) => {
+  // Labels may themselves contain brackets (for example [[1]](url), common
+  // in Hive posts that cite numbered references). Match one nested bracket
+  // level so the href is parsed as a single Markdown link instead of
+  // linkifying the @author portion of its URL as a profile mention.
+  text = text.replace(/\[((?:[^\[\]]|\[[^\[\]]+\])+?)\]\(([^)\s]+)\)/g, (match, label: string, rawHref: string) => {
     const internalPath = toInternalHivePath(rawHref);
     let href = internalPath || rawHref;
     if (!internalPath && /^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(href)) {
@@ -653,6 +694,14 @@ export function markdownToSafeHtmlWithHeadings(
 
   let html = `<div class="article-content"><p>${text}</p></div>`;
 
+  // Put table HTML back before restoring inline code, escaped characters, and
+  // protected raw tags. Table cells can contain the same placeholders as the
+  // surrounding Markdown, so restoring them while the table is still stored
+  // separately leaves visible text such as "INLINECODE0" in rendered posts.
+  tableBlocks.forEach((tableHtml, i) => {
+    html = html.split(`\u0000TABLE${i}\u0000`).join(tableHtml);
+  });
+
   html = restoreRawTags(html, tagStore);
 
   html = html.replace(/<h([1-6])([^>]*)>(.*?)<\/h\1>/gi, (match, levelStr, attrs, innerContent) => {
@@ -674,10 +723,6 @@ export function markdownToSafeHtmlWithHeadings(
   escapedChars.forEach((ch, i) => {
     html = html.split(`\u0000ESC${i}\u0000`).join(ch);
   });
-  tableBlocks.forEach((tableHtml, i) => {
-    html = html.split(`\u0000TABLE${i}\u0000`).join(tableHtml);
-  });
-
   const safeHtml = sanitizeHtml(html);
   // Some Hive posts contain an embedded player plus a separate “Watch on
   // 3Speak” link. That link can survive the Markdown conversion as a second
@@ -722,7 +767,7 @@ export function markdownToSafeHtmlWithHeadings(
     }
     found3SpeakPlayer = true;
   });
-  groupAdjacentImages(template.content);
+  if (!options?.preserveImageFlow) groupAdjacentImages(template.content);
   linkifyPostTextNodes(template.content);
   return { html: template.innerHTML, headings };
 }

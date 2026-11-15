@@ -117,7 +117,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
-          title={`Language: ${currentOption.name}. Click to change language.`}
+          title={`Content language: ${currentOption.name}. Click to change.`}
           className={`p-2 rounded-full transition cursor-pointer relative flex items-center justify-center ${
             selectedLanguage !== 'global'
               ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'

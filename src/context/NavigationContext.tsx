@@ -1,4 +1,5 @@
 import { legacySnapsRedirect } from '../utils/snapsRoutes';
+import { communityNameFromPath, communityPath, COMMUNITY_NAME } from '../utils/communityRoutes';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HivePost, getPost, NON_POST_PERMLINKS } from '../services/hiveApi';
@@ -6,13 +7,18 @@ import { PostHeading } from '../utils/sanitize';
 import { useAuth } from './AuthContext';
 
 export type NavTab = 'feed' | 'discover' | 'shorts' | 'communities';
-export type SortOption = 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+export type SortOption = 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
+export type FeedSection = 'for-you' | 'following' | 'communities';
+
+const feedPath = (section: FeedSection) => section === 'for-you' ? '/feed' : `/feed?tab=${section}`;
 export type StandalonePage = 'write' | 'profile' | 'explore' | 'manage' | 'following' | 'notifications' | 'lists' | 'chat' | 'snaps';
 
 export interface NavigationContextType {
   activeNav: NavTab;
   setActiveNav: (tab: NavTab) => void;
   handleNavChange: (tab: NavTab) => void;
+  feedSection: FeedSection;
+  openFeedSection: (section: FeedSection) => void;
   sort: SortOption;
   setSort: (sort: SortOption) => void;
   tag: string;
@@ -69,6 +75,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const location = useLocation();
 
   const [activeNav, setActiveNav] = useState<NavTab>('discover');
+  const [feedSection, setFeedSection] = useState<FeedSection>('for-you');
   const [sort, setSortState] = useState<SortOption>('hot');
 
   const setSort = useCallback((newSort: SortOption) => {
@@ -77,7 +84,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [tag, setTagState] = useState<string>('');
   const [feedAuthor, setFeedAuthor] = useState<string | null>(null);
   const [authorFeedMode, setAuthorFeedMode] = useState<'posts' | 'comments'>('posts');
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('global');
+  const [selectedLanguage, setSelectedLanguage] = useState('global');
 
   const [standalonePage, setStandalonePage] = useState<StandalonePage | null>(null);
   const [profileUser, setProfileUser] = useState<string | null>(null);
@@ -131,6 +138,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       }
 
       const currentPath = location.pathname;
+      if (currentPath === '/feed') {
+        const queryParams = new URLSearchParams(location.search);
+        if (queryParams.get('tab') === 'communities') {
+          if (clean) queryParams.set('tag', clean);
+          else queryParams.delete('tag');
+          queryParams.delete('topic');
+          setCommunitySubTopic('');
+          if (`?${queryParams}` !== location.search) navigate(`/feed?${queryParams}`);
+          return;
+        }
+      }
       const isDiscoverContext =
         activeNavRef.current === 'discover' ||
         (activeNavRef.current !== 'communities' &&
@@ -168,9 +186,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       return () => { cancelled = true; };
     }
 
+    if (searchParams.get('sort') === 'recommend' &&
+      (pathname === '/' || pathname === '/discover' || pathname.startsWith('/tag/'))) {
+      navigate(feedPath('for-you'), { replace: true });
+      return;
+    }
+
     // Parse sort. Absent sort keeps the in-memory choice from the navbar.
     const querySort = searchParams.get('sort') as SortOption | null;
-    if (querySort && ['recommend', 'trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
+    if (querySort && ['trending', 'hot', 'created', 'payout', 'muted', 'promoted'].includes(querySort)) {
       setSort(querySort);
     }
 
@@ -215,16 +239,13 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Community path: /c/:community
     if (pathname.startsWith('/c/')) {
-      const comm = decodeURIComponent(pathname.replace(/^\/c\//, '').replace(/\/+$/, '').trim().toLowerCase());
+      const comm = communityNameFromPath(pathname);
       setActiveNav('communities');
       setTagState(comm);
       tagRef.current = comm;
       syncTopic();
       setStandalonePage(null);
       setSelectedPost(null);
-      if (sort === 'recommend') {
-        setSortState('trending');
-      }
       return release;
     }
 
@@ -328,30 +349,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (pathname === '/communities') {
-      setActiveNav('communities');
       const tabParam = searchParams.get('tab');
-      syncTopic();
-
-      if (tabParam === 'explore' || tabParam === 'manage') {
-        setTagState('');
-        tagRef.current = '';
-        setCommunitySubTopic('');
+      if (tabParam === 'feed') {
+        searchParams.set('tab', 'communities');
+        navigate(`/feed?${searchParams}`, { replace: true });
+        return release;
       }
-
-      // Restore the selected Communities section inside the shared app shell.
-      // Without a tab query, show the communities feed.
-      if (tabParam === 'manage') {
-        setStandalonePage('manage');
-      } else if (tabParam === 'explore') {
-        setStandalonePage('explore');
-      } else {
-        setStandalonePage(null);
-      }
-
-      if (sort === 'recommend') {
-        setSortState('trending');
-      }
-
+      setActiveNav('communities');
+      setTagState('');
+      tagRef.current = '';
+      setCommunitySubTopic('');
+      setStandalonePage(tabParam === 'manage' ? 'manage' : 'explore');
       setSelectedPost(null);
       return release;
     }
@@ -367,10 +375,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     }
 
     if (pathname === '/feed') {
+      const tab = searchParams.get('tab');
+      const section = tab === 'following' || tab === 'communities' ? tab : 'for-you';
+      const communityTag = searchParams.get('tag') || '';
+      const feedTag = section === 'communities' && COMMUNITY_NAME.test(communityTag) ? communityTag : '';
       setActiveNav('feed');
-      setTagState('');
-      tagRef.current = '';
-      setCommunitySubTopic('');
+      setFeedSection(section);
+      setTagState(feedTag);
+      tagRef.current = feedTag;
+      setCommunitySubTopic(section === 'communities' ? searchParams.get('topic') || '' : '');
       setStandalonePage(null);
       setSelectedPost(null);
       return release;
@@ -392,6 +405,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   }, [location.pathname, location.search, location.state, currentUser?.username]);
 
   // Navigation handlers
+  const openFeedSection = useCallback((section: FeedSection) => {
+    const target = feedPath(section);
+    if (section === feedSection && location.pathname === '/feed' && `${location.pathname}${location.search}` === target) return;
+    setFeedAuthor(null);
+    feedScrollPositionRef.current = 0;
+    navigate(target);
+    window.scrollTo({ top: 0 });
+  }, [feedSection, location.pathname, location.search, navigate]);
+
   const handleNavChange = useCallback((tab: NavTab) => {
     setShowStatsModal(false);
     setActiveNav(tab);
@@ -403,7 +425,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (tab === 'feed') {
       setTagState('');
       tagRef.current = '';
-      navigate('/feed');
+      setFeedSection('for-you');
+      navigate(feedPath('for-you'));
     } else if (tab === 'discover') {
       setTagState('');
       tagRef.current = '';
@@ -413,26 +436,24 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     } else if (tab === 'communities') {
       setTagState('');
       tagRef.current = '';
-      setStandalonePage(null);
-      if (sort === 'recommend') {
-        setSortState('trending');
-      }
+      setStandalonePage('explore');
       navigate('/communities');
     }
-  }, [navigate, sort]);
+  }, [navigate]);
 
   const openCommunity = useCallback((communityName: string) => {
     const clean = communityName.trim().toLowerCase();
-    setTag(clean);
+    if (!COMMUNITY_NAME.test(clean)) return;
+    setTagState(clean);
+    tagRef.current = clean;
     setActiveNav('communities');
     setStandalonePage(null);
     setSelectedPost(null);
     setCommunitySubTopic('');
-    if (sort === 'recommend') {
-      setSortState('trending');
-    }
-    navigate(`/c/${clean}`);
-  }, [navigate, sort]);
+    feedScrollPositionRef.current = 0;
+    navigate(communityPath(clean), { state: { communityLanding: true } });
+    window.scrollTo({ top: 0 });
+  }, [navigate]);
 
   const openStandalonePage = useCallback((page: StandalonePage, user?: string) => {
     setStandalonePage(page);
@@ -453,16 +474,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       navigate('/notifications');
     } else if (page === 'following') {
       navigate('/following');
-    } else if (page === 'explore') {
+    } else if (page === 'explore' || page === 'manage') {
+      setActiveNav('communities');
       setTagState('');
       tagRef.current = '';
       setCommunitySubTopic('');
-      navigate('/communities?tab=explore');
-    } else if (page === 'manage') {
-      setTagState('');
-      tagRef.current = '';
-      setCommunitySubTopic('');
-      navigate('/communities?tab=manage');
+      navigate(page === 'manage' ? '/communities?tab=manage' : '/communities');
     }
   }, [currentUser?.username, navigate]);
 
@@ -475,10 +492,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       } else {
         navigate('/communities');
       }
+    } else if (activeNav === 'feed') {
+      navigate(feedPath(feedSection));
     } else {
       navigate(`/${activeNav}`);
     }
-  }, [activeNav, tag, navigate]);
+  }, [activeNav, feedSection, tag, navigate]);
 
   const openAuthorProfile = useCallback((username: string) => {
     const clean = username.trim().replace(/^@/, '');
@@ -580,7 +599,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (communitySubTopic) queryParams.set('topic', communitySubTopic);
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
-    if (activeNav === 'communities' && tag) {
+    if (activeNav === 'feed') {
+      navigate(feedPath(feedSection));
+    } else if (activeNav === 'communities' && tag) {
       navigate(`/c/${tag}${queryString}`);
     } else if (activeNav === 'discover' && tag) {
       navigate(`/tag/${tag}${queryString}`);
@@ -590,7 +611,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     // Restore scroll position for non-shorts tabs
     restoreScrollPosition();
-  }, [activeNav, tag, sort, communitySubTopic, profileUser, currentUser?.username, navigate, restoreScrollPosition]);
+  }, [activeNav, feedSection, tag, sort, communitySubTopic, profileUser, currentUser?.username, navigate, restoreScrollPosition]);
 
   const handleSelectHeading = useCallback((id: string) => {
     const element = document.getElementById(id);
@@ -604,7 +625,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const handleSelectAuthor = useCallback((author: string) => {
     const clean = author.trim().replace(/^@/, '').toLowerCase();
     
-    if (activeNav === 'feed') {
+    if (activeNav === 'feed' && feedSection === 'following') {
       // Toggle filter on Feed page
       setFeedAuthor(prev => prev?.toLowerCase() === clean ? null : clean);
       setAuthorFeedMode('posts');
@@ -612,7 +633,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       // Open profile on other pages
       openAuthorProfile(clean);
     }
-  }, [activeNav, openAuthorProfile, setFeedAuthor, setAuthorFeedMode]);
+  }, [activeNav, feedSection, openAuthorProfile]);
 
   const handleOpenNotificationPost = useCallback(async (author: string, permlink: string) => {
     const cleanAuthor = author.replace(/^@/, '').trim();
@@ -628,6 +649,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     activeNav,
     setActiveNav,
     handleNavChange,
+    feedSection,
+    openFeedSection,
     sort,
     setSort,
     tag,
@@ -675,6 +698,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   }), [
     activeNav,
     handleNavChange,
+    feedSection,
+    openFeedSection,
     sort,
     tag,
     communitySubTopic,

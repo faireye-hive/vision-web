@@ -21,7 +21,6 @@ import {
   FolderOpen,
   MessageSquare,
   PenLine,
-  Rss,
 } from 'lucide-react';
 import { HivePost, getFollowing, getTrendingTags, getHiveAvatarUrl, listCommunities, getSubscriptions, hiveRpcCall } from '../services/hiveApi';
 import { CurrentUser } from '../services/keychain';
@@ -30,14 +29,16 @@ import { getSmartAccountsActivity } from '../services/accountsCache';
 import { processShortsTags, getFavoriteTags } from '../utils/shortsNoiseFilter';
 import { ShortsSource } from '../hooks/useShortsWordFilter';
 import { useNavigation } from '../context/NavigationContext';
+import type { SortOption } from '../context/NavigationContext';
+import { FeedSectionNav } from './FeedSectionNav';
+import { CommunityLink } from './CommunityLink';
 import { useI18n } from '../i18n/I18nContext';
 
 export interface LeftSidebarProps {
   activeNav: 'feed' | 'discover' | 'shorts' | 'communities' | 'waves';
-  communitiesSection?: 'feed' | 'explore' | 'manage';
-  onNavChange?: (nav: 'feed' | 'discover' | 'shorts' | 'communities') => void;
-  currentSort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
-  onSortChange: (sort: 'recommend' | 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted') => void;
+  communitiesSection?: 'explore' | 'manage';
+  currentSort: SortOption;
+  onSortChange: (sort: SortOption) => void;
   currentTag: string;
   onSelectTag: (tag: string) => void;
   onSelectAuthor: (author: string) => void;
@@ -97,8 +98,7 @@ const DEFAULT_TOPICS = [
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeNav,
-  communitiesSection = 'feed',
-  onNavChange,
+  communitiesSection = 'explore',
   currentSort,
   onSortChange,
   currentTag,
@@ -118,7 +118,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onOpenShortsFilters,
   onOpenShortsComposer,
 }) => {
-  const { openCommunitiesModal, closeStandalonePage } = useNavigation();
+  const { openCommunitiesModal, feedSection } = useNavigation();
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllShortsTopics, setShowAllShortsTopics] = useState(false);
@@ -219,7 +219,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
   // Contextual view mode
   const activeTab: 'following' | 'communities' | 'global' =
-    activeNav === 'feed' ? 'following' : activeNav === 'communities' ? 'communities' : 'global';
+    activeNav === 'communities' || (activeNav === 'feed' && feedSection === 'communities')
+      ? 'communities'
+      : activeNav === 'feed' ? 'following' : 'global';
 
   // Map author -> latest activity timestamp from currently loaded feed
   const authorLastPostMap = useMemo(() => {
@@ -362,20 +364,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <aside id="left-sidebar" className="space-y-3" style={{ marginTop: activeNav === 'shorts' ? 0 : '-10px' }}>
 
+      {activeNav === 'feed' && <FeedSectionNav />}
+
       {activeNav === 'communities' && (
         <nav
           aria-label="Communities navigation"
           className="space-y-1 rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
         >
-          <button
-            type="button"
-            aria-current={communitiesSection === 'feed' ? 'page' : undefined}
-            onClick={() => communitiesSection === 'feed' ? onNavChange?.('communities') : closeStandalonePage()}
-            className={`flex min-h-9 w-full items-center gap-2 rounded-xl px-2.5 text-left text-xs font-semibold transition ${communitiesSection === 'feed' ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
-          >
-            <Rss className="h-3.5 w-3.5" />
-            <span>{t('sidebar.feed')}</span>
-          </button>
           <button
             type="button"
             aria-current={communitiesSection === 'explore' ? 'page' : undefined}
@@ -518,7 +513,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             className="space-y-0.5 rounded-2xl border border-slate-200/70 bg-white p-2 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           >
             {([
-              ['recommend', Compass, 'sidebar.recommended'],
               ['created', Clock, 'sidebar.created'],
               ['hot', Flame, 'shorts.hot'],
               ['trending', TrendingUp, 'sidebar.trending'],
@@ -540,7 +534,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             onSelectTag={onSelectTag}
           />
         </div>
-      ) : (
+      ) : activeNav === 'feed' && feedSection === 'for-you' ? null : (
         <div className="w-full rounded-2xl border border-slate-200/70 bg-white p-3 text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
 
         {/* Dynamic Header */}
@@ -709,8 +703,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </span>
             </div>
 
-            {/* "All Communities" quick reset button */}
-            <button
+            {activeNav === 'feed' && <button
               onClick={() => onSelectTag('')}
               title="Show posts from all communities"
               className={`w-full flex items-center justify-between p-2 rounded-xl text-xs transition mb-1 text-left cursor-pointer ${
@@ -726,7 +719,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 <span>{t('sidebar.allCommunities')}</span>
               </div>
               {!currentTag && <span className="text-[10px] bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900 px-1.5 py-0.2 rounded-full">{t('menu.active')}</span>}
-            </button>
+            </button>}
 
             <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1">
               {rankedCommunities.length > 0 ? (
@@ -737,9 +730,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   return (
                     <div
                       key={comm.name}
-                      onClick={() => onSelectTag(isSelected ? '' : comm.name)}
-                      title={`Filter posts by ${comm.title || comm.name}`}
-                      className={`group flex items-center justify-between p-2 rounded-xl text-xs transition cursor-pointer ${
+                      className={`group flex items-center justify-between gap-1 rounded-xl pe-2 text-xs transition ${
                         isSelected
                           ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                           : isFav
@@ -747,15 +738,20 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <CommunityLink
+                        name={comm.name}
+                        onSelectTag={onSelectTag}
+                        title={comm.title || comm.name}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-2 text-start focus-visible:outline-2 focus-visible:outline-blue-500"
+                      >
                         <img
                           src={getHiveAvatarUrl(comm.name, 'small')}
-                          alt={comm.title}
+                          alt=""
                           className="w-5 h-5 rounded-lg object-cover bg-gray-100 dark:bg-slate-800 flex-shrink-0"
                           onError={handleImageFallback}
                         />
                         <span className="truncate">{comm.title || comm.name}</span>
-                      </div>
+                      </CommunityLink>
 
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {isSelected && (
@@ -764,6 +760,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                           </span>
                         )}
                         <button
+                          type="button"
                           onClick={(e) => toggleFavCommunity(comm.name, e)}
                           className={`p-1 rounded-lg transition cursor-pointer ${
                             isFav ? 'text-amber-500' : 'text-gray-300 dark:text-slate-600 hover:text-amber-500 opacity-0 group-hover:opacity-100'

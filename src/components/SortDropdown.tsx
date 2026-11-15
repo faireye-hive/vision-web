@@ -6,29 +6,19 @@ import {
   DollarSign,
   VolumeX,
   ChevronDown,
-  Check,
-  Compass
+  Check
 } from 'lucide-react';
 
-export type SortType = 'recommend' | 'hot' | 'trending' | 'created' | 'payout' | 'muted' | 'promoted';
+import type { SortOption } from '../context/NavigationContext';
 
 interface SortDropdownProps {
-  currentSort: SortType;
-  onSortChange: (sort: SortType) => void;
+  currentSort: SortOption;
+  onSortChange: (sort: SortOption) => void;
   id?: string;
-  hideRecommend?: boolean;
   iconOnly?: boolean;
 }
 
 const SORT_OPTIONS = [
-  {
-    id: 'recommend' as const,
-    label: 'Recommend',
-    icon: Compass,
-    iconColor: 'text-slate-500 dark:text-slate-400',
-    description: 'Personalized feed based on your upvoted posts & HiveSense',
-    badge: 'Smart',
-  },
   {
     id: 'hot' as const,
     label: 'Hot',
@@ -75,19 +65,13 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
   currentSort,
   onSortChange,
   id = 'discover-sort-dropdown',
-  hideRecommend = false,
   iconOnly = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [alignRight, setAlignRight] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const availableOptions = hideRecommend
-    ? SORT_OPTIONS.filter((opt) => opt.id !== 'recommend')
-    : SORT_OPTIONS;
-
-  const effectiveSort = hideRecommend && currentSort === 'recommend' ? 'trending' : currentSort;
-  const selectedOption = availableOptions.find((opt) => opt.id === effectiveSort) || availableOptions[0];
+  const selectedOption = SORT_OPTIONS.find((opt) => opt.id === currentSort) || SORT_OPTIONS[0];
   const SelectedIcon = selectedOption.icon;
 
   // Check alignment relative to screen viewport
@@ -139,7 +123,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
     };
   }, [isOpen]);
 
-  const handleSelect = (sortId: SortType) => {
+  const handleSelect = (sortId: SortOption) => {
     onSortChange(sortId);
     setIsOpen(false);
   };
@@ -188,7 +172,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
           </div>
 
           <div className="space-y-0.5">
-            {availableOptions.map((option) => {
+            {SORT_OPTIONS.map((option) => {
               const Icon = option.icon;
               const isCurrent = option.id === currentSort;
 

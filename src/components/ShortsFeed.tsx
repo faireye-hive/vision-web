@@ -1077,7 +1077,7 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
       )}
 
       {/* ================= ACTIVE FILTER BANNER (Moved here) ================= */}
-      {(selectedTag || (hiddenCount > 0 && filterEnabled)) && (
+      {(selectedTag || (hiddenCount > 0 && filterEnabled) || source === 'all' || source === 'hot') && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 py-1 text-[11px] animate-in fade-in duration-150">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {selectedTag && (
@@ -1114,6 +1114,19 @@ export const ShortsFeed: React.FC<ShortsFeedProps> = ({
               </div>
             )}
           </div>
+          {(source === 'all' || source === 'hot') && (
+            <button
+              type="button"
+              onClick={() => void loadInitialFeed(true)}
+              disabled={loading || sourceLoading}
+              className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 shadow-xs transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-800 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+              title={t('shorts.refresh')}
+              aria-label={t('shorts.refresh')}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{t('shorts.refresh')}</span>
+            </button>
+          )}
         </div>
       )}
 
