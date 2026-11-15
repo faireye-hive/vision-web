@@ -44,6 +44,7 @@ export function RightRail({
 }: RightRailProps) {
   const {
     activeNav,
+    feedSection,
     tag,
     sort,
     setTag,
@@ -173,6 +174,24 @@ export function RightRail({
       <>
         {highlightedTextsCard}
         <CommunityTopicsCard communityPosts={communityPosts} currentTag={tag} />
+      </>
+    );
+  }
+
+  if (activeNav === 'feed' && feedSection === 'communities') {
+    return (
+      <>
+        {highlightedTextsCard}
+        {currentUser && !isPostReading && <CommunityTopicsCard communityPosts={communityPosts} currentTag={tag} />}
+      </>
+    );
+  }
+
+  if (activeNav === 'feed' && feedSection === 'for-you') {
+    return (
+      <>
+        <ReadingStyleCard neutralAccent />
+        {highlightedTextsCard}
       </>
     );
   }
