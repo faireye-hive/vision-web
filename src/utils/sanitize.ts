@@ -115,7 +115,21 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
       return;
     }
-    const isInternalHiveRoute = href.startsWith('/post/@') || href.startsWith('/profile/@');
+    if (hasUrlCredentials(href)) {
+      node.removeAttribute('href');
+      node.removeAttribute('target');
+      node.removeAttribute('rel');
+      node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
+      return;
+    }
+    // Hive renders post-body links as relative routes such as /@author or
+    // /@author/permlink. Resolve those to this app's routes so they work from
+    // localhost and stay inside the reader instead of navigating to a
+    // nonexistent local /@author page.
+    const internalHivePath = toInternalHivePath(href);
+    if (internalHivePath) node.setAttribute('href', internalHivePath);
+    const isInternalHiveRoute = Boolean(internalHivePath) ||
+      href.startsWith('/post/@') || href.startsWith('/profile/@');
     if (isInternalHiveRoute) {
       node.removeAttribute('target');
       node.removeAttribute('rel');
@@ -582,7 +596,11 @@ export function markdownToSafeHtmlWithHeadings(
   );
 
   // Markdown links: web URLs, bare domains and Hive @author/permlink routes.
-  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label: string, rawHref: string) => {
+  // Labels may themselves contain brackets (for example [[1]](url), common
+  // in Hive posts that cite numbered references). Match one nested bracket
+  // level so the href is parsed as a single Markdown link instead of
+  // linkifying the @author portion of its URL as a profile mention.
+  text = text.replace(/\[((?:[^\[\]]|\[[^\[\]]+\])+?)\]\(([^)\s]+)\)/g, (match, label: string, rawHref: string) => {
     const internalPath = toInternalHivePath(rawHref);
     let href = internalPath || rawHref;
     if (!internalPath && /^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(href)) {
