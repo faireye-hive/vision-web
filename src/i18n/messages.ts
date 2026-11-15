@@ -21,7 +21,10 @@ export type UiLocale = (typeof UI_LOCALES)[number]['code'];
 const en = {
   'nav.home': 'Home Page',
   'nav.feed': 'Feed',
-  'nav.feedDesc': 'Stories from accounts you follow',
+  'nav.feedDesc': 'Recommendations, followed creators and communities',
+  'feed.forYou': 'For you',
+  'feed.myFeed': 'My Feed',
+  'feed.myCommunities': 'My Communities',
   'nav.discover': 'Discover',
   'nav.discoverDesc': 'Trending, Hot & New feeds',
   'nav.shorts': 'Shorts',
@@ -183,7 +186,10 @@ export type MessageKey = keyof typeof en;
 const pt: Record<MessageKey, string> = {
   'nav.home': 'Página inicial',
   'nav.feed': 'Feed',
-  'nav.feedDesc': 'Publicações de quem você segue',
+  'nav.feedDesc': 'Recomendações, perfis e comunidades que você segue',
+  'feed.forYou': 'Para você',
+  'feed.myFeed': 'Meu Feed',
+  'feed.myCommunities': 'Minhas Comunidades',
   'nav.discover': 'Descobrir',
   'nav.discoverDesc': 'Feeds em alta, quentes e novos',
   'nav.shorts': 'Shorts',
@@ -343,7 +349,10 @@ const pt: Record<MessageKey, string> = {
 const es: Record<MessageKey, string> = {
   'nav.home': 'Inicio',
   'nav.feed': 'Feed',
-  'nav.feedDesc': 'Publicaciones de cuentas que sigues',
+  'nav.feedDesc': 'Recomendaciones, perfiles y comunidades que sigues',
+  'feed.forYou': 'Para ti',
+  'feed.myFeed': 'Mi Feed',
+  'feed.myCommunities': 'Mis Comunidades',
   'nav.discover': 'Descubrir',
   'nav.discoverDesc': 'Feeds en tendencia, activos y nuevos',
   'nav.shorts': 'Shorts',
@@ -505,7 +514,7 @@ type AdditionalUiLocale = Exclude<UiLocale, 'en' | 'pt' | 'es'>;
 // Curated interface translations, kept in the same order as the English keys above.
 const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]>> = {
   zh: [
-    '首页', '动态', '你关注的账号发布的动态', '发现', '热门、精选与最新动态', '短帖', '微博客与快速短帖', '社区', 'Hive 专属社群', '群组', '菜单', '快捷方式与选项',
+    '首页', '动态', '推荐内容、关注的创作者和社区', '为你推荐', '我的动态', '我的社区', '发现', '热门、精选与最新动态', '短帖', '微博客与快速短帖', '社区', 'Hive 专属社群', '群组', '菜单', '快捷方式与选项',
     '搜索 Hive、@用户、#标签', '搜索', '写作', '撰写新的 Hive 帖子（按 N）', '登录', '连接 Hive Keychain', '查看通知', '{count} 条未读通知',
     '快捷链接', '探索社区', '管理社区', '管理关注', '个人资料', '查看你的 Hive 个人资料', '通知', '回复、提及与投票', '{count} 条新消息', '网络与偏好设置',
     'RPC 节点', '链上统计', '外观', '深色模式', '浅色模式', '断开账号', '退出此会话', '语言', '界面语言', '演示 · 只读', 'Hive Keychain', '已启用',
@@ -525,7 +534,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     '正在检查 Hive 账号…', '继续使用演示模式', '切换到浅色模式', '切换到深色模式（夜间模式）', '切换深色模式',
   ],
   hi: [
-    'मुखपृष्ठ', 'फ़ीड', 'जिन खातों को आप फ़ॉलो करते हैं उनकी पोस्ट', 'खोजें', 'ट्रेंडिंग, लोकप्रिय और नई फ़ीड', 'शॉर्ट्स', 'माइक्रोब्लॉगिंग और छोटे स्नैप', 'कम्युनिटी', 'Hive के विशेष समूह', 'समूह', 'मेनू', 'शॉर्टकट और विकल्प',
+    'मुखपृष्ठ', 'फ़ीड', 'सुझाव, फ़ॉलो किए गए क्रिएटर और कम्युनिटी', 'आपके लिए', 'मेरी फ़ीड', 'मेरी कम्युनिटी', 'खोजें', 'ट्रेंडिंग, लोकप्रिय और नई फ़ीड', 'शॉर्ट्स', 'माइक्रोब्लॉगिंग और छोटे स्नैप', 'कम्युनिटी', 'Hive के विशेष समूह', 'समूह', 'मेनू', 'शॉर्टकट और विकल्प',
     'Hive, @यूज़र, #टैग खोजें', 'खोजें', 'लिखें', 'नई Hive पोस्ट लिखें (N दबाएँ)', 'लॉग इन करें', 'Hive Keychain से जुड़ें', 'सूचनाएँ देखें', '{count} अपठित सूचनाएँ',
     'त्वरित लिंक', 'कम्युनिटी खोजें', 'कम्युनिटी प्रबंधित करें', 'फ़ॉलो किए गए खाते प्रबंधित करें', 'प्रोफ़ाइल', 'अपनी Hive प्रोफ़ाइल देखें', 'सूचनाएँ', 'जवाब, उल्लेख और वोट', '{count} नए', 'नेटवर्क और प्राथमिकताएँ',
     'RPC नोड', 'चेन आँकड़े', 'दिखावट', 'डार्क मोड', 'लाइट मोड', 'खाता डिस्कनेक्ट करें', 'इस सत्र से साइन आउट करें', 'भाषा', 'इंटरफ़ेस की भाषा', 'डेमो · केवल पढ़ने के लिए', 'Hive Keychain', 'सक्रिय',
@@ -545,7 +554,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Hive खाते की जाँच हो रही है…', 'डेमो मोड में जारी रखें', 'लाइट मोड पर जाएँ', 'डार्क मोड पर जाएँ (नाइट मोड)', 'डार्क मोड बदलें',
   ],
   fr: [
-    'Accueil', 'Fil', 'Publications des comptes que vous suivez', 'Découvrir', 'Flux tendance, populaires et récents', 'Shorts', 'Microblogging et snaps rapides', 'Communautés', 'Groupes spécialisés Hive', 'Groupes', 'Menu', 'Raccourcis et options',
+    'Accueil', 'Fil', 'Recommandations, créateurs et communautés suivis', 'Pour vous', 'Mon fil', 'Mes communautés', 'Découvrir', 'Flux tendance, populaires et récents', 'Shorts', 'Microblogging et snaps rapides', 'Communautés', 'Groupes spécialisés Hive', 'Groupes', 'Menu', 'Raccourcis et options',
     'Rechercher sur Hive, @utilisateur, #tag', 'Rechercher', 'Écrire', 'Rédiger une nouvelle publication Hive (appuyez sur N)', 'Se connecter', 'Connecter Hive Keychain', 'Voir les notifications', '{count} notifications non lues',
     'Liens rapides', 'Explorer les communautés', 'Gérer les communautés', 'Gérer les abonnements', 'Profil', 'Voir votre profil Hive', 'Notifications', 'Réponses, mentions et votes', '{count} nouveau(x)', 'Réseau et préférences',
     'Nœuds RPC', 'Statistiques de la chaîne', 'Apparence', 'Mode sombre', 'Mode clair', 'Déconnecter le compte', 'Se déconnecter de cette session', 'Langue', 'Langue de l’interface', 'Démo · lecture seule', 'Hive Keychain', 'actif',
@@ -565,7 +574,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Vérification du compte Hive…', 'Continuer en mode Démo', 'Passer en mode clair', 'Passer en mode sombre (mode nuit)', 'Activer ou désactiver le mode sombre',
   ],
   ar: [
-    'الصفحة الرئيسية', 'الخلاصة', 'منشورات الحسابات التي تتابعها', 'استكشف', 'خلاصات رائجة وساخنة وجديدة', 'منشورات قصيرة', 'تدوين مصغر ومنشورات سريعة', 'المجتمعات', 'مجموعات Hive المتخصصة', 'المجموعات', 'القائمة', 'اختصارات وخيارات',
+    'الصفحة الرئيسية', 'الخلاصة', 'توصيات ومنشورات من الحسابات والمجتمعات التي تتابعها', 'لك', 'موجزي', 'مجتمعاتي', 'استكشف', 'خلاصات رائجة وساخنة وجديدة', 'منشورات قصيرة', 'تدوين مصغر ومنشورات سريعة', 'المجتمعات', 'مجموعات Hive المتخصصة', 'المجموعات', 'القائمة', 'اختصارات وخيارات',
     'ابحث في Hive أو عن @مستخدم أو #وسم', 'بحث', 'اكتب', 'اكتب منشورًا جديدًا على Hive (اضغط N)', 'تسجيل الدخول', 'اتصل بـ Hive Keychain', 'عرض الإشعارات', '{count} إشعارات غير مقروءة',
     'روابط سريعة', 'استكشف المجتمعات', 'إدارة المجتمعات', 'إدارة المتابَعين', 'الملف الشخصي', 'عرض ملفك الشخصي على Hive', 'الإشعارات', 'الردود والإشارات والتصويتات', '{count} جديدة', 'الشبكة والتفضيلات',
     'عُقد RPC', 'إحصاءات السلسلة', 'المظهر', 'الوضع الداكن', 'الوضع الفاتح', 'قطع اتصال الحساب', 'تسجيل الخروج من هذه الجلسة', 'اللغة', 'لغة الواجهة', 'تجريبي · للقراءة فقط', 'Hive Keychain', 'نشط',
@@ -585,7 +594,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'جارٍ التحقق من حساب Hive…', 'المتابعة في الوضع التجريبي', 'التبديل إلى الوضع الفاتح', 'التبديل إلى الوضع الداكن (الوضع الليلي)', 'تبديل الوضع الداكن',
   ],
   id: [
-    'Beranda', 'Linimasa', 'Kiriman dari akun yang Anda ikuti', 'Jelajahi', 'Linimasa tren, populer, dan terbaru', 'Shorts', 'Mikroblog dan snap singkat', 'Komunitas', 'Grup khusus Hive', 'Grup', 'Menu', 'Pintasan dan opsi',
+    'Beranda', 'Linimasa', 'Rekomendasi, kreator dan komunitas yang diikuti', 'Untuk Anda', 'Feed Saya', 'Komunitas Saya', 'Jelajahi', 'Linimasa tren, populer, dan terbaru', 'Shorts', 'Mikroblog dan snap singkat', 'Komunitas', 'Grup khusus Hive', 'Grup', 'Menu', 'Pintasan dan opsi',
     'Cari Hive, @pengguna, #tag', 'Cari', 'Tulis', 'Tulis kiriman Hive baru (tekan N)', 'Masuk', 'Hubungkan Hive Keychain', 'Lihat notifikasi', '{count} notifikasi belum dibaca',
     'Tautan cepat', 'Jelajahi komunitas', 'Kelola komunitas', 'Kelola akun yang diikuti', 'Profil', 'Lihat profil Hive Anda', 'Notifikasi', 'Balasan, sebutan, dan suara', '{count} baru', 'Jaringan dan preferensi',
     'Node RPC', 'Statistik rantai', 'Tampilan', 'Mode gelap', 'Mode terang', 'Putuskan akun', 'Keluar dari sesi ini', 'Bahasa', 'Bahasa antarmuka', 'Demo · hanya baca', 'Hive Keychain', 'aktif',
@@ -605,7 +614,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Memeriksa akun Hive…', 'Lanjutkan dalam mode Demo', 'Beralih ke Mode Terang', 'Beralih ke Mode Gelap (Mode Malam)', 'Alihkan mode gelap',
   ],
   ru: [
-    'Главная', 'Лента', 'Публикации аккаунтов, на которые вы подписаны', 'Обзор', 'Популярные, горячие и новые ленты', 'Короткие посты', 'Микроблог и быстрые публикации', 'Сообщества', 'Специализированные группы Hive', 'Группы', 'Меню', 'Ярлыки и настройки',
+    'Главная', 'Лента', 'Рекомендации, авторы и сообщества, на которые вы подписаны', 'Для вас', 'Моя лента', 'Мои сообщества', 'Обзор', 'Популярные, горячие и новые ленты', 'Короткие посты', 'Микроблог и быстрые публикации', 'Сообщества', 'Специализированные группы Hive', 'Группы', 'Меню', 'Ярлыки и настройки',
     'Поиск в Hive, @пользователя, #тега', 'Поиск', 'Написать', 'Создать публикацию в Hive (нажмите N)', 'Войти', 'Подключить Hive Keychain', 'Посмотреть уведомления', '{count} непрочитанных уведомлений',
     'Быстрые ссылки', 'Обзор сообществ', 'Управление сообществами', 'Управление подписками', 'Профиль', 'Посмотреть профиль Hive', 'Уведомления', 'Ответы, упоминания и голоса', '{count} новых', 'Сеть и настройки',
     'RPC-узлы', 'Статистика блокчейна', 'Внешний вид', 'Тёмная тема', 'Светлая тема', 'Отключить аккаунт', 'Выйти из этого сеанса', 'Язык', 'Язык интерфейса', 'Демо · только чтение', 'Hive Keychain', 'активен',
@@ -625,7 +634,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Проверка аккаунта Hive…', 'Продолжить в демо-режиме', 'Переключить на светлую тему', 'Переключить на тёмную тему (ночной режим)', 'Переключить тёмную тему',
   ],
   de: [
-    'Startseite', 'Feed', 'Beiträge von Konten, denen du folgst', 'Entdecken', 'Trend-, beliebte und neue Feeds', 'Shorts', 'Mikroblogging und kurze Snaps', 'Communities', 'Spezialisierte Hive-Gruppen', 'Gruppen', 'Menü', 'Shortcuts und Optionen',
+    'Startseite', 'Feed', 'Empfehlungen, gefolgte Accounts und Communitys', 'Für dich', 'Mein Feed', 'Meine Communitys', 'Entdecken', 'Trend-, beliebte und neue Feeds', 'Shorts', 'Mikroblogging und kurze Snaps', 'Communities', 'Spezialisierte Hive-Gruppen', 'Gruppen', 'Menü', 'Shortcuts und Optionen',
     'Hive, @Nutzer oder #Tag suchen', 'Suchen', 'Schreiben', 'Neuen Hive-Beitrag schreiben (N drücken)', 'Anmelden', 'Mit Hive Keychain verbinden', 'Benachrichtigungen ansehen', '{count} ungelesene Benachrichtigungen',
     'Schnellzugriffe', 'Communities entdecken', 'Communities verwalten', 'Abonnements verwalten', 'Profil', 'Dein Hive-Profil ansehen', 'Benachrichtigungen', 'Antworten, Erwähnungen und Stimmen', '{count} neu', 'Netzwerk und Einstellungen',
     'RPC-Knoten', 'Blockchain-Statistiken', 'Darstellung', 'Dunkelmodus', 'Hellmodus', 'Konto trennen', 'Von dieser Sitzung abmelden', 'Sprache', 'Sprache der Oberfläche', 'Demo · nur Lesen', 'Hive Keychain', 'aktiv',
@@ -645,7 +654,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Hive-Konto wird überprüft…', 'Im Demo-Modus fortfahren', 'Zum Hellmodus wechseln', 'Zum Dunkelmodus wechseln (Nachtmodus)', 'Dunkelmodus umschalten',
   ],
   ja: [
-    'ホーム', 'フィード', 'フォロー中のアカウントの投稿', '見つける', 'トレンド、人気、新着フィード', 'ショート', 'マイクロブログと短いSnap', 'コミュニティ', 'Hiveの専門グループ', 'グループ', 'メニュー', 'ショートカットとオプション',
+    'ホーム', 'フィード', 'おすすめ、フォロー中のクリエイターとコミュニティ', 'おすすめ', 'マイフィード', 'マイコミュニティ', '見つける', 'トレンド、人気、新着フィード', 'ショート', 'マイクロブログと短いSnap', 'コミュニティ', 'Hiveの専門グループ', 'グループ', 'メニュー', 'ショートカットとオプション',
     'Hive、@ユーザー、#タグを検索', '検索', '投稿', 'Hiveに新しい投稿を書く（Nキー）', 'ログイン', 'Hive Keychainに接続', '通知を見る', '未読の通知：{count}件',
     'クイックリンク', 'コミュニティを探す', 'コミュニティを管理', 'フォローを管理', 'プロフィール', 'Hiveプロフィールを見る', '通知', '返信、メンション、投票', '新着：{count}件', 'ネットワークと設定',
     'RPCノード', 'チェーン統計', '外観', 'ダークモード', 'ライトモード', 'アカウントを切断', 'このセッションからログアウト', '言語', 'インターフェースの言語', 'デモ · 閲覧のみ', 'Hive Keychain', '有効',
@@ -665,7 +674,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Hiveアカウントを確認中…', 'デモモードを続ける', 'ライトモードに切り替え', 'ダークモード（夜間モード）に切り替え', 'ダークモードを切り替え',
   ],
   bn: [
-    'হোম পেজ', 'ফিড', 'আপনি যেসব অ্যাকাউন্ট অনুসরণ করেন তাদের পোস্ট', 'আবিষ্কার', 'ট্রেন্ডিং, জনপ্রিয় ও নতুন ফিড', 'শর্টস', 'মাইক্রোব্লগিং ও দ্রুত স্ন্যাপ', 'কমিউনিটি', 'Hive-এর বিশেষায়িত গ্রুপ', 'গ্রুপ', 'মেনু', 'শর্টকাট ও বিকল্প',
+    'হোম পেজ', 'ফিড', 'সুপারিশ এবং আপনার অনুসরণ করা নির্মাতা ও কমিউনিটি', 'আপনার জন্য', 'আমার ফিড', 'আমার কমিউনিটি', 'আবিষ্কার', 'ট্রেন্ডিং, জনপ্রিয় ও নতুন ফিড', 'শর্টস', 'মাইক্রোব্লগিং ও দ্রুত স্ন্যাপ', 'কমিউনিটি', 'Hive-এর বিশেষায়িত গ্রুপ', 'গ্রুপ', 'মেনু', 'শর্টকাট ও বিকল্প',
     'Hive, @ব্যবহারকারী, #ট্যাগ খুঁজুন', 'খুঁজুন', 'লিখুন', 'নতুন Hive পোস্ট লিখুন (N চাপুন)', 'লগ ইন', 'Hive Keychain সংযুক্ত করুন', 'বিজ্ঞপ্তি দেখুন', '{count}টি অপঠিত বিজ্ঞপ্তি',
     'দ্রুত লিংক', 'কমিউনিটি অন্বেষণ', 'কমিউনিটি পরিচালনা', 'অনুসরণ পরিচালনা', 'প্রোফাইল', 'আপনার Hive প্রোফাইল দেখুন', 'বিজ্ঞপ্তি', 'উত্তর, উল্লেখ ও ভোট', '{count}টি নতুন', 'নেটওয়ার্ক ও পছন্দ',
     'RPC নোড', 'চেইন পরিসংখ্যান', 'চেহারা', 'ডার্ক মোড', 'লাইট মোড', 'অ্যাকাউন্ট বিচ্ছিন্ন করুন', 'এই সেশন থেকে সাইন আউট', 'ভাষা', 'ইন্টারফেসের ভাষা', 'ডেমো · শুধু পড়ার জন্য', 'Hive Keychain', 'সক্রিয়',
@@ -685,7 +694,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Hive অ্যাকাউন্ট যাচাই হচ্ছে…', 'ডেমো মোডে চালিয়ে যান', 'লাইট মোডে যান', 'ডার্ক মোডে যান (নাইট মোড)', 'ডার্ক মোড টগল করুন',
   ],
   ur: [
-    'صفحۂ اول', 'فیڈ', 'آپ کے فالو کردہ اکاؤنٹس کی پوسٹس', 'دریافت کریں', 'ٹرینڈنگ، مقبول اور نئی فیڈز', 'شارٹس', 'مائیکرو بلاگنگ اور فوری اسنیپس', 'کمیونٹیز', 'Hive کے خصوصی گروپس', 'گروپس', 'مینو', 'شارٹ کٹس اور اختیارات',
+    'صفحۂ اول', 'فیڈ', 'سفارشات، اور وہ تخلیق کار اور کمیونٹیز جنہیں آپ فالو کرتے ہیں', 'آپ کے لیے', 'میری فیڈ', 'میری کمیونٹیز', 'دریافت کریں', 'ٹرینڈنگ، مقبول اور نئی فیڈز', 'شارٹس', 'مائیکرو بلاگنگ اور فوری اسنیپس', 'کمیونٹیز', 'Hive کے خصوصی گروپس', 'گروپس', 'مینو', 'شارٹ کٹس اور اختیارات',
     'Hive، @صارف، #ٹیگ تلاش کریں', 'تلاش کریں', 'لکھیں', 'Hive پر نئی پوسٹ لکھیں (N دبائیں)', 'لاگ اِن', 'Hive Keychain سے منسلک ہوں', 'اطلاعات دیکھیں', '{count} غیر پڑھی ہوئی اطلاعات',
     'فوری لنکس', 'کمیونٹیز دریافت کریں', 'کمیونٹیز کا انتظام', 'فالو کردہ اکاؤنٹس کا انتظام', 'پروفائل', 'اپنا Hive پروفائل دیکھیں', 'اطلاعات', 'جوابات، تذکرے اور ووٹس', '{count} نئے', 'نیٹ ورک اور ترجیحات',
     'RPC نوڈز', 'چین کے اعداد و شمار', 'ظاہری شکل', 'ڈارک موڈ', 'لائٹ موڈ', 'اکاؤنٹ منقطع کریں', 'اس سیشن سے سائن آؤٹ کریں', 'زبان', 'انٹرفیس کی زبان', 'ڈیمو · صرف مطالعہ', 'Hive Keychain', 'فعال',
@@ -705,7 +714,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Hive اکاؤنٹ کی جانچ ہو رہی ہے…', 'ڈیمو موڈ میں جاری رکھیں', 'لائٹ موڈ پر جائیں', 'ڈارک موڈ پر جائیں (نائٹ موڈ)', 'ڈارک موڈ تبدیل کریں',
   ],
   vi: [
-    'Trang chủ', 'Bảng tin', 'Bài viết từ các tài khoản bạn theo dõi', 'Khám phá', 'Bảng tin thịnh hành, nổi bật và mới nhất', 'Shorts', 'Tiểu blog và Snap nhanh', 'Cộng đồng', 'Nhóm chuyên biệt trên Hive', 'Nhóm', 'Menu', 'Lối tắt và tùy chọn',
+    'Trang chủ', 'Bảng tin', 'Đề xuất, tác giả và cộng đồng bạn theo dõi', 'Dành cho bạn', 'Bảng tin của tôi', 'Cộng đồng của tôi', 'Khám phá', 'Bảng tin thịnh hành, nổi bật và mới nhất', 'Shorts', 'Tiểu blog và Snap nhanh', 'Cộng đồng', 'Nhóm chuyên biệt trên Hive', 'Nhóm', 'Menu', 'Lối tắt và tùy chọn',
     'Tìm Hive, @người dùng, #thẻ', 'Tìm kiếm', 'Viết', 'Viết bài Hive mới (nhấn N)', 'Đăng nhập', 'Kết nối Hive Keychain', 'Xem thông báo', '{count} thông báo chưa đọc',
     'Liên kết nhanh', 'Khám phá cộng đồng', 'Quản lý cộng đồng', 'Quản lý theo dõi', 'Hồ sơ', 'Xem hồ sơ Hive của bạn', 'Thông báo', 'Trả lời, lượt nhắc và bình chọn', '{count} mới', 'Mạng và tùy chọn',
     'Nút RPC', 'Thống kê chuỗi', 'Giao diện', 'Chế độ tối', 'Chế độ sáng', 'Ngắt kết nối tài khoản', 'Đăng xuất khỏi phiên này', 'Ngôn ngữ', 'Ngôn ngữ giao diện', 'Bản dùng thử · chỉ đọc', 'Hive Keychain', 'đang hoạt động',
@@ -725,7 +734,7 @@ const curatedMessageValues: Partial<Record<AdditionalUiLocale, readonly string[]
     'Đang kiểm tra tài khoản Hive…', 'Tiếp tục ở chế độ Demo', 'Chuyển sang Chế độ sáng', 'Chuyển sang Chế độ tối (Chế độ ban đêm)', 'Bật/tắt chế độ tối',
   ],
   mr: [
-    'मुख्यपृष्ठ', 'फीड', 'तुम्ही फॉलो करत असलेल्या खात्यांच्या पोस्ट', 'शोधा', 'ट्रेंडिंग, लोकप्रिय आणि नवीन फीड', 'शॉर्ट्स', 'मायक्रोब्लॉगिंग आणि झटपट स्नॅप', 'समुदाय', 'Hive चे विशेष गट', 'गट', 'मेनू', 'शॉर्टकट आणि पर्याय',
+    'मुख्यपृष्ठ', 'फीड', 'शिफारसी, फॉलो केलेले क्रिएटर आणि कम्युनिटी', 'तुमच्यासाठी', 'माझी फीड', 'माझ्या कम्युनिटी', 'शोधा', 'ट्रेंडिंग, लोकप्रिय आणि नवीन फीड', 'शॉर्ट्स', 'मायक्रोब्लॉगिंग आणि झटपट स्नॅप', 'समुदाय', 'Hive चे विशेष गट', 'गट', 'मेनू', 'शॉर्टकट आणि पर्याय',
     'Hive, @वापरकर्ता, #टॅग शोधा', 'शोधा', 'लिहा', 'Hive वर नवीन पोस्ट लिहा (N दाबा)', 'लॉग इन करा', 'Hive Keychain शी कनेक्ट करा', 'सूचना पहा', '{count} न वाचलेल्या सूचना',
     'जलद दुवे', 'समुदाय शोधा', 'समुदाय व्यवस्थापित करा', 'फॉलो करत असलेले व्यवस्थापित करा', 'प्रोफाइल', 'तुमचे Hive प्रोफाइल पहा', 'सूचना', 'उत्तरे, उल्लेख आणि मते', '{count} नवीन', 'नेटवर्क आणि प्राधान्ये',
     'RPC नोड्स', 'चेन आकडेवारी', 'दिसणे', 'डार्क मोड', 'लाइट मोड', 'खाते डिस्कनेक्ट करा', 'या सत्रातून साइन आउट करा', 'भाषा', 'इंटरफेसची भाषा', 'डेमो · फक्त वाचन', 'Hive Keychain', 'सक्रिय',
