@@ -23,9 +23,7 @@ import { CommunitiesTabNav } from '../components/communities/CommunitiesTabNav';
 
 export interface ExploreCommunitiesPageProps {
   embedded?: boolean;
-  onClose: () => void;
   onSwitchToManage: () => void;
-  onSwitchToFeed?: () => void;
   onSelectCommunity: (communityName: string) => void;
   joinedCommunities: Record<string, boolean>;
   onToggleJoinCommunity: (communityName: string) => Promise<string | null> | string | null;
@@ -78,9 +76,7 @@ function loadPrefs(): StoredPrefs {
 
 export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   embedded = false,
-  onClose,
   onSwitchToManage,
-  onSwitchToFeed,
   onSelectCommunity,
   joinedCommunities,
   onToggleJoinCommunity,
@@ -307,17 +303,8 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
       {/* Top Switcher Navigation */}
       <CommunitiesTabNav
         currentTab="explore"
-        onSelectTab={(tab) => {
-          if (tab === 'feed') {
-            if (onSwitchToFeed) onSwitchToFeed();
-            else onClose();
-          } else if (tab === 'manage') {
-            onSwitchToManage();
-          }
-        }}
+        onSelectTab={(tab) => { if (tab === 'manage') onSwitchToManage(); }}
         joinedCount={joinedCount}
-        onBack={onSwitchToFeed || onClose}
-        showBack={true}
         mobileOnly={embedded}
       />
 
