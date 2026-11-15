@@ -408,13 +408,6 @@ html.dark .nebulosa-code-copy-button[data-copied="true"] {
   cursor: text;
 }
 
-.article-body a:not([href]),
-.article-content a:not([href]) {
-  color: inherit;
-  text-decoration: none;
-  cursor: text;
-}
-
 .article-body blockquote,
 .article-content blockquote {
   border-left: 4px solid #3b82f6;

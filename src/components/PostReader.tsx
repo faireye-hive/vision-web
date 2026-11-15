@@ -81,24 +81,6 @@ function isTrustedHiveLink(url: URL): boolean {
     (TRUSTED_HIVE_LINK_HOSTS.some((domain) => host === domain || host === `www.${domain}`) || host === 'play.3speak.tv');
 }
 
-async function copyTextToClipboard(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', '');
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  const copied = document.execCommand('copy');
-  textarea.remove();
-  if (!copied) throw new Error('Clipboard copy failed');
-}
-
 function createCopyIcon(copied = false): SVGSVGElement {
   const namespace = 'http://www.w3.org/2000/svg';
   const icon = document.createElementNS(namespace, 'svg');
