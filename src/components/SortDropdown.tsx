@@ -20,14 +20,6 @@ interface SortDropdownProps {
 
 const SORT_OPTIONS = [
   {
-    id: 'recommend' as const,
-    label: 'Recommend',
-    icon: Compass,
-    iconColor: 'text-slate-500 dark:text-slate-400',
-    description: 'Stories ranked for your Hive account',
-    badge: 'Smart',
-  },
-  {
     id: 'hot' as const,
     label: 'Hot',
     icon: Flame,

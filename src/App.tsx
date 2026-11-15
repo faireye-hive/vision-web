@@ -30,7 +30,6 @@ import { applyReadingStyle, readReadingStyle } from './utils/readingStyle';
 import { useShortsWordFilter } from './hooks/useShortsWordFilter';
 import { ProfileReaderAppearance } from './features/profile/profileStyleTypes';
 import { I18nProvider } from './i18n/I18nContext';
-import { COMMUNITY_NAME } from './utils/communityRoutes';
 import type { PostTextHighlight } from './components/PostReader';
 
 const SnapsPage = lazy(() => import('./pages/SnapsPage').then(m => ({ default: m.SnapsPage })));
@@ -108,7 +107,6 @@ function NebulosaApp() {
     showContentFilterModal,
     setShowContentFilterModal,
     selectedLanguage,
-    followsInterfaceLanguage,
     setSelectedLanguage
   } = useNavigation();
 
@@ -192,20 +190,6 @@ function NebulosaApp() {
     }
   }, [selectedPost, standalonePage, restoreScrollPosition, activeNav, isCommunityPage]);
 
-  // Personalized Recommendation background sync:
-  // Starts silently in background the first time the user opens the app each day.
-  // Cached in IndexedDB with 24h TTL, zero API spam or overload.
-  useEffect(() => {
-    if (currentUser?.username) {
-      // Fire-and-forget in background; service internally guards against TTL and concurrent runs
-      syncRecommendationsInBackground(currentUser.username, false).catch((err) => {
-        console.warn('[App] Background recommendation sync check failed:', err);
-      });
-    }
-  }, [currentUser?.username]);
-
-
-
   return (
     <div className="app-shell min-h-screen flex flex-col bg-transparent text-[var(--reading-text,#1e293b)] transition-colors duration-200">
       {/* Top Navbar */}
@@ -233,8 +217,7 @@ function NebulosaApp() {
         isDark={theme === 'dark'}
         onToggleTheme={handleToggleTheme}
         selectedLanguage={selectedLanguage}
-        followsInterfaceLanguage={activeNav === 'discover' && sort === 'recommend' ? followsInterfaceLanguage : undefined}
-        onSelectLanguage={setSelectedLanguage}
+        onSelectLanguage={activeNav === 'discover' ? setSelectedLanguage : undefined}
       />
 
       {/* Main Container with safe bottom padding for mobile bar */}
@@ -340,8 +323,7 @@ function NebulosaApp() {
               onSortChange={(s) => setSort(s)}
               currentTag={tag}
               onSelectTag={(t) => {
-                if (activeNav === 'communities' && COMMUNITY_NAME.test(t)) openCommunity(t);
-                else setTag(t);
+                setTag(t);
                 setFeedAuthor(null);
               }}
               onSelectAuthor={handleSelectAuthor}

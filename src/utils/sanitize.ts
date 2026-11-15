@@ -115,13 +115,6 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
       node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
       return;
     }
-    if (hasUrlCredentials(href)) {
-      node.removeAttribute('href');
-      node.removeAttribute('target');
-      node.removeAttribute('rel');
-      node.setAttribute('title', 'Link blocked: embedded username or password in URL.');
-      return;
-    }
     // Hive renders post-body links as relative routes such as /@author or
     // /@author/permlink. Resolve those to this app's routes so they work from
     // localhost and stay inside the reader instead of navigating to a

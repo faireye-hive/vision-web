@@ -70,7 +70,6 @@ interface NavbarProps {
   isDark?: boolean;
   onToggleTheme?: () => void;
   selectedLanguage?: string;
-  followsInterfaceLanguage?: boolean;
   onSelectLanguage?: (langCode: string) => void;
 }
 
@@ -94,7 +93,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   isDark = false,
   onToggleTheme,
   selectedLanguage = 'global',
-  followsInterfaceLanguage,
   onSelectLanguage
 }) => {
   const { unreadCount: unreadNotificationsCount } = useNotifications();
@@ -493,7 +491,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <LanguageDropdown
                   id="mobile-navbar-language-dropdown"
                   selectedLanguage={selectedLanguage}
-                  followsInterfaceLanguage={followsInterfaceLanguage}
                   onSelectLanguage={onSelectLanguage}
                   iconOnly={true}
                 />
