@@ -229,7 +229,7 @@ export const BlockchainStatsModal: React.FC<BlockchainStatsModalProps> = ({ onCl
   return (
     <div 
       id="blockchain-stats-modal"
-      className="fixed inset-x-0 top-14 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:inset-0 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
+      className="fixed inset-x-0 top-14 bottom-[var(--mobile-bottom-nav-clearance)] z-[110] flex items-start justify-center overflow-hidden bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm p-0 animate-in fade-in duration-200 sm:inset-0 sm:items-center sm:overflow-y-auto sm:overscroll-contain sm:p-4 md:p-6"
     >
       <div 
         className="relative my-0 flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-900/15 sm:my-auto sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"

@@ -1,3 +1,5 @@
+import { NsfwGate } from './NsfwGate';
+import { isNsfwContent } from '../utils/nsfw';
 import { handleImageFallback } from '../utils/imageFallback';
 import { resolveHiveAvatarUrl } from '../utils/hiveAvatar';
 import React, { useState, useEffect } from 'react';
@@ -117,6 +119,7 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
   );
 
   return (
+    <NsfwGate key={communityName} sensitive={isNsfwContent(community)}>
     <article className="w-full overflow-hidden rounded-2xl border border-slate-200/70 bg-white text-gray-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
       <div className="relative h-24 w-full overflow-hidden bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300 dark:from-slate-700 dark:via-slate-800 dark:to-slate-900">
         <img
@@ -325,5 +328,6 @@ export const CommunityInfoCard: React.FC<CommunityInfoCardProps> = ({
         )}
       </div>
     </article>
+  </NsfwGate>
   );
 };

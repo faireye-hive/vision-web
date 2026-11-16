@@ -32,6 +32,7 @@ import { useNavigation } from '../context/NavigationContext';
 import type { SortOption } from '../context/NavigationContext';
 import { FeedSectionNav } from './FeedSectionNav';
 import { CommunityLink } from './CommunityLink';
+import { PostNsfwGate } from './NsfwGate';
 import { useI18n } from '../i18n/I18nContext';
 
 export interface LeftSidebarProps {
@@ -728,8 +729,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   const isSelected = currentTag.toLowerCase() === comm.name.toLowerCase();
 
                   return (
+                    <PostNsfwGate key={comm.name} post={{ category: comm.name, title: comm.title }}>
                     <div
-                      key={comm.name}
                       className={`group flex items-center justify-between gap-1 rounded-xl pe-2 text-xs transition ${
                         isSelected
                           ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
@@ -771,6 +772,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         </button>
                       </div>
                     </div>
+                    </PostNsfwGate>
                   );
                 })
               ) : (

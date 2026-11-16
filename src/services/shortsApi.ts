@@ -1,4 +1,5 @@
 import { getCleanSnapText } from '../utils/snapText';
+import { isNsfwContent } from '../utils/nsfw';
 export { getCleanSnapText, getCleanSnapTextLength } from '../utils/snapText';
 /**
  * SHORTS API SERVICE
@@ -192,8 +193,9 @@ export async function loadRepliesToAccount(
     discussionResults.push(...results);
   }
   const seenPermlinks = new Set<string>();
-  const snapReplies = discussionResults.flatMap(({ snap, discussion }) =>
-    Object.values(discussion).filter((post) => {
+  const snapReplies = discussionResults.flatMap(({ snap, discussion }) => {
+    const hideWithParent = isNsfwContent(snap);
+    const replies = Object.values(discussion).filter((post) => {
       if (!post?.author || !post.permlink || mutedNames.has(post.author.toLowerCase())) return false;
       if ((post.parent_author || '').toLowerCase() !== snap.author.toLowerCase()) return false;
       if ((post.parent_permlink || '').toLowerCase() !== snap.permlink.toLowerCase()) return false;
@@ -202,8 +204,9 @@ export async function loadRepliesToAccount(
       if (seenPermlinks.has(key)) return false;
       seenPermlinks.add(key);
       return true;
-    })
-  );
+    });
+    return hideWithParent ? replies.map((post) => ({ ...post, is_nsfw: true })) : replies;
+  });
 
   // Sort newest first
   snapReplies.sort((a, b) => hiveTime(b.created) - hiveTime(a.created));

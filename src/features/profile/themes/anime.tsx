@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
@@ -436,6 +437,7 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
 
         {/* Featured Episode Showcase (Premiere Spotlight) */}
         {premierePost && activeTab !== 'history' && (
+          <PostNsfwGate post={premierePost}>
           <section className="relative rounded-3xl overflow-hidden border border-rose-500/20 bg-gradient-to-r from-slate-950 via-slate-900/90 to-slate-950 p-6 sm:p-8 backdrop-blur-xl shadow-xl">
             <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-8">
               
@@ -518,6 +520,7 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
 
             </div>
           </section>
+          </PostNsfwGate>
         )}
 
         {/* Main Grid: Content Feeds vs Otaku Guild Sidebar */}
@@ -632,7 +635,8 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
                 </div>
               ) : (
                 /* Post Cards (Anime Episode Format) */
-                displayedPosts.map((post, idx) => {
+                displayedPosts.map((post, idx) => (
+                  <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
                   const thumbnail = getPostThumbnail(post);
                   const isReblog = post.author.toLowerCase() !== account?.name.toLowerCase();
                   const isLiked = likedPosts[`${post.author}/${post.permlink}`];
@@ -723,7 +727,8 @@ export const AnimeLayout: React.FC<ThemeProps> = (props) => {
 
                     </article>
                   );
-                })
+                  }}</PostNsfwGate>
+                ))
               )}
 
               {/* Load More Trigger */}

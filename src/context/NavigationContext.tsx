@@ -1,4 +1,5 @@
 import { legacySnapsRedirect } from '../utils/snapsRoutes';
+import { isNsfwContent } from '../utils/nsfw';
 import { communityNameFromPath, communityPath, COMMUNITY_NAME } from '../utils/communityRoutes';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -10,7 +11,8 @@ export type NavTab = 'feed' | 'discover' | 'shorts' | 'communities';
 export type SortOption = 'trending' | 'hot' | 'created' | 'payout' | 'muted' | 'promoted';
 export type FeedSection = 'for-you' | 'following' | 'communities';
 
-const feedPath = (section: FeedSection) => section === 'for-you' ? '/feed' : `/feed?tab=${section}`;
+const DEFAULT_FEED_SECTION: FeedSection = 'following';
+const feedPath = (section: FeedSection) => section === DEFAULT_FEED_SECTION ? '/feed' : `/feed?tab=${section}`;
 export type StandalonePage = 'write' | 'profile' | 'explore' | 'manage' | 'following' | 'notifications' | 'lists' | 'chat' | 'snaps';
 
 export interface NavigationContextType {
@@ -75,7 +77,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const location = useLocation();
 
   const [activeNav, setActiveNav] = useState<NavTab>('discover');
-  const [feedSection, setFeedSection] = useState<FeedSection>('for-you');
+  const [feedSection, setFeedSection] = useState<FeedSection>(DEFAULT_FEED_SECTION);
   const [sort, setSortState] = useState<SortOption>('hot');
 
   const setSort = useCallback((newSort: SortOption) => {
@@ -230,7 +232,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       getPost(author, permlink, currentUser?.username || '')
         .then((post) => {
           if (cancelled || requestId !== routeRequestRef.current || !post) return;
-          setSelectedPost(post);
+          setSelectedPost(previous => {
+            const wasFlagged = previous?.author === post.author && previous.permlink === post.permlink && isNsfwContent(previous);
+            return wasFlagged ? { ...post, is_nsfw: true } : post;
+          });
         })
         .catch((err) => {
           if (!cancelled) console.error('Failed to load post from route:', err);
@@ -376,7 +381,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
     if (pathname === '/feed') {
       const tab = searchParams.get('tab');
-      const section = tab === 'following' || tab === 'communities' ? tab : 'for-you';
+      const section = tab === 'for-you' || tab === 'communities' ? tab : DEFAULT_FEED_SECTION;
       const communityTag = searchParams.get('tag') || '';
       const feedTag = section === 'communities' && COMMUNITY_NAME.test(communityTag) ? communityTag : '';
       setActiveNav('feed');
@@ -425,8 +430,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     if (tab === 'feed') {
       setTagState('');
       tagRef.current = '';
-      setFeedSection('for-you');
-      navigate(feedPath('for-you'));
+      setFeedSection(DEFAULT_FEED_SECTION);
+      navigate(feedPath(DEFAULT_FEED_SECTION));
     } else if (tab === 'discover') {
       setTagState('');
       tagRef.current = '';
@@ -558,7 +563,15 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       getPost(post.author, post.permlink, currentUser?.username || '', true)
         .then((fullPost) => {
           if (fullPost && fullPost.body && fullPost.body.trim().length > 0) {
-            setSelectedPost({ ...fullPost, is_truncated: false, from_recommendation: false });
+            setSelectedPost(previous => {
+              if (previous?.author !== post.author || previous.permlink !== post.permlink) return previous;
+              return {
+                ...fullPost,
+                is_nsfw: isNsfwContent(previous) || isNsfwContent(fullPost),
+                is_truncated: false,
+                from_recommendation: false,
+              };
+            });
           }
         })
         .catch((err) => console.error('Failed to fetch full post for selected post:', err));

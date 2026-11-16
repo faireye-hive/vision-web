@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import React from 'react';
 import { 
   Terminal, 
@@ -116,7 +117,8 @@ const TechLayout: React.FC<ThemeProps> = (props) => {
             </div>
 
             <div key="posts-list" className="space-y-6">
-              {posts.map((post, index) => {
+              {posts.map((post, index) => (
+                <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
                 const thumb = getPostThumbnail(post);
                 return (
                   <div 
@@ -158,7 +160,8 @@ const TechLayout: React.FC<ThemeProps> = (props) => {
                     </div>
                   </div>
                 );
-              })}
+                }}</PostNsfwGate>
+              ))}
             </div>
           </main>
         </div>

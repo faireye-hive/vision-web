@@ -19,6 +19,7 @@ export interface HivePost {
   title: string;
   body: string;
   json_metadata: string | Record<string, any>;
+  is_nsfw?: boolean;
   created: string;
   updated?: string;
   parent_author?: string;
@@ -1688,6 +1689,7 @@ async function fetchFollowedRootFeedInternal(
           title: p.title || '',
           body: p.body || '',
           json_metadata: p.json_metadata || '{}',
+          is_nsfw: p.is_nsfw,
           created: p.created || '',
           updated: p.last_update || p.updated,
           parent_author: p.parent_author || '',
@@ -1935,6 +1937,7 @@ export async function getSimilarPosts(
       title: item.title || '',
       body: item.body ? item.body.slice(0, 200) : '',
       json_metadata: item.json_metadata || '',
+      is_nsfw: item.is_nsfw,
       created: item.created || '',
       payout: typeof item.payout === 'number' ? item.payout : 0,
       pending_payout_value: item.pending_payout_value || '$0.000',

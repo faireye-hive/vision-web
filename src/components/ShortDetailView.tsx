@@ -1,3 +1,4 @@
+import { NsfwGate, usePostNsfw } from './NsfwGate';
 import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
 import { filterCommentTree } from '../utils/contentVisibility';
@@ -66,6 +67,13 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
 }) => {
   const { isMuted, mutedUsersLoading } = useAuth();
   const [discussionMap, setDiscussionMap] = useState<Record<string, HivePost>>(initialDiscussionMap);
+  const snapKey = `${snap.author}/${snap.permlink}`;
+  const primary = usePostNsfw(snap);
+  const refreshed = usePostNsfw(discussionMap[snapKey]);
+  const parent = usePostNsfw(discussionMap[`${snap.parent_author}/${snap.parent_permlink}`]);
+  const root = usePostNsfw(discussionMap[`${snap.root_author}/${snap.root_permlink}`]);
+  const sensitive = primary.sensitive || refreshed.sensitive || parent.sensitive || root.sensitive;
+  const pending = primary.pending || refreshed.pending || parent.pending || root.pending;
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Upvote state for main snap
@@ -179,7 +187,7 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
       try {
         await navigator.share({
           title: `Snap by @${snap.author}`,
-          text: snap.body ? snap.body.slice(0, 100) : '',
+          text: !sensitive && !pending ? snap.body?.slice(0, 100) : undefined,
           url,
         });
         setShowMenu(false);
@@ -563,14 +571,16 @@ export const ShortDetailView: React.FC<ShortDetailViewProps> = ({
               </div>
             </div>
 
-            <SnapContent
-              body={translatedBody || snap.body}
-              jsonMetadata={snap.json_metadata}
-              author={snap.author}
-              permlink={snap.permlink}
-              onSelectTag={onSelectTag}
-              textClassName="text-[16px] sm:text-[17px] text-slate-800 dark:text-slate-100 leading-relaxed break-words prose prose-slate dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
-            />
+            <NsfwGate key={snapKey} sensitive={sensitive} pending={pending}>
+              <SnapContent
+                body={translatedBody || snap.body}
+                jsonMetadata={snap.json_metadata}
+                author={snap.author}
+                permlink={snap.permlink}
+                onSelectTag={onSelectTag}
+                textClassName="text-[16px] sm:text-[17px] text-slate-800 dark:text-slate-100 leading-relaxed break-words prose prose-slate dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 select-text"
+              />
+            </NsfwGate>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
@@ -781,6 +791,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   onMuteAuthor
 }) => {
   const { comment, replies } = node;
+  const labels = usePostNsfw(comment);
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [submittingReply, setSubmittingReply] = useState(false);
@@ -851,7 +862,6 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
   }, [effectiveBody]);
 
   const activeBody = isTruncated && !isCommentExpanded ? truncatedText : effectiveBody;
-  const safeHtml = useMemo(() => markdownToSafeHtml(activeBody), [activeBody]);
 
   const [voteOpen, setVoteOpen] = useState(false);
   const handleVote = () => {
@@ -869,7 +879,7 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
       try {
         await navigator.share({
           title: `Reply by @${comment.author}`,
-          text: comment.body ? comment.body.slice(0, 100) : '',
+          text: !labels.sensitive && !labels.pending ? comment.body?.slice(0, 100) : undefined,
           url,
         });
         setShowCommentMenu(false);
@@ -1087,30 +1097,36 @@ const ThreadCommentItem: React.FC<ThreadCommentItemProps> = ({
             </div>
           </div>
 
-          <div
-            className="text-[13px] sm:text-[14px] text-slate-700 dark:text-slate-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1 break-words select-text"
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
-          />
+          <NsfwGate key={`${comment.author}/${comment.permlink}`} {...labels}>
+            {() => (
+              <>
+                <div
+                  className="text-[13px] sm:text-[14px] text-slate-700 dark:text-slate-200 leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1 break-words select-text"
+                  dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(activeBody) }}
+                />
 
-          {isTruncated && (
-            <div className="mt-1">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsCommentExpanded(!isCommentExpanded);
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer select-none py-0.5"
-              >
-                <span>{isCommentExpanded ? 'Show less' : 'Show more'}</span>
-                {isCommentExpanded ? (
-                  <ChevronUp className="w-3 h-3" />
-                ) : (
-                  <ChevronDown className="w-3 h-3" />
+                {isTruncated && (
+                  <div className="mt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCommentExpanded(!isCommentExpanded);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer select-none py-0.5"
+                    >
+                      <span>{isCommentExpanded ? 'Show less' : 'Show more'}</span>
+                      {isCommentExpanded ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
                 )}
-              </button>
-            </div>
-          )}
+              </>
+            )}
+          </NsfwGate>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-5 mt-2.5 pt-1">
             <button

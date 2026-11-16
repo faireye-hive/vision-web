@@ -1,7 +1,10 @@
+import { NsfwGate } from '../components/NsfwGate';
+import { isNsfwContent } from '../utils/nsfw';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, Check, ChevronRight, Globe2, Link2, Loader2, PenLine, Shield, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useContentFilter } from '../context/ContentFilterContext';
 import { useNavigation } from '../context/NavigationContext';
 import { useI18n } from '../i18n/I18nContext';
 import { communityPageCopy } from '../i18n/communityPage';
@@ -23,16 +26,19 @@ type View = 'posts' | 'about' | 'members';
 
 export function CommunityPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { pathname } = location;
   const navigationType = useNavigationType();
   const name = communityNameFromPath(pathname);
   const { locale } = useI18n();
+  const { showNsfw } = useContentFilter();
   const copy = communityPageCopy(locale);
   const [params, setParams] = useSearchParams();
   const view: View = params.get('view') === 'about' ? 'about' : params.get('view') === 'members' ? 'members' : 'posts';
   const { currentUser, joinedCommunities, toggleJoinCommunity } = useAuth();
   const { openWritePage, tag } = useNavigation();
   const [community, setCommunity] = useState<HiveCommunity | null>(null);
+  const sensitive = isNsfwContent(community);
   const [media, setMedia] = useState({ cover: '', avatar: '', created: '' });
   const [loading, setLoading] = useState(Boolean(name));
   const [failed, setFailed] = useState(false);
@@ -76,9 +82,9 @@ export function CommunityPage() {
   useEffect(() => {
     if (!community) return;
     const previous = document.title;
-    document.title = `${community.title || community.name} · Nebulosa`;
+    document.title = `${sensitive && !showNsfw ? 'NSFW' : community.title || community.name} · Nebulosa`;
     return () => { document.title = previous; };
-  }, [community]);
+  }, [community, sensitive, showNsfw]);
 
   useEffect(() => {
     if (view === 'posts') setFeedVisited(true);
@@ -126,7 +132,8 @@ export function CommunityPage() {
   let language = community.lang || '—';
   try { if (community.lang) language = new Intl.DisplayNames([locale], { type: 'language' }).of(community.lang) || community.lang; } catch { /* Show the published language code. */ }
 
-  return <div id="community-page" className="mx-auto w-full max-w-6xl space-y-4 text-slate-800 dark:text-slate-200">
+  return <NsfwGate key={name} sensitive={sensitive} onBack={() => navigate('/communities?tab=explore')}>
+  <div id="community-page" className="mx-auto w-full max-w-6xl space-y-4 text-slate-800 dark:text-slate-200">
     <nav aria-label="Breadcrumb" className="flex items-center gap-2 px-1 text-xs text-slate-500 dark:text-slate-400"><Link to="/communities?tab=explore" className="inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400"><ArrowLeft className="h-3.5 w-3.5" />{copy.directory}</Link><ChevronRight className="h-3 w-3" /><span className="truncate">{community.title || name}</span></nav>
 
     <header className={`${panel} overflow-hidden`}>
@@ -175,5 +182,6 @@ export function CommunityPage() {
         <CommunityTopicsCard communityPosts={posts} currentTag={name} onSelectTopic={selectTopic} title={copy.topics} />
       </aside>
     </div>
-  </div>;
+  </div>
+  </NsfwGate>;
 }

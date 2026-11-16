@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import React, { useState } from 'react';
 import {
   FileText,
@@ -236,13 +237,9 @@ export const ProfileFeedSection: React.FC<ProfileFeedSectionProps> = ({
           ) : (
             <div className={feedContainerClass}>
               {displayedPosts.map((post) => (
-                <CustomProfilePostCard
-                  key={`${post.author}/${post.permlink}`}
-                  post={post}
-                  onOpen={() => onSelectPost(post)}
-                  onTag={onSelectTag}
-                  style={style}
-                />
+                <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>
+                  <CustomProfilePostCard post={post} onOpen={() => onSelectPost(post)} onTag={onSelectTag} style={style} />
+                </PostNsfwGate>
               ))}
             </div>
           )}
@@ -271,7 +268,8 @@ export const ProfileFeedSection: React.FC<ProfileFeedSectionProps> = ({
               No comments published by this account yet.
             </div>
           ) : (
-            comments.map((comment) => {
+            comments.map((comment) => (
+              <PostNsfwGate key={`${comment.author}/${comment.permlink}`} post={comment}>{() => {
               const looksSuspicious = hasSuspiciousCommentLanguage(comment.body || '');
               const sanitizedHtml = looksSuspicious ? markdownToSafeHtml(comment.body || '') : '';
               const isScamAlertComment = looksSuspicious && hasScamCommentSignals(comment.body || '', sanitizedHtml);
@@ -306,7 +304,8 @@ export const ProfileFeedSection: React.FC<ProfileFeedSectionProps> = ({
                   {isScamAlertComment && <ScamAlertNotice />}
                 </div>
               );
-            })
+              }}</PostNsfwGate>
+            ))
           )}
 
           {comments.length >= 20 && (

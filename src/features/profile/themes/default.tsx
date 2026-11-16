@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import { BlacklistFlair } from '../../../components/BlacklistFlair';
 import { Link } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
@@ -157,6 +158,67 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
   } = props;
 
   const { openAuthorProfile } = useNavigation();
+  const [hideMobileTabs, setHideMobileTabs] = useState(false);
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const feed = feedRef.current;
+    if (!feed) return;
+
+    const mobile = window.matchMedia('(width < 48rem)');
+    const scrollThreshold = 8;
+    let lastY = 0;
+    let directionStartY = 0;
+    let direction = 0;
+    let passedTabs = false;
+    let hidden = false;
+
+    const updateVisibility = (nextHidden: boolean) => {
+      if (nextHidden === hidden) return;
+      hidden = nextHidden;
+      setHideMobileTabs(hidden);
+    };
+
+    const resetScrollTracking = () => {
+      lastY = Math.max(0, window.scrollY);
+      directionStartY = lastY;
+      direction = 0;
+      passedTabs = mobile.matches && feed.getBoundingClientRect().top <= 0;
+      updateVisibility(passedTabs);
+    };
+
+    const handleScroll = () => {
+      if (!mobile.matches) return;
+
+      const y = Math.max(0, window.scrollY);
+      const nextDirection = Math.sign(y - lastY);
+      if (nextDirection && nextDirection !== direction) {
+        directionStartY = lastY;
+        direction = nextDirection;
+      }
+
+      // The feed starts at the tabs' original position, even when they are sticky.
+      const atTop = feed.getBoundingClientRect().top <= 0;
+      if (!atTop) {
+        updateVisibility(false);
+      } else if (!passedTabs && nextDirection > 0) {
+        updateVisibility(true);
+      } else if (nextDirection && Math.abs(y - directionStartY) >= scrollThreshold) {
+        updateVisibility(nextDirection > 0);
+      }
+
+      passedTabs = atTop;
+      lastY = y;
+    };
+
+    resetScrollTracking();
+    mobile.addEventListener('change', resetScrollTracking);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      mobile.removeEventListener('change', resetScrollTracking);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   const blogList = props.blog || props.blogPosts || posts;
   const displayPosts = 
@@ -222,9 +284,9 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
   const showQuickReply = activeTab === 'replies';
 
   return (
-    <div className="space-y-3 w-full min-w-0">
+    <div ref={feedRef} className="space-y-3 w-full min-w-0">
       {/* Tab Navigation with Icons */}
-      <nav aria-label="Profile sections" key="feed-tabs" className="sticky top-[72px] z-20 flex w-full min-w-0 items-center gap-1 overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-[#111827]/95">
+      <nav aria-label="Profile sections" key="feed-tabs" className={`sticky top-0 z-20 flex w-full min-w-0 items-center gap-1 overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-sm backdrop-blur-md md:top-[72px] dark:border-slate-800 dark:bg-[#111827]/95 ${hideMobileTabs ? 'max-md:invisible' : ''}`}>
         {[
           { id: 'blog', label: 'Blog', icon: Rss },
           { id: 'posts', label: 'Posts', icon: PenLine },
@@ -388,7 +450,8 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
             </p>
           </div>
         ) : (
-          displayPosts.map((post, index) => {
+          displayPosts.map((post, index) => (
+            <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
             const rawThumbnail = getPostThumbnail(post);
             const thumbnail = rawThumbnail ? getSafeImageUrl(rawThumbnail, { width: 600 }) : null;
             const snippet = getPostSnippet(post.body || '', 240);
@@ -577,7 +640,8 @@ const ThemeFeed: React.FC<ThemeProps> = (props) => {
                 </div>
               </div>
             );
-          })
+            }}</PostNsfwGate>
+          ))
         )}
 
         {/* Automatic Infinite Scroll Sentinel with hasMore protection */}

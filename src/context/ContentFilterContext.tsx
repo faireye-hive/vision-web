@@ -1,5 +1,5 @@
 import { useAuth } from './AuthContext';
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   ContentFilterConfig,
   loadFilterConfig,
@@ -11,9 +11,14 @@ import {
   FilterResult
 } from '../utils/contentFilter';
 import { HivePost } from '../services/hiveApi';
+import { loadCommunityCatalog } from '../services/communityCatalog';
+import { isNsfwContent } from '../utils/nsfw';
 
 export interface ContentFilterContextType {
   config: ContentFilterConfig;
+  showNsfw: boolean;
+  setShowNsfw: (show: boolean) => void;
+  nsfwCommunities: ReadonlySet<string> | null;
   isAuthorHidden: (author: string) => boolean;
   addFilterWord: (word: string) => void;
   removeFilterWord: (word: string) => void;
@@ -32,11 +37,41 @@ export interface ContentFilterContextType {
 }
 
 const ContentFilterContext = createContext<ContentFilterContextType | undefined>(undefined);
+const NSFW_STORAGE_KEY = 'nebulosa_show_nsfw';
 
 export function ContentFilterProvider({ children }: { children: React.ReactNode }) {
   const { mutedUsersList, mutedUsersLoading } = useAuth();
   const mutedAuthors = useMemo(() => new Set(mutedUsersList.map(name => name.trim().replace(/^@/, '').toLowerCase())), [mutedUsersList]);
   const [config, setConfig] = useState<ContentFilterConfig>(() => loadFilterConfig());
+  const [showNsfw, setShowNsfwState] = useState(() => {
+    try { return localStorage.getItem(NSFW_STORAGE_KEY) === 'true'; }
+    catch { return false; }
+  });
+  const [nsfwCommunities, setNsfwCommunities] = useState<ReadonlySet<string> | null>(null);
+
+  useEffect(() => {
+    if (showNsfw || nsfwCommunities !== null) return;
+    let active = true;
+    loadCommunityCatalog()
+      .then(communities => communities.filter(isNsfwContent).map(community => community.name))
+      .catch(() => [] as string[])
+      .then(names => { if (active) setNsfwCommunities(new Set(names)); });
+    return () => { active = false; };
+  }, [showNsfw, nsfwCommunities]);
+
+  const setShowNsfw = useCallback((show: boolean) => {
+    setShowNsfwState(show);
+    try { localStorage.setItem(NSFW_STORAGE_KEY, String(show)); }
+    catch { /* Keep the preference in memory if storage is unavailable. */ }
+  }, []);
+
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key === NSFW_STORAGE_KEY || event.key === null) setShowNsfwState(event.newValue === 'true');
+    };
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, []);
 
   const addFilterWord = useCallback((word: string) => {
     const clean = word.trim().toLowerCase();
@@ -116,6 +151,9 @@ export function ContentFilterProvider({ children }: { children: React.ReactNode 
   const value = useMemo(
     () => ({
       config,
+      showNsfw,
+      setShowNsfw,
+      nsfwCommunities,
       isAuthorHidden,
       addFilterWord,
       removeFilterWord,
@@ -129,6 +167,9 @@ export function ContentFilterProvider({ children }: { children: React.ReactNode 
     }),
     [
       config,
+      showNsfw,
+      setShowNsfw,
+      nsfwCommunities,
       isAuthorHidden,
       addFilterWord,
       removeFilterWord,

@@ -242,7 +242,7 @@ export async function browseCombflowPosts(params: {
 
   const url = new URL('https://combflow.net/api/browse');
   url.searchParams.set('language', language);
-  url.searchParams.set('include_nsfw', 'false');
+  url.searchParams.set('include_nsfw', 'true');
   url.searchParams.set('nsfw_only', 'false');
   url.searchParams.set('max_age', maxAge);
   url.searchParams.set('limit', String(limit));
@@ -318,6 +318,7 @@ export async function fetchHiveSensePostsByIds(
       title: item.title || '',
       body: item.body || '',
       json_metadata: parsedMetadata || {},
+      is_nsfw: item.is_nsfw,
       created: item.created || new Date().toISOString(),
       updated: item.updated,
       depth: item.depth ?? 0,
@@ -384,10 +385,6 @@ export async function getLanguageDiscoveryFeed(params: {
 
   const fullPosts = await fetchHiveSensePostsByIds(pairs, observer, signal);
 
-  // If HiveSense returns in order, fullPosts are ready; ensure fallback alignment
-  if (fullPosts.length > 0) {
-    return fullPosts;
-  }
-
-  return [];
+  const flagged = new Set(combflowItems.filter((post) => post.is_nsfw).map((post) => `${post.author}/${post.permlink}`));
+  return fullPosts.map((post) => flagged.has(`${post.author}/${post.permlink}`) ? { ...post, is_nsfw: true } : post);
 }
