@@ -46,6 +46,7 @@ import { useNavigation } from '../context/NavigationContext';
 import { LanguageDropdown } from './LanguageDropdown';
 import { SearchPreviewPopover } from './SearchPreviewPopover';
 import { UiLanguageButton } from './UiLanguagePicker';
+import { NsfwPreference } from './NsfwGate';
 import { DesktopAccountMenu } from './DesktopAccountMenu';
 import { pollWhileVisible } from '../utils/visiblePolling';
 import { useI18n } from '../i18n/I18nContext';
@@ -629,6 +630,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden md:inline">{t('nav.login')}</span>
               </button>
               <UiLanguageButton />
+              <div className="relative hidden shrink-0 sm:block">
+                <button
+                  id="user-avatar-btn"
+                  type="button"
+                  aria-label="NSFW"
+                  aria-expanded={showUserMenu}
+                  aria-controls={showUserMenu ? 'user-menu-dropdown' : undefined}
+                  onClick={() => setShowUserMenu((open) => !open)}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  NSFW <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+                {showUserMenu && (
+                  <div id="user-menu-dropdown" className="absolute end-0 z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                    <NsfwPreference />
+                  </div>
+                )}
+              </div>
               </>
             ) : (
               <div className="relative hidden shrink-0 sm:block">

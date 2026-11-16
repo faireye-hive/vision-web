@@ -1,4 +1,6 @@
 import { BlacklistFlair } from '../components/BlacklistFlair';
+import { PostNsfwGate } from '../components/NsfwGate';
+import { COMMUNITY_NAME } from '../utils/communityRoutes';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ProfileConnections } from '../features/profile/components/ProfileConnections';
 import { isProfileRelation } from '../services/profileRelations';
@@ -64,7 +66,18 @@ interface ProfilePageProps {
   onOpenCommunity?: (communityName: string) => void;
 }
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({
+export const ProfilePage: React.FC<ProfilePageProps> = (props) => {
+  const username = props.username.replace(/^@/, '').trim().toLowerCase();
+  if (!COMMUNITY_NAME.test(username)) return <ProfilePageContent {...props} />;
+
+  return (
+    <PostNsfwGate key={username} post={{ author: username, category: username }} onBack={props.onClose}>
+      <ProfilePageContent {...props} />
+    </PostNsfwGate>
+  );
+};
+
+const ProfilePageContent: React.FC<ProfilePageProps> = ({
   username,
   onClose,
   onSelectPost,

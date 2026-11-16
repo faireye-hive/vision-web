@@ -129,26 +129,25 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
   };
 
   return (
-    <div ref={dropdownRef} className="relative inline-block text-left" id={id}>
+    <div ref={dropdownRef} className="inline-block text-left sm:relative" id={id}>
       {/* Trigger button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        aria-label={`Sort feed: ${selectedOption.label}`}
         title={`Sort feed: currently ${selectedOption.label}. Click to select another ranking.`}
-        className={`inline-flex items-center gap-1 ${
-          iconOnly ? 'p-1.5 sm:px-2 sm:py-1' : 'px-2 py-1 sm:px-2.5 sm:py-1'
-        } rounded-full text-xs font-semibold transition cursor-pointer border select-none shrink-0 ${
+        className={`inline-flex min-h-11 min-w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-semibold transition sm:min-h-0 sm:min-w-0 sm:gap-1 sm:text-xs ${
+          iconOnly ? 'sm:px-2' : ''
+        } ${
           isOpen
             ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-xs'
             : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
-        <SelectedIcon className={`w-3.5 h-3.5 flex-shrink-0 ${selectedOption.iconColor}`} />
-        {!iconOnly && (
-          <span className="text-[11px] sm:text-xs font-semibold leading-tight">{selectedOption.label}</span>
-        )}
+        <SelectedIcon className={`size-4 shrink-0 sm:size-3.5 ${selectedOption.iconColor}`} />
+        <span className={`leading-tight ${iconOnly ? 'max-[359px]:hidden sm:hidden' : ''}`}>{selectedOption.label}</span>
         {selectedOption.badge === 'Live' && (
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         )}
@@ -163,11 +162,12 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
       {isOpen && (
         <div
           role="listbox"
-          className={`absolute ${
-            alignRight ? 'right-0' : 'left-0'
-          } mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-1.5 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200`}
+          aria-label="Sort feed by"
+          className={`absolute top-full z-50 mt-1.5 max-h-[min(24rem,55dvh)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-2 text-gray-800 shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-sm:inset-x-1 sm:max-h-none sm:w-60 sm:p-1.5 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 ${
+            alignRight ? 'sm:right-0' : 'sm:left-0'
+          }`}
         >
-          <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">
+          <div className="px-2.5 py-2 text-sm font-semibold text-slate-600 sm:py-1 sm:text-[10px] sm:uppercase sm:tracking-wider dark:text-slate-400">
             Sort feed by
           </div>
 
@@ -191,7 +191,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                     handleSelect(option.id);
                   }}
                   title={option.description}
-                  className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer select-none group ${
+                  className={`group flex min-h-12 w-full cursor-pointer select-none items-center justify-between rounded-xl p-2 text-left text-sm transition sm:min-h-0 sm:text-xs ${
                     isCurrent
                       ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300 active:bg-slate-100 dark:active:bg-slate-700'
@@ -211,7 +211,7 @@ export const SortDropdown: React.FC<SortDropdownProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-400 dark:text-slate-400 font-normal line-clamp-1 mt-0.5">
+                      <p className="mt-0.5 line-clamp-1 text-xs font-normal text-slate-500 sm:text-[11px] dark:text-slate-400">
                         {option.description}
                       </p>
                     </div>

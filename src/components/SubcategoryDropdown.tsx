@@ -19,14 +19,15 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [leftOffset, setLeftOffset] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && dropdownRef.current) {
       const updatePosition = () => {
-        if (!dropdownRef.current) return;
+        if (!dropdownRef.current || !menuRef.current || window.innerWidth < 640) return;
         const rect = dropdownRef.current.getBoundingClientRect();
-        const menuWidth = 260;
+        const menuWidth = menuRef.current.offsetWidth;
         const screenMargin = 8;
         const availableWidth = window.innerWidth;
 
@@ -65,15 +66,17 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
       }
     };
 
+    let focusTimer: number | undefined;
     if (isOpen) {
       document.addEventListener('pointerdown', handleClickOutside);
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
-      if (category.subtopics.length > 5) {
-        setTimeout(() => searchInputRef.current?.focus(), 50);
+      if (category.subtopics.length > 5 && window.innerWidth >= 640) {
+        focusTimer = window.setTimeout(() => searchInputRef.current?.focus(), 50);
       }
     }
     return () => {
+      window.clearTimeout(focusTimer);
       document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
@@ -106,7 +109,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
   };
 
   return (
-    <div ref={dropdownRef} className="relative inline-block text-left" id={id}>
+    <div ref={dropdownRef} className="col-span-full inline-block min-w-0 text-left sm:relative" id={id}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -116,7 +119,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
         title={`Subtopics for ${category.label}. Currently: ${
           activeSubtopic ? activeSubtopic.label : isCategoryRoot ? `All in ${category.label}` : 'Select subtopic'
         }`}
-        className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer border ${
+        className={`inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold transition sm:min-h-0 sm:w-auto sm:gap-1.5 sm:px-2.5 sm:text-xs ${
           activeSubtopic
             ? 'bg-slate-800 text-white border-slate-800 shadow-xs dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
             : isOpen
@@ -124,12 +127,12 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
               : 'bg-gray-100 dark:bg-slate-800 hover:bg-gray-200/80 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
         }`}
       >
-        <Hash className={`w-3 h-3 ${activeSubtopic ? 'text-white dark:text-slate-900' : 'text-slate-500 dark:text-slate-400'}`} />
-        <span className="truncate max-w-[80px] sm:max-w-[120px]">
+        <Hash className={`size-4 shrink-0 sm:size-3 ${activeSubtopic ? 'text-white dark:text-slate-900' : 'text-slate-500 dark:text-slate-400'}`} />
+        <span className="min-w-0 truncate sm:max-w-[120px]">
           {activeSubtopic ? activeSubtopic.label : 'Subtopics'}
         </span>
         <ChevronDown
-          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 transition-transform duration-150 ${
+          className={`ms-auto size-4 shrink-0 transition-transform duration-150 sm:size-3 ${
             activeSubtopic ? 'text-white/80' : 'text-gray-400 dark:text-slate-500'
           } ${isOpen ? 'rotate-180' : ''}`}
         />
@@ -138,21 +141,21 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
       {/* Floating Menu - Sits directly below button with mt-1.5, matching SortDropdown */}
       {isOpen && (
         <div
+          ref={menuRef}
           role="listbox"
-          style={{
-            left: leftOffset !== 0 ? `${leftOffset}px` : 0,
-          }}
-          className="absolute top-full mt-1.5 w-64 sm:w-72 max-w-[calc(100vw-16px)] rounded-2xl bg-white dark:bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-slate-800 p-2 z-50 focus:outline-none animate-in fade-in zoom-in-95 duration-100 text-gray-800 dark:text-slate-200"
+          aria-label={`Subtopics for ${category.label}`}
+          style={{ '--dropdown-offset': `${leftOffset}px` } as React.CSSProperties}
+          className="absolute inset-x-1 top-full z-50 mt-1.5 rounded-2xl border border-gray-200 bg-white p-2 text-gray-800 shadow-[0_8px_24px_rgba(0,0,0,0.12)] sm:right-auto sm:left-[var(--dropdown-offset)] sm:w-72 sm:max-w-[calc(100vw-16px)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
         >
           {/* Header */}
           <div className="px-2 py-1 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 mb-1.5 pb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="text-sm select-none">{category.icon}</span>
-              <span className="font-bold text-gray-900 dark:text-white text-xs truncate max-w-[140px]">
+              <span className="text-sm font-semibold text-gray-900 sm:max-w-[140px] sm:truncate sm:text-xs dark:text-white">
                 {category.label}
               </span>
             </div>
-            <span className="text-[10px] text-gray-400 dark:text-slate-500">
+            <span className="shrink-0 text-xs text-slate-500 sm:text-[10px] dark:text-slate-400">
               {category.subtopics.length} topics
             </span>
           </div>
@@ -164,16 +167,18 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
               <input
                 ref={searchInputRef}
                 type="text"
+                aria-label="Filter subtopics"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter subtopics..."
-                className="w-full pl-8 pr-7 py-1 text-xs bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 transition"
+                className="min-h-11 w-full rounded-xl border border-gray-100 bg-gray-50 py-1 pe-12 ps-8 text-base text-gray-800 placeholder-gray-400 transition focus:ring-1 focus:ring-slate-500 focus:outline-none sm:min-h-0 sm:pe-7 sm:text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                  aria-label="Clear subtopic search"
+                  className="absolute end-0 top-1/2 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-xl text-slate-500 hover:text-gray-600 sm:end-2 sm:size-auto dark:hover:text-slate-200"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -187,7 +192,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
             role="option"
             aria-selected={isCategoryRoot}
             onClick={() => handleSelect(category.tag)}
-            className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer mb-1 ${
+            className={`mb-1 flex min-h-12 w-full cursor-pointer items-center justify-between rounded-xl p-2 text-left text-sm transition sm:min-h-0 sm:text-xs ${
               isCategoryRoot
                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold'
                 : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
@@ -212,7 +217,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
           <div className="border-t border-gray-100 dark:border-slate-800 my-1" />
 
           {/* Subtopics List */}
-          <div className="max-h-60 overflow-y-auto space-y-0.5 pr-0.5">
+          <div className="max-h-[min(16rem,38dvh)] space-y-1 overflow-y-auto overscroll-contain pe-0.5 sm:max-h-60 sm:space-y-0.5">
             {filteredSubtopics.map((sub: Subtopic) => {
               const isSelected = currentTag.toLowerCase() === sub.tag.toLowerCase();
               return (
@@ -223,7 +228,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                   aria-selected={isSelected}
                   onClick={() => handleSelect(sub.tag)}
                   title={sub.description || sub.label}
-                  className={`w-full flex items-center justify-between p-2 rounded-xl text-xs text-left transition cursor-pointer ${
+                  className={`flex min-h-12 w-full cursor-pointer items-center justify-between rounded-xl p-2 text-left text-sm transition sm:min-h-0 sm:text-xs ${
                     isSelected
                       ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
                       : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300'
@@ -235,7 +240,7 @@ export const SubcategoryDropdown: React.FC<SubcategoryDropdownProps> = ({
                         {sub.label}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">
+                    <div className="truncate font-mono text-xs text-slate-500 sm:text-[10px] dark:text-slate-400">
                       #{sub.tag}
                     </div>
                     {sub.description && (

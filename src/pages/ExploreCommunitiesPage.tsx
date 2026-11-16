@@ -45,10 +45,9 @@ const PREFS_KEY = 'nebulosa_explore_communities_prefs';
 interface StoredPrefs {
   sortOrder: SortOrder;
   category: string;
-  hideSensitive: boolean;
 }
 
-const DEFAULT_PREFS: StoredPrefs = { sortOrder: 'rank', category: 'all', hideSensitive: true };
+const DEFAULT_PREFS: StoredPrefs = { sortOrder: 'rank', category: 'all' };
 
 function sortCatalog(communities: HiveCommunity[], order: SortOrder): HiveCommunity[] {
   if (order === 'rank') return communities;
@@ -67,7 +66,6 @@ function loadPrefs(): StoredPrefs {
     return {
       sortOrder: validSorts.includes(parsed?.sortOrder) ? parsed.sortOrder : DEFAULT_PREFS.sortOrder,
       category: typeof parsed?.category === 'string' ? parsed.category : DEFAULT_PREFS.category,
-      hideSensitive: typeof parsed?.hideSensitive === 'boolean' ? parsed.hideSensitive : DEFAULT_PREFS.hideSensitive
     };
   } catch {
     return DEFAULT_PREFS;
@@ -97,7 +95,6 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   const [category, setCategory] = useState(initialPrefs.category);
   const [language, setLanguage] = useState('all');
   const [onlySubscribed, setOnlySubscribed] = useState(false);
-  const [hideSensitive, setHideSensitive] = useState(initialPrefs.hideSensitive);
   const [busyName, setBusyName] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -111,11 +108,11 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   // Save display preferences
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ sortOrder, category, hideSensitive }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ sortOrder, category }));
     } catch {
       // Storage unavailable
     }
-  }, [sortOrder, category, hideSensitive]);
+  }, [sortOrder, category]);
 
   // Sort the shared snapshot locally. Live queries are explicit user actions.
   useEffect(() => {
@@ -169,7 +166,6 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
   const query = searchQuery.trim().toLowerCase();
   const inScope = useMemo(() => {
     return classified.filter((item) => {
-      if (hideSensitive && item.community.is_nsfw) return false;
       if (onlySubscribed && !joinedCommunities[item.community.name]) return false;
       if (!query) return true;
       return (
@@ -179,7 +175,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
         item.categoryLabel.toLowerCase().includes(query)
       );
     });
-  }, [classified, hideSensitive, joinedCommunities, onlySubscribed, query]);
+  }, [classified, joinedCommunities, onlySubscribed, query]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -273,7 +269,7 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
 
   useEffect(() => {
     setVisibleCount(DISPLAY_PAGE_SIZE);
-  }, [category, language, onlySubscribed, hideSensitive]);
+  }, [category, language, onlySubscribed]);
 
   const subscribe = async (name: string) => {
     if (joinedCommunities[name]) {
@@ -394,18 +390,6 @@ export const ExploreCommunitiesPage: React.FC<ExploreCommunitiesPageProps> = ({
               Subscribed
             </button>
 
-            <button
-              type="button"
-              onClick={() => setHideSensitive((v) => !v)}
-              aria-pressed={hideSensitive}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
-                hideSensitive
-                  ? 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/50'
-              }`}
-            >
-              {hideSensitive ? 'Sensitive hidden' : 'Sensitive shown'}
-            </button>
           </div>
         </div>
       </header>

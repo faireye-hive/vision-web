@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Rss, Sparkles, Users } from 'lucide-react';
 import { useNavigation } from '../context/NavigationContext';
 import { useI18n } from '../i18n/I18nContext';
@@ -12,11 +12,34 @@ const sections = [
 export function FeedSectionNav({ horizontal = false }: { horizontal?: boolean }) {
   const { feedSection, openFeedSection } = useNavigation();
   const { t } = useI18n();
+  const [visibleOnScrollUp, setVisibleOnScrollUp] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    if (!horizontal) return;
+
+    lastScrollY.current = window.scrollY;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollY.current;
+
+      if (currentScrollY < 80) {
+        setVisibleOnScrollUp(true);
+      } else if (Math.abs(delta) >= 8) {
+        setVisibleOnScrollUp(delta < 0);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [horizontal]);
 
   return (
     <nav
       aria-label={t('nav.feed')}
-      className={`rounded-2xl border border-slate-200/70 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${horizontal ? 'mb-3 grid grid-cols-3 gap-1 lg:hidden' : 'space-y-0.5'}`}
+      className={`rounded-2xl border border-slate-200/70 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${horizontal ? `sticky top-2 z-30 mb-3 grid grid-cols-3 gap-1 transition-transform duration-200 motion-reduce:transition-none ${visibleOnScrollUp ? 'translate-y-0' : '-translate-y-[calc(100%+1rem)]'}` : 'space-y-0.5'}`}
     >
       {sections.map(([section, Icon, label]) => {
         const active = feedSection === section;

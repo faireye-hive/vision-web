@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import React, { useState, useEffect } from 'react';
 import { 
   Heart, 
@@ -309,6 +310,7 @@ export const AuthorLayout: React.FC<ThemeProps> = (props) => {
             
             {/* FEATURED ROMANCE MASTERPIECE / LEAD CHAPTER */}
             {leadChapter && !tabLoading && (
+              <PostNsfwGate post={leadChapter}>
               <article 
                 onClick={() => onSelectPost(leadChapter)}
                 className="group p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#140e1a] border-2 border-rose-200 dark:border-rose-900/60 hover:border-rose-400 dark:hover:border-rose-500/80 transition-all duration-300 shadow-xl hover:shadow-2xl cursor-pointer relative overflow-hidden"
@@ -395,6 +397,7 @@ export const AuthorLayout: React.FC<ThemeProps> = (props) => {
 
                 </div>
               </article>
+              </PostNsfwGate>
             )}
 
             {/* MANUSCRIPT ARCHIVE (Remaining Chapters & Works) */}
@@ -446,7 +449,8 @@ export const AuthorLayout: React.FC<ThemeProps> = (props) => {
                   <p className="text-xs text-gray-500 mt-1 italic">The novelist has not filed any stories under this section yet.</p>
                 </div>
               ) : (
-                subsequentChapters.map((post, index) => {
+                subsequentChapters.map((post, index) => (
+                  <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
                   const rawThumb = getPostThumbnail(post);
                   const thumb = rawThumb ? getSafeImageUrl(rawThumb, { width: 600 }) : null;
                   const snippet = getPostSnippet(post.body || '', 220);
@@ -610,7 +614,8 @@ export const AuthorLayout: React.FC<ThemeProps> = (props) => {
                       </div>
                     </article>
                   );
-                })
+                  }}</PostNsfwGate>
+                ))
               )}
             </div>
 

@@ -1,3 +1,4 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Newspaper, 
@@ -308,6 +309,7 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
             
             {/* FRONT PAGE LEAD STORY (Featured Headline) */}
             {leadStory && !tabLoading && (
+              <PostNsfwGate post={leadStory}>
               <article 
                 onClick={() => onSelectPost(leadStory)}
                 className="group p-5 sm:p-7 rounded-2xl sm:rounded-3xl bg-white dark:bg-[#0d1424] border-2 border-gray-900/90 dark:border-slate-700/80 hover:border-blue-600 dark:hover:border-blue-400 transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer relative overflow-hidden"
@@ -385,6 +387,7 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
                   </div>
                 </div>
               </article>
+              </PostNsfwGate>
             )}
 
             {/* SECONDARY STORIES / MAIN LIST */}
@@ -433,7 +436,8 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
                   <p className="text-xs text-gray-500 mt-1">No articles have been filed under this section yet.</p>
                 </div>
               ) : (
-                secondaryStories.map((post, index) => {
+                secondaryStories.map((post, index) => (
+                  <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
                   const rawThumb = getPostThumbnail(post);
                   const thumb = rawThumb ? getSafeImageUrl(rawThumb, { width: 600 }) : null;
                   const snippet = getPostSnippet(post.body || '', 220);
@@ -598,7 +602,8 @@ export const JournalistLayout: React.FC<ThemeProps> = (props) => {
                       </div>
                     </article>
                   );
-                })
+                  }}</PostNsfwGate>
+                ))
               )}
             </div>
 

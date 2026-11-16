@@ -1,3 +1,4 @@
+import { PostNsfwGate } from './NsfwGate';
 import { useEffect, useState } from 'react';
 import { AtSign, CornerDownRight, ExternalLink, Heart, Send } from 'lucide-react';
 import {
@@ -53,6 +54,7 @@ function RelatedPost({
   const href = `https://peakd.com/@${author}/${permlink}`;
 
   return (
+    <PostNsfwGate post={post}>
     <aside className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-3 h-fit">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Post</p>
       <button
@@ -75,6 +77,7 @@ function RelatedPost({
         <ExternalLink className="w-3 h-3" />
       </a>
     </aside>
+    </PostNsfwGate>
   );
 }
 
@@ -91,10 +94,6 @@ function ReplyCard({
   const [sent, setSent] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
   const [voted, setVoted] = useState(false);
-  const looksSuspicious = hasSuspiciousCommentLanguage(reply.body || '');
-  const sanitizedHtml = looksSuspicious ? markdownToSafeHtml(reply.body || '') : '';
-  const isScamAlertComment = looksSuspicious && hasScamCommentSignals(reply.body || '', sanitizedHtml);
-  const html = isScamAlertComment ? disableExternalCommentLinks(sanitizedHtml) : sanitizedHtml;
 
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -130,11 +129,23 @@ function ReplyCard({
             <p className="text-[11px] text-slate-400">replied to you</p>
           </div>
         </div>
-        <div
-          className={`text-sm leading-relaxed text-slate-800 dark:text-slate-100 prose prose-sm dark:prose-invert max-w-none ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-        {isScamAlertComment && <ScamAlertNotice />}
+        <PostNsfwGate post={reply} bodyOnly>
+          {() => {
+            const looksSuspicious = hasSuspiciousCommentLanguage(reply.body || '');
+            const sanitizedHtml = markdownToSafeHtml(reply.body || '');
+            const isScamAlertComment = looksSuspicious && hasScamCommentSignals(reply.body || '', sanitizedHtml);
+            const html = isScamAlertComment ? disableExternalCommentLinks(sanitizedHtml) : sanitizedHtml;
+            return (
+              <>
+                <div
+                  className={`text-sm leading-relaxed text-slate-800 dark:text-slate-100 prose prose-sm dark:prose-invert max-w-none ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: html }}
+                />
+                {isScamAlertComment && <ScamAlertNotice />}
+              </>
+            );
+          }}
+        </PostNsfwGate>
         <div className="flex items-center gap-3 mt-3">
           <button
             type="button"

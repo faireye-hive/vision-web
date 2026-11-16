@@ -6,6 +6,7 @@ import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarksProvider } from './context/BookmarksContext';
 import { ContentFilterProvider, useContentFilter } from './context/ContentFilterContext';
+import { usePostNsfw } from './components/NsfwGate';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { NotificationsProvider, useNotifications } from './context/NotificationsContext';
 
@@ -111,7 +112,10 @@ function NebulosaApp() {
   } = useNavigation();
 
   const currentPostKey = selectedPost ? `${selectedPost.author}/${selectedPost.permlink}` : '';
-  const visiblePostHighlights = activePostHighlights.postKey === currentPostKey ? activePostHighlights.items : [];
+  const postNsfw = usePostNsfw(selectedPost);
+  const { showNsfw } = useContentFilter();
+  const hidePostPreviews = !showNsfw && (postNsfw.sensitive || postNsfw.pending);
+  const visiblePostHighlights = !hidePostPreviews && activePostHighlights.postKey === currentPostKey ? activePostHighlights.items : [];
   const handleHighlightsChange = useCallback((postKey: string, items: PostTextHighlight[]) => {
     setActivePostHighlights({ postKey, items });
   }, []);
@@ -221,7 +225,7 @@ function NebulosaApp() {
       />
 
       {/* Main Container with safe bottom padding for mobile bar */}
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-1 sm:px-6 py-2 sm:py-6 pb-24 md:pb-6" style={{ paddingTop: '5px' }}>
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-1 pt-[5px] pb-[calc(var(--mobile-bottom-nav-clearance)+1.5rem)] sm:px-6 md:pb-6">
         <Suspense fallback={<RouteFallback />}>
         {/* ================= STANDALONE PAGES ================= */}
         {isCommunityPage && <CommunityPage key={location.pathname} />}
@@ -285,7 +289,7 @@ function NebulosaApp() {
                   post={selectedPost}
                   profileAppearance={profileReaderAppearance}
                   onClose={handleClosePost}
-                  onSelectAuthor={handleSelectAuthor}
+                  onSelectAuthor={openAuthorProfile}
                   onSelectTag={setTag}
                   currentUser={currentUser}
                   onRequireLogin={requestLogin}
@@ -310,7 +314,7 @@ function NebulosaApp() {
         >
           {/* Left Navigation Sidebar */}
           <aside className={`${isProfilePostOpen ? 'hidden' : 'hidden lg:block sticky top-20 self-start'}`}>
-            {selectedPost && !standalonePage && activeNav !== 'shorts' && activeNav !== 'communities' ? (
+            {selectedPost && !hidePostPreviews && !standalonePage && activeNav !== 'shorts' && activeNav !== 'communities' ? (
               <PostSidebar
                 post={selectedPost}
                 headings={postHeadings}
@@ -358,7 +362,7 @@ function NebulosaApp() {
                     post={selectedPost}
                     profileAppearance={profileReaderAppearance}
                     onClose={handleClosePost}
-                    onSelectAuthor={handleSelectAuthor}
+                    onSelectAuthor={openAuthorProfile}
                     onSelectTag={(t) => {
                       if (activeNav === 'feed') {
                         if (feedSection === 'communities') {
@@ -426,7 +430,7 @@ function NebulosaApp() {
                   <PostReader
                     post={selectedPost!}
                     onClose={handleClosePost}
-                    onSelectAuthor={handleSelectAuthor}
+                    onSelectAuthor={openAuthorProfile}
                     onSelectTag={setCommunitySubTopic}
                     currentUser={currentUser}
                     onRequireLogin={requestLogin}

@@ -1,3 +1,5 @@
+import { NsfwGate } from './NsfwGate';
+import { isNsfwContent } from '../utils/nsfw';
 import { handleImageFallback } from '../utils/imageFallback';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, User, Users, Hash, ArrowRight, Clock, X, Loader2, Sparkles } from 'lucide-react';
@@ -277,8 +279,8 @@ export const SearchPreviewPopover: React.FC<SearchPreviewPopoverProps> = ({
           </div>
           <div className="space-y-1">
             {communities.map((comm) => (
+              <NsfwGate key={comm.name} sensitive={isNsfwContent(comm)}>
               <button
-                key={comm.name}
                 type="button"
                 onClick={() => {
                   saveRecentSearch(comm.title || comm.name);
@@ -302,6 +304,7 @@ export const SearchPreviewPopover: React.FC<SearchPreviewPopoverProps> = ({
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-gray-300 dark:text-slate-600 group-hover:text-emerald-500 transition-colors flex-shrink-0 ml-2" />
               </button>
+              </NsfwGate>
             ))}
           </div>
         </div>

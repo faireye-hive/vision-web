@@ -1,3 +1,4 @@
+import { PostNsfwGate } from './NsfwGate';
 import { handleImageFallback } from '../utils/imageFallback';
 import { useSavedLists } from '../context/SavedListsContext';
 import { BlacklistFlair } from './BlacklistFlair';
@@ -49,7 +50,13 @@ export interface GalleryPostCardProps {
   compact?: boolean;
 }
 
-export const GalleryPostCard: React.FC<GalleryPostCardProps> = ({
+export const GalleryPostCard: React.FC<GalleryPostCardProps> = (props) => (
+  <PostNsfwGate post={props.post}>
+    <GalleryPostCardContent {...props} />
+  </PostNsfwGate>
+);
+
+const GalleryPostCardContent: React.FC<GalleryPostCardProps> = ({
   post,
   postIndex,
   onSelectPost,

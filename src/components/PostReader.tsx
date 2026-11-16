@@ -1,3 +1,4 @@
+import { NsfwAuthor, NsfwGate, PostNsfwGate, usePostNsfw } from './NsfwGate';
 import { handleImageFallback } from '../utils/imageFallback';
 import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
@@ -221,7 +222,118 @@ function extractPostTags(post: HivePost): string[] {
   return Array.from(set).slice(0, 10);
 }
 
-export const PostReader: React.FC<PostReaderProps> = ({
+export const PostReader: React.FC<PostReaderProps> = (props) => (
+  <ResolvedPostReader key={`${props.post.author}/${props.post.permlink}`} {...props} />
+);
+
+function ResolvedPostReader(props: PostReaderProps) {
+  const { post, currentUser, onClose } = props;
+  // Full post resolution (guarantees complete body if opened from truncated sources like Similar Stories)
+  const [fullPost, setFullPost] = useState<HivePost | null>(null);
+  const [loadingFullBody, setLoadingFullBody] = useState<boolean>(false);
+  const [loadBodyError, setLoadBodyError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setLoadBodyError(false);
+
+    // Check if the post requires fetching the complete authoritative version directly from Hive blockchain
+    const needsBlockchainFetch = Boolean(
+      post.is_truncated ||
+      post.from_recommendation ||
+      !post.body ||
+      post.body.trim().length <= 300 ||
+      (post.body.length <= 250 && (post.body.endsWith('...') || post.body.endsWith('…')))
+    );
+
+    if (!needsBlockchainFetch) {
+      setFullPost(post);
+      setLoadingFullBody(false);
+      return;
+    }
+
+    // Otherwise (truncated snippet, recommendation feed, or missing body), fetch full post from Hive RPC
+    let active = true;
+    setLoadingFullBody(true);
+    getPost(post.author, post.permlink, currentUser?.username || '', true)
+      .then((data) => {
+        if (!active) return;
+        if (data && typeof data.body === 'string' && data.body.trim().length > 0) {
+          setFullPost({ ...data, is_truncated: false, from_recommendation: false });
+        } else if (post.body) {
+          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
+        } else {
+          setLoadBodyError(true);
+        }
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error('Failed to load full post in reader:', err);
+        if (post.body) {
+          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
+        } else {
+          setLoadBodyError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingFullBody(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.author, post.permlink, post.body, post.is_truncated, post.from_recommendation, currentUser?.username]);
+
+  const currentPost =
+    fullPost &&
+    fullPost.author.replace(/^@/, '').toLowerCase() === post.author.replace(/^@/, '').toLowerCase() &&
+    fullPost.permlink === post.permlink
+      ? fullPost
+      : post;
+
+  // Only show skeleton loader if fetch is actively loading AND we don't have a full body yet
+  const isBodyLoading =
+    loadingFullBody &&
+    (!currentPost.body || currentPost.body.trim().length <= 300 || Boolean(currentPost.is_truncated));
+
+  const retryFullPost = () => {
+    setLoadingFullBody(true);
+    setLoadBodyError(false);
+    getPost(post.author, post.permlink, currentUser?.username || '', true)
+      .then((data) => {
+        if (data && typeof data.body === 'string') {
+          setFullPost({ ...data, is_truncated: false });
+        } else {
+          setLoadBodyError(true);
+        }
+      })
+      .catch(() => setLoadBodyError(true))
+      .finally(() => setLoadingFullBody(false));
+  };
+
+  const sourceLabels = usePostNsfw(post);
+  const resolvedLabels = usePostNsfw(currentPost);
+  const pendingMetadata = (post.is_truncated || post.from_recommendation) && !fullPost && !loadBodyError;
+  return (
+    <NsfwGate
+      sensitive={sourceLabels.sensitive || resolvedLabels.sensitive}
+      pending={sourceLabels.pending || resolvedLabels.pending || pendingMetadata}
+      hiddenHeader={<NsfwAuthor author={post.author} />}
+      onBack={onClose}
+    >
+      <PostReaderContent {...props} fullPost={fullPost} currentPost={currentPost} isBodyLoading={isBodyLoading} loadBodyError={loadBodyError} retryFullPost={retryFullPost} />
+    </NsfwGate>
+  );
+}
+
+interface PostReaderContentProps extends PostReaderProps {
+  fullPost: HivePost | null;
+  currentPost: HivePost;
+  isBodyLoading: boolean;
+  loadBodyError: boolean;
+  retryFullPost: () => void;
+}
+
+const PostReaderContent: React.FC<PostReaderContentProps> = ({
   post,
   onClose,
   onSelectAuthor,
@@ -232,7 +344,12 @@ export const PostReader: React.FC<PostReaderProps> = ({
   onActiveHeadingChange,
   onHighlightsChange,
   onSelectPost,
-  profileAppearance
+  profileAppearance,
+  fullPost,
+  currentPost,
+  isBodyLoading,
+  loadBodyError,
+  retryFullPost,
 }) => {
   const { handleOpenNotificationPost, openAuthorProfile } = useNavigation();
   const [discussion, setDiscussion] = useState<Record<string, HivePost>>({});
@@ -889,72 +1006,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pendingExternalLink]);
 
-  // Full post resolution (guarantees complete body if opened from truncated sources like Similar Stories)
-  const [fullPost, setFullPost] = useState<HivePost | null>(null);
-  const [loadingFullBody, setLoadingFullBody] = useState<boolean>(false);
-  const [loadBodyError, setLoadBodyError] = useState<boolean>(false);
 
-  useEffect(() => {
-    setLoadBodyError(false);
-
-    // Check if the post requires fetching the complete authoritative version directly from Hive blockchain
-    const needsBlockchainFetch = Boolean(
-      post.is_truncated ||
-      post.from_recommendation ||
-      !post.body ||
-      post.body.trim().length <= 300 ||
-      (post.body.length <= 250 && (post.body.endsWith('...') || post.body.endsWith('…')))
-    );
-
-    if (!needsBlockchainFetch) {
-      setFullPost(post);
-      setLoadingFullBody(false);
-      return;
-    }
-
-    // Otherwise (truncated snippet, recommendation feed, or missing body), fetch full post from Hive RPC
-    let active = true;
-    setLoadingFullBody(true);
-    getPost(post.author, post.permlink, currentUser?.username || '', true)
-      .then((data) => {
-        if (!active) return;
-        if (data && typeof data.body === 'string' && data.body.trim().length > 0) {
-          setFullPost({ ...data, is_truncated: false, from_recommendation: false });
-        } else if (post.body) {
-          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
-        } else {
-          setLoadBodyError(true);
-        }
-      })
-      .catch((err) => {
-        if (!active) return;
-        console.error('Failed to load full post in reader:', err);
-        if (post.body) {
-          setFullPost({ ...post, is_truncated: false, from_recommendation: false });
-        } else {
-          setLoadBodyError(true);
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingFullBody(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [post.author, post.permlink, post.body, post.is_truncated, post.from_recommendation, currentUser?.username]);
-
-  const currentPost =
-    fullPost &&
-    fullPost.author.replace(/^@/, '').toLowerCase() === post.author.replace(/^@/, '').toLowerCase() &&
-    fullPost.permlink === post.permlink
-      ? fullPost
-      : post;
-
-  // Only show skeleton loader if fetch is actively loading AND we don't have a full body yet
-  const isBodyLoading =
-    loadingFullBody &&
-    (!currentPost.body || currentPost.body.trim().length <= 300 || Boolean(currentPost.is_truncated));
 
   // Extract any 3Speak video IDs from current post body
   const threeSpeakVideoIds = useMemo(() => {
@@ -1557,6 +1609,11 @@ export const PostReader: React.FC<PostReaderProps> = ({
     return Math.max(post.children || 0, discussionComments);
   }, [post.children, post.author, post.permlink, discussion]);
   const totalVotesCount = (post.stats?.total_votes || post.active_votes?.length || 0) + (hasVoted ? 1 : 0);
+  const canManageAuthor = !currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase();
+  const authorFollowing = isFollowing(post.author);
+  const authorMuted = contentFilterConfig.authors.includes(post.author.toLowerCase());
+  const authorAction = 'grid size-11 shrink-0 place-items-center rounded-xl transition focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50 sm:size-7 sm:rounded-lg';
+  const headerAction = 'inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-500 max-sm:border max-sm:border-slate-200/80 max-sm:bg-white sm:h-8 sm:min-w-8 sm:rounded-lg dark:text-slate-300 dark:hover:bg-blue-950/50 dark:hover:text-blue-300 max-sm:dark:border-slate-700 max-sm:dark:bg-slate-900';
 
   if (mutedUsersLoading) return <div role="status" className="p-6 text-center text-sm text-slate-500">Loading moderation preferences…</div>;
   if (isAuthorHidden(post.author)) return <div className="p-6 text-center text-sm text-slate-500"><p>This account is muted.</p><button onClick={onClose} className="mt-3 text-blue-500">Back</button></div>;
@@ -1717,73 +1774,82 @@ export const PostReader: React.FC<PostReaderProps> = ({
           </section>
         )}
 
-        {/* Author metadata follows the title, as in a conventional article layout. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2 pb-1">
-          <div className="relative shrink-0">
-            <button onClick={() => onSelectAuthor(post.author)} className="group block rounded-full" title={`View @${post.author} profile`}>
+        <div className="min-w-0 max-sm:rounded-2xl max-sm:border max-sm:border-slate-200/80 max-sm:bg-slate-50/70 sm:flex sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2 sm:pb-1 max-sm:dark:border-slate-800 max-sm:dark:bg-slate-950/50">
+          <div className="flex min-w-0 items-center gap-2.5 max-sm:p-2.5 sm:flex-1">
+            <button
+              type="button"
+              onClick={() => onSelectAuthor(post.author)}
+              className="group block shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-blue-500"
+              title={`View @${post.author} profile`}
+            >
               <img
                 src={avatarUrl}
                 alt={post.author}
-                className="h-8 w-8 rounded-full bg-slate-100 object-cover ring-1 ring-white shadow-sm transition group-hover:ring-blue-300 dark:bg-slate-800 dark:ring-slate-900"
+                className="size-11 rounded-full bg-slate-100 object-cover ring-1 ring-white shadow-sm transition group-hover:ring-blue-300 sm:size-8 dark:bg-slate-800 dark:ring-slate-900"
                 onError={handleImageFallback}
               />
             </button>
-            {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); handleToggleFollowAuthor(post.author); }}
-                disabled={followLoading === post.author.toLowerCase()}
-                className={`absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white shadow-sm transition active:scale-90 disabled:opacity-50 dark:ring-slate-900 ${isFollowing(post.author) ? 'bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'}`}
-                title={isFollowing(post.author) ? 'Following author (click to unfollow)' : 'Follow author'}
-                aria-label={isFollowing(post.author) ? 'Following author' : 'Follow author'}
-              >
-                {isFollowing(post.author) ? <Check className="h-2.5 w-2.5 stroke-[3]" /> : <Plus className="h-2.5 w-2.5 stroke-[3]" />}
-              </button>
-            )}
-          </div>
 
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <button onClick={() => onSelectAuthor(post.author)} className="max-w-full truncate text-sm font-bold text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-300">
-                @{post.author}
-              </button>
-              <BlacklistFlair username={post.author} />
-              <CommunityUserFlair post={fullPost || post} />
-              {isComment && (
-                <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-                  Comment
-                </span>
-              )}
-              {(!currentUser || currentUser.username.toLowerCase() !== post.author.toLowerCase()) && (
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => onSelectAuthor(post.author)}
+                  className="max-w-full truncate rounded text-left text-base font-semibold leading-tight text-slate-900 transition hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-500 sm:text-sm dark:text-white dark:hover:text-blue-300"
+                >
+                  @{post.author}
+                </button>
+                <BlacklistFlair username={post.author} />
+                <CommunityUserFlair post={fullPost || post} />
+                {isComment && (
+                  <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                    Comment
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 sm:text-[11px] dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap" title={postDate.full}><Clock className="size-3 shrink-0" />{postDate.relative}</span>
+                {(post.community_title || post.community) && (
+                  <CommunityLink
+                    name={post.community || post.category}
+                    onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
+                    className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-blue-700 hover:text-blue-800 sm:max-w-[130px] dark:text-blue-300 dark:hover:text-blue-200"
+                    title="View Community"
+                  >
+                    <Layers className="size-3 shrink-0" />
+                    <span className="truncate">{post.community_title || post.community}</span>
+                  </CommunityLink>
+                )}
+              </div>
+            </div>
+
+            {canManageAuthor && (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleToggleFollowAuthor(post.author)}
+                  disabled={followLoading === post.author.toLowerCase()}
+                  className={`${authorAction} ${authorFollowing ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300'}`}
+                  title={authorFollowing ? 'Unfollow author' : 'Follow author'}
+                  aria-label={authorFollowing ? 'Unfollow author' : 'Follow author'}
+                >
+                  {authorFollowing ? <Check aria-hidden="true" className="size-4" /> : <Plus aria-hidden="true" className="size-4" />}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleToggleMuteAuthor(post.author)}
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition ${contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300' : 'text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-800'}`}
-                  title={contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'Unmute author' : 'Mute author'}
-                  aria-label={contentFilterConfig.authors.includes(post.author.toLowerCase()) ? 'Unmute author' : 'Mute author'}
+                  className={`${authorAction} ${authorMuted ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300' : 'text-slate-500 hover:bg-slate-100 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+                  title={authorMuted ? 'Unmute author' : 'Mute author'}
+                  aria-label={authorMuted ? 'Unmute author' : 'Mute author'}
                 >
-                  <VolumeX className="h-3.5 w-3.5" />
+                  <VolumeX aria-hidden="true" className="size-4" />
                 </button>
-              )}
-            </div>
-
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-1" title={postDate.full}><Clock className="h-3 w-3" />{postDate.relative}</span>
-              {(post.community_title || post.community) && (
-                <CommunityLink
-                  name={post.community || post.category}
-                  onSelectTag={(tag) => { onSelectTag(tag); onClose(); }}
-                  className="inline-flex max-w-[130px] items-center gap-1 truncate font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                  title="View Community"
-                >
-                  <Layers className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{post.community_title || post.community}</span>
-                </CommunityLink>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <div className="relative flex min-w-0 items-center gap-1 max-sm:border-t max-sm:border-slate-200/80 max-sm:p-2 sm:ml-auto sm:shrink-0 max-sm:dark:border-slate-800">
             <PostTranslatorDropdown
               currentLanguage={activeTranslationLang}
               isTranslating={isTranslating}
@@ -1792,8 +1858,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
               onResetOriginal={handleResetOriginalPost}
             />
             <button
+              type="button"
               onClick={scrollToComments}
-              className={`${isComment ? 'hidden sm:flex' : 'flex'} h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-blue-950/50 dark:hover:text-blue-300`}
+              className={`${headerAction} px-1.5 text-xs font-semibold tabular-nums ${isComment ? 'max-sm:hidden' : ''}`}
               title={`Jump directly to ${totalCommentsCount} comments`}
               aria-label={`${totalCommentsCount} comments`}
             >
@@ -1804,23 +1871,25 @@ export const PostReader: React.FC<PostReaderProps> = ({
               href={`https://hiveblocks.com/${encodeURIComponent(post.category || 'hive')}/@${encodeURIComponent(post.author)}/${encodeURIComponent(post.permlink)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              className={headerAction}
               title="View on HiveBlocks Explorer"
               aria-label="View on HiveBlocks Explorer"
             >
               <ExternalLink className="h-4 w-4" />
             </a>
             <button
+              type="button"
               onClick={handleCopyLink}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              className={headerAction}
               title={copied ? 'Link copied' : 'Copy post link'}
               aria-label={copied ? 'Link copied' : 'Copy post link'}
             >
               {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Share2 className="h-4 w-4" />}
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+              className={headerAction}
               title="Close post (Esc)"
               aria-label="Close post"
             >
@@ -1903,20 +1972,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setLoadingFullBody(true);
-                    setLoadBodyError(false);
-                    getPost(post.author, post.permlink, currentUser?.username || '', true)
-                      .then((data) => {
-                        if (data && typeof data.body === 'string') {
-                          setFullPost({ ...data, is_truncated: false });
-                        } else {
-                          setLoadBodyError(true);
-                        }
-                      })
-                      .catch(() => setLoadBodyError(true))
-                      .finally(() => setLoadingFullBody(false));
-                  }}
+                  onClick={retryFullPost}
                   className="px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold transition cursor-pointer"
                 >
                   Retry Loading
@@ -1970,7 +2026,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
                   className="fixed inset-0 z-40 sm:hidden bg-black/40 backdrop-blur-2xs animate-in fade-in"
                   onClick={() => setShowVoteSlider(false)}
                 />
-                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 bottom-24 sm:bottom-full sm:mb-2 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl sm:shadow-xl p-4 z-50 sm:z-30 animate-in fade-in zoom-in-95 border border-gray-200 dark:border-slate-800">
+                <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 bottom-[calc(var(--mobile-bottom-nav-clearance)+1rem)] sm:bottom-full sm:mb-2 w-auto sm:w-72 max-w-[calc(100vw-1.5rem)] sm:max-w-none bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl sm:shadow-xl p-4 z-50 sm:z-30 animate-in fade-in zoom-in-95 border border-gray-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-gray-900 dark:text-white">Vote Weight</span>
                     <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{voteWeight}%</span>
@@ -2276,7 +2332,8 @@ export const PostReader: React.FC<PostReaderProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {relatedStories.filter(relPost => !isAuthorHidden(relPost.author)).map((relPost) => {
+              {relatedStories.filter(relPost => !isAuthorHidden(relPost.author)).map((relPost) => (
+                <PostNsfwGate key={`${relPost.author}/${relPost.permlink}`} post={relPost}>{() => {
                 const thumb = getPostThumbnail(relPost);
                 return (
                   <div
@@ -2333,7 +2390,9 @@ export const PostReader: React.FC<PostReaderProps> = ({
                     </div>
                   </div>
                 );
-              })}
+                }}</PostNsfwGate>
+
+              ))}
             </div>
           </div>
         )}
@@ -2585,7 +2644,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
       <button
         id="floating-comments-shortcut-btn"
         onClick={scrollToComments}
-        className="fixed right-4 sm:right-7 bottom-32 sm:bottom-24 z-40 flex h-10 items-center gap-1.5 rounded-full border border-gray-200/90 bg-white/95 px-3 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-blue-400 hover:text-blue-600 hover:shadow-xl dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
+        className="fixed right-4 sm:right-7 bottom-[calc(var(--mobile-bottom-nav-clearance)+4.5rem)] md:bottom-24 z-40 flex h-10 items-center gap-1.5 rounded-full border border-gray-200/90 bg-white/95 px-3 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-blue-400 hover:text-blue-600 hover:shadow-xl dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
         title={`Jump directly to comments (${totalCommentsCount})`}
         aria-label={`${totalCommentsCount} comments`}
       >
@@ -2595,7 +2654,7 @@ export const PostReader: React.FC<PostReaderProps> = ({
 
       {/* ================= FLOATING SCROLL NAVIGATION (FOLLOWS USER DOWN THE PAGE) ================= */}
       <div
-        className={`fixed bottom-20 sm:bottom-6 right-4 sm:right-7 z-40 flex items-center gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 dark:border-slate-700 transition-all duration-300 ${
+        className={`fixed bottom-[calc(var(--mobile-bottom-nav-clearance)+0.75rem)] md:bottom-6 right-4 sm:right-7 z-40 flex items-center gap-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl border border-gray-200/90 dark:border-slate-700 transition-all duration-300 ${
           scrolledDown ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
@@ -2943,14 +3002,9 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
     }
   };
 
-  const displayedCommentBody = translatedCommentBody || comment.body;
-  const sanitizedCommentHtml = markdownToSafeHtml(displayedCommentBody);
-  const isScamAlertComment = hasScamCommentSignals(comment.body || '', sanitizedCommentHtml);
-  const safeCommentHtml = isScamAlertComment
-    ? disableExternalCommentLinks(sanitizedCommentHtml)
-    : sanitizedCommentHtml;
-  const shouldCollapseComment = displayedCommentBody.length > 450;
   const postDate = formatPostDate(comment.created);
+  const authorFollowing = isUserFollowing?.(comment.author) ?? false;
+  const authorMuted = isAuthorMuted?.(comment.author) ?? false;
 
   // Child replies from discussion map
   const childReplies = useMemo(() => {
@@ -3049,107 +3103,126 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
       className={`min-w-0 transition-colors ${
         depth === 0
           ? 'border-b border-slate-100 py-3 first:pt-1 last:border-b-0 dark:border-slate-800'
-          : 'rounded-lg bg-slate-50/70 px-3 py-2.5 dark:bg-slate-800/40'
+          : 'rounded-lg bg-slate-50/70 px-2.5 py-2.5 sm:px-3 dark:bg-slate-800/40'
       } ${depth >= 1 && childReplies.length > 0 ? 'sm:cursor-default cursor-pointer' : ''}`}
     >
-      {/* Author Header */}
-      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          <img
-            src={avatar}
-            alt={comment.author}
-            className="w-6 h-6 rounded-full object-cover bg-gray-200 dark:bg-slate-700 ring-1 ring-gray-200 dark:ring-slate-700"
-            onError={handleImageFallback}
-          />
-          <button
-            onClick={() => onSelectAuthor(comment.author)}
-            className="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
-          >
-            @{comment.author}
-          </button>
-              <BlacklistFlair username={comment.author} />
-              <CommunityUserFlair post={comment} />
-          {comment.author.toLowerCase() === postAuthor.toLowerCase() && (
-            <span className="rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/50 dark:text-blue-300">
-              Post author
-            </span>
-          )}
-
-          {onToggleFollowAuthor && onToggleMuteAuthor && (!currentUser || currentUser.username.toLowerCase() !== comment.author.toLowerCase()) && (
-            <div className="flex items-center gap-1 ml-0.5">
-              <button
-                type="button"
-                onClick={() => onToggleFollowAuthor(comment.author)}
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-semibold transition cursor-pointer ${
-                  isUserFollowing && isUserFollowing(comment.author)
-                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900'
-                    : 'bg-gray-100 dark:bg-slate-700 hover:bg-blue-600 hover:text-white text-gray-600 dark:text-slate-300'
-                }`}
-                title={isUserFollowing && isUserFollowing(comment.author) ? 'Following author (click to unfollow)' : 'Follow author'}
-              >
-                {isUserFollowing && isUserFollowing(comment.author) ? <Check className="w-2.5 h-2.5" /> : <UserPlus className="w-2.5 h-2.5" />}
-                <span>{isUserFollowing && isUserFollowing(comment.author) ? 'Following' : 'Follow'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onToggleMuteAuthor(comment.author)}
-                className={`p-0.5 rounded-full text-xs transition cursor-pointer ${
-                  isAuthorMuted && isAuthorMuted(comment.author)
-                    ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/60'
-                    : 'text-gray-400 hover:text-rose-600'
-                }`}
-                title={isAuthorMuted && isAuthorMuted(comment.author) ? 'Author is muted (click to unmute)' : 'Mute author'}
-              >
-                <VolumeX className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          {depth > 0 && (
-            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded-full">
-              Reply
-            </span>
-          )}
-        </div>
-
-        <span className="text-[11px] text-gray-400 dark:text-slate-500" title={postDate.full}>
-          {postDate.relative}
-        </span>
-      </div>
-
-      {/* Comment Body - On mobile, aligned closer to border (pl-1 sm:pl-8) */}
-      <div
-        className={`relative mb-1.5 ${
-          shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''
-        }`}
-      >
-        <div
-          className={`comment-body article-body max-w-none break-words text-xs leading-relaxed text-gray-800 dark:text-slate-100 sm:text-sm ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
-          dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
-        />
-        {shouldCollapseComment && !isCommentBodyExpanded && (
-          <div
-            aria-hidden="true"
-            className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t ${
-              depth > 0
-                ? 'from-slate-50/90 dark:from-slate-800/90'
-                : 'from-white/95 dark:from-slate-900/95'
-            } to-transparent`}
-          />
-        )}
-      </div>
-      {shouldCollapseComment && (
+      <div className="mb-1.5 flex min-w-0 items-center gap-1.5 max-[359px]:gap-1 sm:flex-wrap sm:gap-x-2 sm:gap-y-1">
         <button
           type="button"
-          onClick={() => setIsCommentBodyExpanded((expanded) => !expanded)}
-          aria-expanded={isCommentBodyExpanded}
-          className="mb-1 inline-flex min-h-8 items-center rounded-lg px-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+          onClick={() => onSelectAuthor(comment.author)}
+          title={`View @${comment.author} profile`}
+          className="flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-md text-start text-xs font-semibold text-slate-900 transition hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-blue-500 max-[359px]:gap-1 sm:min-h-0 sm:gap-2 sm:text-sm dark:text-white dark:hover:text-blue-400"
         >
-          {isCommentBodyExpanded ? 'Show less' : '… Read more'}
+          <img
+            src={avatar}
+            alt=""
+            className="size-6 shrink-0 rounded-full bg-slate-100 object-cover ring-1 ring-slate-200 max-[359px]:size-5 dark:bg-slate-700 dark:ring-slate-700"
+            onError={handleImageFallback}
+          />
+          <span className="truncate">@{comment.author}</span>
         </button>
-      )}
-      {isScamAlertComment && <ScamAlertNotice />}
+
+        <div className="flex min-w-0 items-center gap-1 whitespace-nowrap sm:gap-1.5">
+          <div className="flex min-w-0 items-center gap-1 empty:hidden max-sm:max-w-20 max-sm:overflow-hidden">
+            <BlacklistFlair username={comment.author} />
+            <CommunityUserFlair post={comment} />
+          </div>
+          {comment.author.toLowerCase() === postAuthor.toLowerCase() && (
+            <span title="Post author" className="shrink-0 rounded-md bg-blue-50 px-1 py-0.5 text-[10px] font-medium leading-none text-blue-700 max-[359px]:px-0.5 sm:px-1.5 dark:bg-blue-950/50 dark:text-blue-300">
+              <User aria-hidden="true" className="size-3 min-[360px]:hidden" />
+              <span aria-hidden="true" className="hidden min-[360px]:inline sm:hidden">Author</span>
+              <span className="max-sm:sr-only">Post author</span>
+            </span>
+          )}
+          {depth > 0 && (
+            <span title="Reply" className="shrink-0 rounded-md bg-slate-200/60 px-1 py-0.5 text-[10px] font-medium leading-none text-slate-600 max-[359px]:px-0.5 sm:px-1.5 dark:bg-slate-700/60 dark:text-slate-300">
+              <CornerDownRight aria-hidden="true" className="size-3 min-[360px]:hidden" />
+              <span className="max-[359px]:sr-only">Reply</span>
+            </span>
+          )}
+          <time dateTime={comment.created} title={postDate.full} className="max-w-14 shrink-0 truncate text-[10px] text-slate-500 sm:max-w-none sm:text-[11px] dark:text-slate-400">
+            <span aria-hidden="true" className="min-[360px]:hidden">{postDate.relative.replace(/ ago$/, '')}</span>
+            <span className="max-[359px]:sr-only">{postDate.relative}</span>
+          </time>
+        </div>
+
+        {onToggleFollowAuthor && onToggleMuteAuthor && (!currentUser || currentUser.username.toLowerCase() !== comment.author.toLowerCase()) && (
+          <div className="ms-auto flex shrink-0 items-center gap-0.5 max-[359px]:gap-0">
+            <button
+              type="button"
+              onClick={() => onToggleFollowAuthor(comment.author)}
+              aria-label={authorFollowing ? 'Unfollow author' : 'Follow author'}
+              title={authorFollowing ? 'Following author (click to unfollow)' : 'Follow author'}
+              className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-xl text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-blue-500 sm:min-h-7 sm:min-w-0 sm:rounded-lg sm:px-2 ${authorFollowing
+                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-300'
+              }`}
+            >
+              {authorFollowing ? <Check aria-hidden="true" className="size-4" /> : <UserPlus aria-hidden="true" className="size-4" />}
+              <span className="hidden sm:inline">{authorFollowing ? 'Following' : 'Follow'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleMuteAuthor(comment.author)}
+              aria-label={authorMuted ? 'Unmute author' : 'Mute author'}
+              title={authorMuted ? 'Author is muted (click to unmute)' : 'Mute author'}
+              className={`grid size-11 place-items-center rounded-xl transition focus-visible:outline-2 focus-visible:outline-blue-500 sm:size-7 sm:rounded-lg ${authorMuted
+                ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-slate-800'
+              }`}
+            >
+              <VolumeX aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <PostNsfwGate post={comment} bodyOnly>
+        {() => {
+          const displayedCommentBody = translatedCommentBody || comment.body;
+          const sanitizedCommentHtml = markdownToSafeHtml(displayedCommentBody);
+          const isScamAlertComment = hasScamCommentSignals(comment.body || '', sanitizedCommentHtml);
+          const safeCommentHtml = isScamAlertComment
+            ? disableExternalCommentLinks(sanitizedCommentHtml)
+            : sanitizedCommentHtml;
+          const shouldCollapseComment = displayedCommentBody.length > 450;
+          return (
+            <>
+              <div
+                className={`relative mb-1.5 ${
+                  shouldCollapseComment && !isCommentBodyExpanded ? 'max-h-32 overflow-hidden' : ''
+                }`}
+              >
+                <div
+                  className={`comment-body article-body max-w-none break-words text-base leading-relaxed text-gray-800 dark:text-slate-100 ${isScamAlertComment ? 'scam-alert-comment' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: safeCommentHtml }}
+                />
+                {shouldCollapseComment && !isCommentBodyExpanded && (
+                  <div
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t ${
+                      depth > 0
+                        ? 'from-slate-50/90 dark:from-slate-800/90'
+                        : 'from-white/95 dark:from-slate-900/95'
+                    } to-transparent`}
+                  />
+                )}
+              </div>
+              {shouldCollapseComment && (
+                <button
+                  type="button"
+                  onClick={() => setIsCommentBodyExpanded((expanded) => !expanded)}
+                  aria-expanded={isCommentBodyExpanded}
+                  className="mb-1 inline-flex min-h-8 items-center rounded-lg px-1.5 text-xs font-semibold text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+                >
+                  {isCommentBodyExpanded ? 'Show less' : '… Read more'}
+                </button>
+              )}
+              {isScamAlertComment && <ScamAlertNotice />}
+            </>
+          );
+        }}
+      </PostNsfwGate>
 
       {/* Actions: Heart Upvote Button, Reply Button, Toggle Replies */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px] text-gray-500 dark:text-slate-400">
@@ -3321,7 +3394,7 @@ const CommentThreadItem: React.FC<CommentThreadItemProps> = ({
         <>
           {/* Depth === 0: Render direct subcomments on both mobile and desktop when expanded */}
           {depth === 0 && isExpanded && (
-            <div className="mt-2 space-y-1.5 border-l border-slate-200 pl-3 transition-colors dark:border-slate-700">
+            <div className="mt-2 space-y-1.5 border-s border-slate-200 ps-2 transition-colors sm:ps-3 dark:border-slate-700">
               {childReplies.map((child) => (
                 <CommentThreadItem
                   key={child.post_id || `${child.author}/${child.permlink}`}

@@ -43,10 +43,9 @@ const PREFS_KEY = 'nebulosa_manage_communities_prefs';
 interface StoredPrefs {
   sortOrder: SortOrder;
   category: string;
-  hideSensitive: boolean;
 }
 
-const DEFAULT_PREFS: StoredPrefs = { sortOrder: 'subs', category: 'all', hideSensitive: false };
+const DEFAULT_PREFS: StoredPrefs = { sortOrder: 'subs', category: 'all' };
 
 function loadPrefs(): StoredPrefs {
   try {
@@ -57,7 +56,6 @@ function loadPrefs(): StoredPrefs {
     return {
       sortOrder: validSorts.includes(parsed?.sortOrder) ? parsed.sortOrder : DEFAULT_PREFS.sortOrder,
       category: typeof parsed?.category === 'string' ? parsed.category : DEFAULT_PREFS.category,
-      hideSensitive: typeof parsed?.hideSensitive === 'boolean' ? parsed.hideSensitive : DEFAULT_PREFS.hideSensitive
     };
   } catch {
     return DEFAULT_PREFS;
@@ -80,7 +78,6 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>(initialPrefs.sortOrder);
   const [category, setCategory] = useState(initialPrefs.category);
   const [language, setLanguage] = useState('all');
-  const [hideSensitive, setHideSensitive] = useState(initialPrefs.hideSensitive);
   const [busyName, setBusyName] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -91,11 +88,11 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
   // Persist preferences
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ sortOrder, category, hideSensitive }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ sortOrder, category }));
     } catch {
       // Storage unavailable
     }
-  }, [sortOrder, category, hideSensitive]);
+  }, [sortOrder, category]);
 
   // Fetch subscriptions from Hive
   useEffect(() => {
@@ -166,7 +163,6 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
   const query = searchQuery.trim().toLowerCase();
   const inScope = useMemo(() => {
     return classified.filter((item) => {
-      if (hideSensitive && item.community.is_nsfw) return false;
       if (!query) return true;
       return (
         item.community.title?.toLowerCase().includes(query) ||
@@ -175,7 +171,7 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
         item.categoryLabel.toLowerCase().includes(query)
       );
     });
-  }, [classified, hideSensitive, query]);
+  }, [classified, query]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -342,18 +338,6 @@ export const ManageCommunitiesPage: React.FC<ManageCommunitiesPageProps> = ({
                 </button>
               ))}
 
-              <button
-                type="button"
-                onClick={() => setHideSensitive((v) => !v)}
-                aria-pressed={hideSensitive}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
-                  hideSensitive
-                    ? 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/50'
-                }`}
-              >
-                {hideSensitive ? 'Sensitive hidden' : 'Sensitive shown'}
-              </button>
             </div>
           </div>
         )}

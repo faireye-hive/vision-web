@@ -1,3 +1,5 @@
+import { PostNsfwGate } from '../../../components/NsfwGate';
+import { useContentFilter } from '../../../context/ContentFilterContext';
 import React, { useState, useEffect } from 'react';
 import { 
   Camera, 
@@ -103,7 +105,9 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
   const [galleryViewMode, setGalleryViewMode] = useState<'grid' | 'immersive'>('grid');
 
   // Lightbox preview modal state
+  const { showNsfw } = useContentFilter();
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string; post: HivePost } | null>(null);
+  useEffect(() => { setLightboxImage(null); }, [showNsfw]);
 
   // Quick reply state for guestbook / critiques
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
@@ -343,6 +347,7 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
             
             {/* EXHIBITION CENTERPIECE / GRAND MASTERPIECE */}
             {centerpiecePost && !tabLoading && (
+              <PostNsfwGate post={centerpiecePost}>
               <div className="group rounded-3xl bg-white dark:bg-[#0c111d] border border-gray-200/80 dark:border-slate-800 shadow-xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:border-emerald-500/40">
                 {/* Centerpiece Image Frame with Lightbox Zoom Trigger */}
                 {(() => {
@@ -442,6 +447,7 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
                   </div>
                 </div>
               </div>
+              </PostNsfwGate>
             )}
 
             {/* GALLERY WALL: Works Showcase */}
@@ -493,7 +499,8 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
                   ? "grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6"
                   : "space-y-6"
               }>
-                {galleryItems.map((post, index) => {
+                {galleryItems.map((post, index) => (
+                  <PostNsfwGate key={`${post.author}/${post.permlink}`} post={post}>{() => {
                   const rawThumb = getPostThumbnail(post);
                   const thumb = rawThumb ? getSafeImageUrl(rawThumb, { width: 800 }) : null;
                   const snippet = getPostSnippet(post.body || '', 180);
@@ -664,7 +671,8 @@ export const PhotographerLayout: React.FC<ThemeProps> = (props) => {
                       </div>
                     </article>
                   );
-                })}
+                  }}</PostNsfwGate>
+                ))}
               </div>
             )}
 

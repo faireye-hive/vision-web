@@ -1,3 +1,4 @@
+import { PostNsfwGate } from './NsfwGate';
 import { handleImageFallback } from '../utils/imageFallback';
 import { useSavedLists } from '../context/SavedListsContext';
 import { BlacklistFlair } from './BlacklistFlair';
@@ -1176,4 +1177,6 @@ const PostCardComponent: React.FC<PostCardProps> = ({
 );
 };
 
-export const PostCard = React.memo(PostCardComponent);
+export const PostCard = React.memo(function PostCard(props: PostCardProps) {
+  return <PostNsfwGate post={props.post}><PostCardComponent {...props} /></PostNsfwGate>;
+});

@@ -1,3 +1,4 @@
+import { NsfwGate, PostNsfwGate, usePostNsfw } from './NsfwGate';
 import { handleImageFallback } from '../utils/imageFallback';
 import { useI18n } from '../i18n/I18nContext';
 import { BlacklistFlair } from './BlacklistFlair';
@@ -70,8 +71,9 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
   onRequireLogin,
   onMuteAuthor,
   isMuted = false,
-  id
+  id,
 }) => {
+  const labels = usePostNsfw(snap);
   const [showSubcomments, setShowSubcomments] = useState(false);
   const [upvoted, setUpvoted] = useState(false);
   const [voteLoading, setVoteLoading] = useState(false);
@@ -206,7 +208,7 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
       try {
         await navigator.share({
           title: `Snap by @${snap.author}`,
-          text: snap.body ? snap.body.slice(0, 100) : '',
+          text: !labels.sensitive && !labels.pending ? snap.body?.slice(0, 100) : undefined,
           url,
         });
         setShowMenu(false);
@@ -426,17 +428,19 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
           </div>
         </div>
 
-          <SnapContent
-            body={translatedBody || snap.body}
-            jsonMetadata={snap.json_metadata}
-            author={snap.author}
-            permlink={snap.permlink}
-            onSelectTag={onSelectTag}
-            onOpenDetail={onOpenDetail ? () => onOpenDetail(snap) : undefined}
-            textClassName="text-sm text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
-            charLimit={300}
-            enableTruncation={true}
-          />
+          <NsfwGate key={`${snap.author}/${snap.permlink}`} {...labels}>
+            <SnapContent
+              body={translatedBody || snap.body}
+              jsonMetadata={snap.json_metadata}
+              author={snap.author}
+              permlink={snap.permlink}
+              onSelectTag={onSelectTag}
+              onOpenDetail={onOpenDetail ? () => onOpenDetail(snap) : undefined}
+              textClassName="text-sm text-slate-800 dark:text-slate-200 leading-6 break-words prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:underline select-text"
+              charLimit={300}
+              enableTruncation={true}
+            />
+          </NsfwGate>
 
           {/* Action Bar (Twitter / Shorts Style) */}
           <div className="shorts-action-row flex flex-wrap items-center justify-between gap-0.5 pt-2 mt-2 border-t border-slate-100/80 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
@@ -556,12 +560,11 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                 const isReplyTranslating = translatingReplyKey === replyKey;
                 const translatedReply = translatedReplies[replyKey];
                 const activeReplyBody = translatedReply || cleanSnapBody(reply.body) || reply.body;
-                const replyHtml = markdownToSafeHtml(activeReplyBody);
                 const replyTime = formatRelativeTime(reply.created);
 
                 return (
                   <div
-                    key={reply.post_id || reply.permlink}
+                    key={replyKey}
                     className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200/70 dark:border-slate-800 shadow-sm space-y-1.5"
                   >
                     <div className="flex items-center justify-between text-xs">
@@ -605,10 +608,14 @@ export const ShortCard: React.FC<ShortCardProps> = React.memo(({
                       </div>
                     </div>
 
-                    <div
-                      className="text-xs text-gray-800 dark:text-slate-200 leading-relaxed break-words pl-8 prose prose-xs dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: replyHtml }}
-                    />
+                    <PostNsfwGate post={reply} bodyOnly>
+                      {() => (
+                        <div
+                          className="text-xs text-gray-800 dark:text-slate-200 leading-relaxed break-words pl-8 prose prose-xs dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(activeReplyBody) }}
+                        />
+                      )}
+                    </PostNsfwGate>
                   </div>
                 );
               })}
